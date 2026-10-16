@@ -182,6 +182,39 @@ def test_low_scores_thresholds():
     assert score.low_scores(tr2, fc2, "natl", false_truth_below=1000)["false"] == 1
 
 
+def test_warning_events():
+    ob = np.zeros((40, 40)); seen = np.ones(ob.shape, bool)
+    ob[5:7, 5:7] = 50            # event A (4 cells)
+    ob[30, 30] = 50              # single cell: below min_cells, not an event
+    ob[20:22, 20:22] = 40        # event B at 34 only
+    w = np.zeros(ob.shape, bool)
+    w[8:12, 8:12] = True         # 2-5 cells from A: a hit within slack 4, not a false area
+    w[30:34, 0:4] = True         # far from everything: false area
+    r = score.warning_events(w, ob, seen, 48)
+    assert (r["events"], r["hits"], r["areas"], r["judged"], r["false"]) == (1, 1, 2, 2, 1)
+    assert r["cells"] == 32 and r["bad_cells"] == 16 + 7      # row 11 and column 11 lie beyond the slack
+    r = score.warning_events(w, ob, seen, 34)
+    assert (r["events"], r["hits"]) == (2, 1)
+    # an area the observations did not see is not judged
+    unseen = seen.copy(); unseen[28:36, 0:6] = False
+    r = score.warning_events(w, ob, unseen, 48)
+    assert (r["judged"], r["false"]) == (1, 0)
+    # diagonal neighbours are one event (8-connected)
+    ob2 = np.zeros((10, 10)); ob2[2, 2] = ob2[3, 3] = 50
+    assert score.warning_events(np.zeros((10, 10), bool), ob2, np.ones((10, 10), bool), 48)["events"] == 1
+
+
+def test_warning_points():
+    from rk.basins import grid
+    lats, lons = grid("natl")
+    w = np.zeros((lats.size, lons.size), bool)
+    w[40:44, 100:104] = True                       # around lat 57, lon 310
+    w[120:123, 250:253] = True                     # far away: false
+    r = score.warning_points(w, "natl", [57.0, 40.0], [310.5, 300.0], 300)
+    assert (r["events"], r["hits"], r["areas"], r["false"]) == (2, 1, 2, 1)
+    assert r["bad_cells"] == 9
+
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):

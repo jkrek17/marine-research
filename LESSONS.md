@@ -11,6 +11,8 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **RSS ASCAT cell centres sit 0.125 deg off the 0.25 deg model grid.** Snap with floor(x + 0.5), not np.rint: half-to-even rounding empties every other row and column.
 - **Metop-B reads ~1 kt higher than Metop-C at storm force**, and 1 kt moves the 48 kt frequency ~17%; single-cell noise matters far less (~5%). *`rk.truth.ascat(intercal=True)` meets them halfway.*
 - **RSS ASCAT lags about 2 days.** Score days at least 3 days back, or the truth is missing, not the wind.
+- **The hf-low archive has typo dates** (e.g. `2018232906` in the Atlantic sheet); a strict date parse fails the whole file. *`rk.truth.hf_archive` drops rows whose date does not parse.* Fixes belong in the spreadsheet (hf-low's "Fixes wanted in the sheet").
+- **Score warnings on issued areas only where the text parsed completely.** The HSF parser reads about 2 in 3 winter hours fully; a partial mask makes the desk look like it missed.
 - **ERA5 is too weak to referee gales** (catches 49 of 131 buoy gales vs 80 for the operational analyses). Fine for pressure.
 - **Don't trust MSLP gradients over Greenland or within ~80 km of land** for wind; they are reduction artefacts.
 
