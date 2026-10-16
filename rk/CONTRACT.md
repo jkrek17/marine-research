@@ -53,6 +53,21 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `obs(basin, valid, platforms=("buoy","drifter"), adjust10m=True) -> dict of 1-D arrays | None`: ship and buoy winds rebuilt as GDAS first guess + O-B departure from `gdas.YYYYMMDD/HH/atmos/wdqms/gdas.tHHz.marine.csv`, background from the previous cycle's f003-f009. Status 0 only, +-1 h, open water, blacklist (`rk/data/obs_blacklist_basins.txt`) and the 75 fixed coastal stations (`rk/data/fixed_stations.txt`) removed. Buoys raised from 4 m to 10 m (neutral Charnock); ships scaled by 0.88. Fields: lat, lon, speed_kt, speed_kt_raw, u, v, station_id, platform.
 - `ascat(basin, valid, max_dt_min=90, real=True) -> dict | None`: RSS ASCAT v2.1 (Metop-B, C) cells within the window, rain dropped, open water only; `spd_kt` is real 10 m wind (converted from equivalent-neutral with the analysis air-sea temperature difference) when `real=True`, else equivalent-neutral; also `spd_enw_kt`, `dt_min`, `sat`. Raw daily cells cached under `truth/ascat/{YYYYMMDD}.npz`.
 - `enw_to_real(enw_kt, dT)`.
+- ASCAT on the model grid (offline helpers plus one loader):
+  - `ascat_bc_bias(spd_kt)`: Metop-B minus Metop-C bias (kt) by speed, interpolated between band centres 30, 40, 50, 60 kt (+0.297, +0.567, +0.836, +1.251; chance-calibration `ascat_noise/results.csv`), 0 below 25 kt.
+  - `ascat_meet_halfway(spd_kt, sat)`: subtract half the bias from Metop-B (sat 2), add half to Metop-C (sat 3).
+  - `ascat_to_grid(basin, lat, lon, spd_kt) -> (grid, count)`: snap to the basin's 0.25 deg grid with floor(x+0.5); cells in the same grid cell are averaged; NaN where none.
+  - `box_mean(grid_kt, min_valid=6, size=3) -> (mean, n_valid)`: mean of valid cells in the 3x3 box, NaN where fewer than 6 of 9 are valid (edges count missing cells as invalid; the centre need not be valid).
+  - `ascat_grid(basin, valid, correct=True, real=True) -> {"cells", "box", "n_box"} | None`: `ascat()` cells, Metop offset corrected, on the basin grid (kt, float32, NaN = no truth). Event = `box >= thr` (the main truth for chances) or `cells >= thr` (single cell, for comparison).
+
+## rk/calibrate.py (plain numpy arrays in; chances 0-1, knots in percent)
+- `EDGES`: bin edges `[0, .01, .02, .05, .10, .15, .20, .30, .40, .50, .60, .70, .80, .90, 1.00001]`. `LEAD_GROUPS = {"le48": (24, 48), "72": (72,), "ge96": (96, 120)}`; `lead_group(step)`.
+- `table(p, event, edges=EDGES, w=None) -> dict` of per-bin arrays `n, events, sum_p, sum_p2, sum_p_ev` (w = optional counts); `add_tables(*tabs)` sums them, so many cycles pool without keeping cells.
+- `reliability(p, event, edges=EDGES) -> dict`: per bin `n`, `events`, `mean_fc` (mean forecast), `obs_freq` (NaN if empty), `edges`.
+- `fit(table, nmin=2000) -> (raw_knots_pct, cal_knots_pct)`: the page's fitter (`wind-focus/basins/code/fit_calibration.py`): bin mean raw -> observed frequency, shrunk toward raw by min(1, n/nmin), starts (0, 0), ends (100, 100) if the data stop short, calibrated forced non-decreasing. Takes a summed table or a `reliability()` dict; one truth.
+- `apply(p, raw_knots, cal_knots)` -> 0-1; `cal_at(raw_pct, raw, cal)` -> percent; `raw_for(target_pct, raw, cal)` -> the lowest raw percent that gives the calibrated target (NaN if never reached).
+- `brier(p, event, w=None)`, `brier_skill(p, event, clim, w=None)` (1 - BS/BS of the constant clim; NaN when climate is perfect), `reliability_error(table)` (n-weighted RMS of mean forecast minus observed frequency over bins, 0-1).
+- `to_page_json(curves, note="", path=None)`: `curves = {(thr, basin, group): (raw, cal)}` -> the layout of awips-tools `marine_wind/pipeline/calibration.json`: `{"note", "thresholds": {"48": {"natl": {"le48": {"raw", "cal"}, "72": ..., "ge96": ...}, "npac": ...}, "64": ..., "34": ...}}`.
 
 ## rk/score.py (grids: forecast and truth on the same grid; mask optional)
 - `contingency(fc, ob, thr, mask=None) -> (hits, false_alarms, misses)`.
@@ -70,6 +85,6 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `use()`: apply the house matplotlib style.
 - `METHOD_COLORS`, `METHOD_LABELS`: fixed per method key (gfs, ifs, aifs, mean3, blend, corelift, gefs, ens, aifs-ens, desk, analysis, ascat, buoys).
 - `WIND_LEVELS`, `wind_cmap()`, `wind_norm()`: the page's knot breaks; gale and above in the page's colours.
-- `HAZARD_COLORS` for gale, storm, hf.
+- `HAZARD_COLORS` for gale, storm, hf. `BASIN_COLORS` (natl, npac): one colour per basin, for figures that compare basins (distinct from the method hues).
 - `title(ax, finding, detail)`: finding as the title, case count and period beneath.
 - `save(fig, path)`: PNG at 150 dpi plus the same name in SVG.

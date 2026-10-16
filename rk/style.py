@@ -39,6 +39,9 @@ WIND_COLORS = ["#f4f6f8", "#dde6ef", "#c3d4e6", "#9fbbd9", "#7aa0c9", "#5683b5",
 WIND_OVER = "#c86fd8"
 
 HAZARD_COLORS = {"gale": "#c98500", "storm": "#d9480f", "hf": "#b5179e"}
+# One colour per basin for figures that compare basins (distinct from the method hues; both pass 3:1 on white).
+BASIN_COLORS = {"natl": "#0e7c86", "npac": "#a63d9b"}
+
 HAZARD_THRESHOLDS = {"gale": 34, "storm": 48, "hf": 64}
 
 DIV_LOW, DIV_MID, DIV_HIGH = "#2b5fa8", "#f0efec", "#a8301f"
