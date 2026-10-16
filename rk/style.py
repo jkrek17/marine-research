@@ -25,7 +25,7 @@ METHOD_COLORS = {
 METHOD_DASHES = {"gefs": (4, 2), "ens": (4, 2), "aifs-ens": (4, 2)}
 METHOD_LABELS = {
     "gfs": "GFS", "ifs": "ECMWF", "ecmwf": "ECMWF", "aifs": "AIFS", "blend": "Blend",
-    "corelift": "Core-lifted blend", "mean3": "3-model mean", "gefs": "GEFS mean", "ens": "ENS mean",
+    "corelift": "Core Lifted", "mean3": "3-model mean", "gefs": "GEFS mean", "ens": "ENS mean",
     "aifs-ens": "AIFS ENS mean", "desk": "Desk", "analysis": "Analysis", "ascat": "ASCAT",
     "buoys": "Buoys",
 }
