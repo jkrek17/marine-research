@@ -139,6 +139,21 @@ def _load_analysis(z):
     return {"gfs": g, "ifs": i, "mean_speed": z["mean_speed"], "msl": z["msl"], "mask": z["mask"]}
 
 
+def analysis_arrays(g, i, land, ice):
+    """The arrays stored for one basin and valid time, from the GFS and IFS step-0 dicts (u, v m/s, msl hPa),
+    GFS LAND and ICEC. mask = open, ice-free water; a NaN ice cell compares False, so it is masked out.
+    Shared by analysis() and tools/import_wx_cache.py so the two always write the same thing."""
+    gs = np.hypot(g["u"], g["v"]) * KT
+    is_ = np.hypot(i["u"], i["v"]) * KT
+    arrays = {"mean_speed": ((gs + is_) / 2).astype(np.float32),
+              "msl": ((g["msl"] + i["msl"]) / 2).astype(np.float32),
+              "mask": (land < 0.01) & (ice <= 0.15)}
+    for name, r in (("gfs", g), ("ifs", i)):
+        arrays.update({name + "_u": r["u"].astype(np.float16), name + "_v": r["v"].astype(np.float16),
+                       name + "_msl": r["msl"].astype(np.float32)})
+    return arrays
+
+
 def analysis(basin, valid):
     """Analysis at the valid time -> {'gfs','ifs' (det dicts), 'mean_speed' (kt), 'msl' (hPa, mean of the
     two), 'mask' (open, ice-free water)} or None if either analysis or the mask is not posted.
@@ -153,14 +168,6 @@ def analysis(basin, valid):
     if g is None or i is None or m is None:
         return None
     for b in BASINS:
-        gs = np.hypot(g[b]["u"], g[b]["v"]) * KT
-        is_ = np.hypot(i[b]["u"], i[b]["v"]) * KT
-        mask = (m[b]["land"] < 0.01) & (m[b]["ice"] <= 0.15)
-        arrays = {"mean_speed": ((gs + is_) / 2).astype(np.float32),
-                  "msl": ((g[b]["msl"] + i[b]["msl"]) / 2).astype(np.float32), "mask": mask}
-        for name, r in (("gfs", g[b]), ("ifs", i[b])):
-            arrays.update({name + "_u": r["u"].astype(np.float16), name + "_v": r["v"].astype(np.float16),
-                           name + "_msl": r["msl"].astype(np.float32)})
-        _save(_analysis_path(b, valid), **arrays)
+        _save(_analysis_path(b, valid), **analysis_arrays(g[b], i[b], m[b]["land"], m[b]["ice"]))
     with np.load(p) as z:
         return _load_analysis(z)
