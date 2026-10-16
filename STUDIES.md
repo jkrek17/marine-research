@@ -6,6 +6,7 @@ Truth abbreviations: **anl** = GFS+IFS analysis mean, **ASCAT** = RSS ASCAT real
 
 | Started | Study | Question (Jason's words where we have them) | Answer in one line | Truth | Where |
 |---|---|---|---|---|---|
+| 2026-10-16 | AIFS in the blend | Should the AIFS be in the Core Lifted? | Running (win line preset) | ASCAT, buoys | `studies/2026-10-16-aifs-in-blend/` |
 | 2026-10-16 | Storm-core lift retrain | Retrain the storm-core lift on both basins with held-out weeks; keep +5 kt or make it depend on likelihood? (research agenda avenue 1) | Code ready: `train.py` (tune-week CV), `predict.py`, `score.py` (final gate: `FINAL_CHOICE.json`); waiting on the GFS low-level fill and the full table | ASCAT | `studies/2026-10-16-core-lift-retrain/` |
 | 2026-10-16 | Storm-force truth | When ASCAT says storm or hurricane force, how strong is the wind really? (research agenda avenue 2) | Unsettled above 56 kt. At 48-56 kt SMAP is 0.4 kt (same cell) to 1.5-2.0 kt (storm peaks) above ASCAT: ASCAT stays the referee by default, no adjustment; >=16% of co-seen SMAP storm cells are ASCAT rain-flagged; no buoy/ship pair at 48+ | SMAP, buoys, ships | `studies/2026-10-16-storm-force-truth/` |
 | 2026-10-16 | Day 5-7 pressure forecast | Can a system beat the deterministic models on MSLP at day 5-7 and keep the lows? | Running | anl, ERA5 check | `/mnt/project-files/pressure-d5-7/` |
