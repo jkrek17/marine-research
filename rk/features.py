@@ -29,6 +29,8 @@ Approximations against the live page (the only places the numbers can differ):
      differ from live by about 0.01 kt. Low-level winds are float16 m/s in the cache.
   6. The grid is the basin box, filters use mode "nearest" (live WRAP False). The page zeroes the core
      below 25 degrees latitude; the boxes start at 30 N, so that never applies.
+  6b. low_models (default the live three) restricts the low-level 3-model mean to a subset (GFS only while
+     only GFS low fields exist); the result's "low_models" records it. A GFS-only mean is not the live feature.
   7. models/ens subsets (degraded runs): speeds of an absent model are NaN in its s10_ column and left out
      of mod_max/mod_min/mod_sd/support weights; absent low-level means are over the models present. Used only
      when asked for; the default is the live 3 models and GEFS + ENS.
@@ -151,7 +153,7 @@ def assemble(lats, speeds, pooled, stats, step, pa48=None, low=None, names=MODEL
     return {k: np.asarray(c[k], np.float32) for k in FEATURES}
 
 
-def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=True):
+def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=True, low_models=MODELS):
     """Storm-core features for one basin, cycle and lead from the store -> dict or None.
 
     Keys: the 28 FEATURES (float32 [y, x] on the basin grid), "ocean" (bool), "cand" (ocean & (r10 >= 28 |
@@ -159,8 +161,15 @@ def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=Tr
     low=False). Returns None if any required input is missing: a deterministic model in `models`, an
     ensemble in `ens` (aifs-ens is optional: pa48 is NaN without it), or, with low=True, a model's lower-level
     file (rk.store.load_low, from low_root or the shared store) or the GFS land/ice for the ocean mask.
+    `low_models` (default the live three) picks which models' lower-level fields form the 3-model mean of the
+    eight low-level features, e.g. ("gfs",) while only GFS low fields are in the store; it must include "gfs"
+    (land/ice) and be a subset of `models`. The result's "low_models" says which were used (empty tuple when
+    low=False), so a table never passes a GFS-only mean off as the live one.
     See the module docstring for every approximation."""
     models, ens = tuple(models), tuple(ens)
+    low_models = tuple(low_models)
+    if low and (not low_models or not set(low_models) <= set(models) or "gfs" not in low_models):
+        raise ValueError("low_models must be a non-empty subset of models that includes gfs")
     if not models or not ens:
         raise ValueError("need at least one model and one ensemble")
     dets = [store.load_det(basin, cycle, m, step) for m in models]
@@ -174,11 +183,11 @@ def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=Tr
     pa48 = None if aens is None else aens["p48"]
     lows = None
     if low:
-        lows = [store.load_low(basin, cycle, m, step, root=low_root) for m in models]
+        lows = [store.load_low(basin, cycle, m, step, root=low_root) for m in low_models]
         if any(x is None for x in lows):
             return None
-        gfs = lows[models.index("gfs")] if "gfs" in models else None
-        if gfs is None or "land" not in gfs:
+        gfs = lows[low_models.index("gfs")]
+        if "land" not in gfs:
             return None
         lw = {k: np.mean([x[k] for x in lows], 0) for k in ("t2", "skt", "t925", "t850")}
         for k in ("u925", "v925", "u850", "v850"):
@@ -199,4 +208,5 @@ def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=Tr
     f["cand"] = ocean & ((f["r10"] >= CAND_R10) | (f["mod_max"] >= CAND_MOD))
     f["basin_pac"] = int(basin == "npac")
     f["no_low"] = not low
+    f["low_models"] = low_models if low else ()
     return f

@@ -31,6 +31,7 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Caches in session folders die with the session.** Fields and truth go in the shared data folder through `rk.store`.
 - **`pkill -f pattern` and `pgrep -f pattern` match their own shell.** Wait on a PID or a log line.
 - **Don't mix runs in one case.** If a model is missing for a cycle, skip the cycle.
+- **sklearn's HistGradientBoosting cannot fit a column that is all NaN** (`window shape cannot be larger than input array shape`). A no-low table carries the eight low-level features as NaN, so only the store feature sets train on it. *`train.py` skips and says so.*
 - **Fork plus OpenMP deadlocks** after an sklearn fit: use a spawn pool.
 - **Date line:** keep Pacific longitudes 160-245; -180..180 broke distances and lost lows once.
 - **netCDF4/HDF5 is not thread-safe.** Reading SMAP files from 4 threads raised `NetCDF: HDF error` and hung the fill. *`rk.truth._smap_cells` holds a lock around the read.*

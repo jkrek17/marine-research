@@ -82,6 +82,49 @@ def test_assemble_keys_and_live_formulas():
     assert all(np.isnan(f24[k]).all() for k in features.LOW_FEATURES)
 
 
+def test_core_low_models_subset():
+    """core(low_models=("gfs",)) builds the low-level means from GFS alone and says so; offline, store patched."""
+    from rk import store
+    lats, lons = grid("natl")
+    shape = (len(lats), len(lons))
+    rng = np.random.default_rng(5)
+    base = 25 + 15 * rng.random(shape).astype(np.float32)
+    det = lambda off: {"speed": base + off, "u": base, "v": base, "msl": base}
+    ens = {"spd_mean": base, "spd_std": 0 * base + 3, "p34": 0 * base, "p48": 0 * base, "p64": 0 * base,
+           "n": store.MIN_MEMBERS + 10}
+
+    def low(off):
+        d = {k: (270 + off + 10 * rng.random(shape)).astype(np.float32) for k in ("t2", "skt", "t925", "t850")}
+        d.update({k: (off + 10 * rng.random(shape)).astype(np.float32) for k in ("u925", "v925", "u850", "v850")})
+        return d
+    lows = {"gfs": low(0), "ifs": low(5), "aifs": low(10)}
+    lows["gfs"].update({"land": np.zeros(shape, bool), "ice": np.zeros(shape, np.float32)})
+    saved = (store.load_det, store.load_ens, store.load_low)
+    store.load_det = lambda b, c, m, s: det({"gfs": 0, "ifs": 1, "aifs": 2}[m])
+    store.load_ens = lambda b, c, e, s: None if e == "aifs-ens" else ens
+    store.load_low = lambda b, c, m, s, root=None: lows.get(m)
+    cyc = __import__("datetime").datetime(2026, 1, 1, 12)
+    try:
+        g = features.core("natl", cyc, 48, low_models=("gfs",))
+        a = features.core("natl", cyc, 48)
+        n = features.core("natl", cyc, 48, low=False, low_models=())  # unused when low=False
+        assert g["low_models"] == ("gfs",) and a["low_models"] == ("gfs", "ifs", "aifs") and n["low_models"] == ()
+        assert np.allclose(g["s925"], np.hypot(lows["gfs"]["u925"], lows["gfs"]["v925"]) * 1.943844, rtol=1e-4)
+        assert np.allclose(g["dT"], lows["gfs"]["t2"] - lows["gfs"]["skt"])
+        assert np.allclose(g["sst_t925"], lows["gfs"]["skt"] - lows["gfs"]["t925"])
+        assert np.allclose(a["sst_t925"], np.mean([lows[m]["skt"] - lows[m]["t925"] for m in lows], 0), atol=1e-4)
+        assert np.allclose(g["r10"], a["r10"])      # 10 m side untouched
+        for bad in ((), ("ifs",)):
+            try:
+                features.core("natl", cyc, 48, low_models=bad)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("low_models %r should be refused" % (bad,))
+    finally:
+        store.load_det, store.load_ens, store.load_low = saved
+
+
 def test_feature_list_matches_live_model_when_present():
     # the repo does not depend on awips-tools; compare only if a checkout sits beside this one
     p = Path(__file__).resolve().parents[2] / "awips-tools" / "marine_wind" / "pipeline" / "core_model.json"

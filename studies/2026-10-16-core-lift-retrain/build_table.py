@@ -2,7 +2,7 @@
 """Build the core-lift training table: one parquet per (basin, cycle, step).
 
   python3 build_table.py [--out DIR] [--low-root DIR | --no-low] [--workers 4]
-         [--start 2025-11-01] [--end 2026-03-31] [--basins natl,npac] [--steps 24,48,72,96,120]
+         [--low-models gfs,ifs,aifs] [--start 2025-11-01] [--end 2026-03-31] [--basins natl,npac] [--steps 24,48,72,96,120]
          [--max-cycles N]   (first N cycles per basin that have every model, for a small run)
 
 For each basin, each 00Z and 12Z cycle in the window, each step: the 28 live core features
@@ -11,7 +11,8 @@ Rows: candidate cells (ocean & (blend >= 28 kt | a model >= 34 kt)) that ASCAT s
 row and column; of those, every cell with r10 >= 40 or y == 1 is kept (weight 1) and a random 15% of the
 rest (weight 1/0.15). The random draw is seeded from (seed, basin, cycle, step), so a rerun reproduces it.
 Columns: basin, cycle, step, valid (YYYYMMDDHH), row, col, split (rk.cases.split on the CYCLE date), y, w,
-asc (ASCAT cell speed kt), asc_nb (max in the 5x7 box), basin_pac, no_low, then the 28 features.
+asc (ASCAT cell speed kt), asc_nb (max in the 5x7 box), basin_pac, no_low, low_models ("gfs+ifs+aifs", "gfs", ...; "" with --no-low: which
+models' lower-level fields formed the low-level means), then the 28 features.
 
 Files already present are skipped; cases whose inputs are missing (a model, an ensemble, the low-level
 cache, ASCAT or the analysis for the valid day) are counted and left for a rerun as the store fills.
@@ -32,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np  # noqa: E402
 
-from rk import cases, paths, store  # noqa: E402
+from rk import cases, features, paths, store  # noqa: E402
 from rk.basins import BASINS  # noqa: E402
 
 SEED = 20261016
@@ -48,13 +49,13 @@ def case_path(out, basin, cycle, step):
 def build_case(job):
     """One (basin, cycle, step) -> (job, status, nrows, npos); status in done, existing, missing_inputs,
     missing_ascat."""
-    basin, cycle, step, out, low_root, no_low = job
+    basin, cycle, step, out, low_root, no_low, low_models = job
     p = case_path(out, basin, cycle, step)
     if p.exists():
         return job, "existing", 0, 0
     import pandas as pd
     from rk import features, truth
-    f = features.core(basin, cycle, step, low_root=low_root, low=not no_low)
+    f = features.core(basin, cycle, step, low_root=low_root, low=not no_low, low_models=low_models)
     if f is None:
         return job, "missing_inputs", 0, 0
     valid = cycle + dt.timedelta(hours=step)
@@ -81,7 +82,8 @@ def build_case(job):
                        "valid": cases.tag(valid), "row": r.astype(np.int16), "col": c.astype(np.int16),
                        "split": cases.split(cycle), "y": y[r, c].astype(np.int8), "w": w[r, c].astype(np.float32),
                        "asc": t["spd"][r, c], "asc_nb": t["max_nb"][r, c],
-                       "basin_pac": np.int8(f["basin_pac"]), "no_low": np.int8(f["no_low"])})
+                       "basin_pac": np.int8(f["basin_pac"]), "no_low": np.int8(f["no_low"]),
+                       "low_models": "+".join(f["low_models"])})
     for k in features.FEATURES:
         df[k] = f[k][r, c].astype(np.float32)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -108,6 +110,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=None)
     ap.add_argument("--low-root", default=None, help="root of a local low-level cache (fields/... under it)")
+    ap.add_argument("--low-models", default="gfs,ifs,aifs",
+                    help="models whose lower-level fields are averaged (gfs while only GFS low fields exist; "
+                         "a GFS-only mean is not the live feature and is labelled in the low_models column)")
     ap.add_argument("--no-low", action="store_true", help="build without lower-level features (labelled)")
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--start", default="2025-11-01")
@@ -124,12 +129,16 @@ def main():
               "output %s is NOT a full-feature table ***" % out, flush=True)
     start, end = (dt.datetime.strptime(x, "%Y-%m-%d") for x in (a.start, a.end))
     steps = tuple(int(s) for s in a.steps.split(","))
+    low_models = tuple(a.low_models.split(","))
+    if low_models != features.MODELS and not a.no_low:
+        out = out.with_name(out.name + "-" + "+".join(low_models))
+        print("*** low-level means over %s only (not the live three): output %s ***" % (low_models, out), flush=True)
     jobs = []
     for b in a.basins.split(","):
         cyc = window_cycles(b, start, end)
         if a.max_cycles:
             cyc = [c for c in cyc if complete(b, c, steps)][:a.max_cycles]
-        jobs += [(b, c, s, str(out), a.low_root, a.no_low) for c in cyc for s in steps]
+        jobs += [(b, c, s, str(out), a.low_root, a.no_low, low_models) for c in cyc for s in steps]
     print("cases: %d (%s) -> %s" % (len(jobs), a.basins, out), flush=True)
     tally = {"done": 0, "existing": 0, "missing_inputs": 0, "missing_ascat": 0}
     rows = pos = 0

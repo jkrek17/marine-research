@@ -47,6 +47,84 @@ def test_tile_peaks():
     assert len(score.tile_peaks(fc, ob, lat, lon, min_n=500)) == 0
 
 
+def test_tile_hits():
+    lats = 49.75 - 0.25 * np.arange(20)                      # 49.75 .. 45.0: one 5 deg tile row (45-50)
+    lons = 300.0 + 0.25 * np.arange(40)                      # 300 .. 309.75: two tiles (300-305, 305-310)
+    shape = (20, 40)
+    ob = np.full(shape, 20.0); fc = np.full(shape, 20.0)
+    seen = np.ones(shape, bool)
+    seen[:, 20:] = False; seen[:, 20:25] = True               # tile B has only 100 seen cells -> dropped at 150
+    ob[3, 3] = 50.0                                           # tile A obs event
+    fc[3, 3] = 50.0                                           # forecast hits it
+    t = score.tile_hits(fc, ob, seen, lats, lons, 48)
+    assert len(t) == 1 and t.n_seen[0] == 400 and t.ob_event[0] and t.fc_event[0]
+    assert score.tile_counts(t) == (1, 0, 0)
+    t = score.tile_hits(fc, ob, seen, lats, lons, 48, min_seen=100)
+    assert len(t) == 2 and score.tile_counts(t) == (1, 0, 0) and list(t.lon0) == [300, 305]
+    # forecast storm only outside the seen cells is not judged; a miss; a false alarm
+    fc2 = np.full(shape, 20.0); fc2[10, 35] = 60.0            # unseen cell (col 35)
+    t = score.tile_hits(fc2, ob, seen, lats, lons, 48, min_seen=100)
+    assert score.tile_counts(t) == (0, 1, 0)
+    ob3 = np.full(shape, 20.0); fc3 = fc.copy()
+    t = score.tile_hits(fc3, ob3, seen, lats, lons, 48, min_seen=100)
+    assert score.tile_counts(t) == (0, 0, 1)
+    # NaN observation or forecast never counts; 2-D lat/lon and negative-longitude input agree
+    ob4 = ob.copy(); ob4[0, 0] = np.nan; fc4 = fc.copy(); fc4[1, 1] = np.nan
+    t4 = score.tile_hits(fc4, ob4, seen, lats, lons, 48)
+    LA, LO = np.meshgrid(lats, lons - 360.0, indexing="ij")
+    t5 = score.tile_hits(fc4, ob4, seen, LA, LO, 48)
+    assert t4.equals(t5) and score.tile_counts(t4) == (1, 0, 0)
+    # 34 kt threshold on the same grids
+    assert score.tile_counts(score.tile_hits(fc, ob, seen, lats, lons, 34)) == (1, 0, 0)
+    assert len(score.tile_hits(fc, ob, np.zeros(shape, bool), lats, lons, 48)) == 0
+
+
+def test_brier_auc_reliability():
+    rng = np.random.default_rng(0)
+    p = rng.random(4000); y = (rng.random(4000) < p).astype(float)
+    assert 0.2 < score.brier_skill(p, y) < 0.4          # calibrated: BSS = 1 - (1/6)/(1/4) = 0.333
+    assert abs(score.brier_skill(np.full(100, 0.3), np.r_[np.ones(30), np.zeros(70)])) < 1e-12
+    assert np.isnan(score.brier_skill(p, np.zeros(4000)))
+    # weights: duplicating a row == weight 2
+    w = np.ones(4000); w[:50] = 2
+    p2, y2 = np.r_[p, p[:50]], np.r_[y, y[:50]]
+    assert abs(score.brier_skill(p, y, w) - score.brier_skill(p2, y2)) < 1e-12
+    assert abs(score.auc(p, y, w) - score.auc(p2, y2)) < 1e-12
+    # AUC against the pair-counting definition, with ties
+    a = np.array([0.1, 0.4, 0.4, 0.8, 0.8, 0.9]); b = np.array([0, 0, 1, 1, 0, 1])
+    pos, neg = a[b == 1], a[b == 0]
+    exp = np.mean([(x > z) + 0.5 * (x == z) for x in pos for z in neg])
+    assert abs(score.auc(a, b) - exp) < 1e-12 and np.isnan(score.auc(a, np.ones(6)))
+    # histogram form agrees when bins hold identical values
+    pos_h = np.array([1.0, 2, 0, 3]); neg_h = np.array([4.0, 1, 2, 1])
+    pp = np.repeat(np.arange(4), (pos_h + neg_h).astype(int))
+    yy = np.concatenate([np.r_[np.ones(int(a_)), np.zeros(int(b_))] for a_, b_ in zip(pos_h, neg_h)])
+    assert abs(score.auc_from_hist(pos_h, neg_h) - score.auc(pp, yy)) < 1e-12
+    r = score.reliability(p, y, bins=10)
+    assert r.n.sum() == 4000 and (np.abs(r.mean_p - r.freq) < 0.08).all()
+    assert score.reliability(np.array([1.0, 0.0]), np.array([1, 0]), bins=10).n.tolist() == [1] + [0] * 8 + [1]
+
+
+def test_paired_counts():
+    rng = np.random.default_rng(2)
+    days = pd.date_range("2025-11-01", periods=140, freq="D")
+    rows = []
+    for d in days:
+        for m, pod in (("a", 0.4), ("b", 0.55)):
+            n = 10
+            h = int(rng.binomial(n, pod))
+            rows.append(dict(cycle=d, step=24, method=m, h=h, m=n - h, fa=int(rng.binomial(10, 0.1))))
+    df = pd.DataFrame(rows)
+    pod = lambda c: c["h"] / (c["h"] + c["m"])
+    r = compare.paired_counts(df, "b", "a", pod, ["h", "m", "fa"], by="step", seed=1).iloc[0]
+    assert 0.1 < r["diff"] < 0.2 and r.lo < r["diff"] < r.hi and r.significant and r.n_cases == 140
+    assert abs(r["diff"] - (df[df.method == "b"].h.sum() / 1400 - df[df.method == "a"].h.sum() / 1400)) < 1e-12
+    z = compare.paired_counts(df, "a", "a", pod, ["h", "m", "fa"])
+    assert z.iloc[0]["diff"] == 0 and not z.iloc[0].significant
+    tot, dr = compare.boot_sums(np.repeat([1, 2, 3], 2), np.arange(6.0), n_boot=50, seed=0)
+    assert tot[0] == 15 and dr.shape == (50, 1) and (dr[:, 0] % 1 == 0).all()
+
+
 def test_paired_bootstrap():
     rng = np.random.default_rng(1)
     days = pd.date_range("2025-11-01", periods=140, freq="D")
