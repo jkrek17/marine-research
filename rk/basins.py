@@ -54,3 +54,28 @@ def sample(field, basin, lat, lon):
     out = ((1 - wy) * (1 - wx) * g[y0, x0] + (1 - wy) * wx * g[y0, x0 + 1]
            + wy * (1 - wx) * g[y0 + 1, x0] + wy * wx * g[y0 + 1, x0 + 1])
     return np.where(inside(basin, lat, lon), out, np.nan)
+
+
+def to_quarter(field_half, basin):
+    """0.5 deg field -> the basin's 0.25 deg grid by bilinear interpolation.
+
+    field_half holds every second 0.25 deg point of the box (rows [::2], columns [::2]) with the same
+    north/west origin. Points shared with the 0.5 deg grid are returned unchanged. When the box has
+    an even number of 0.25 deg columns or rows (natl: 300 columns) the last 0.25 point lies past the
+    last 0.5 point and repeats it (constant, as in the day 5-7 study's lib.to_quarter).
+    """
+    lats, lons = grid(basin)
+    ny, nx = len(lats), len(lons)
+    f = np.asarray(field_half, float)
+    if f.shape != (len(lats[::2]), len(lons[::2])):
+        raise ValueError("field shape %s does not match the 0.5 deg %s grid %s"
+                         % (f.shape, basin, (len(lats[::2]), len(lons[::2]))))
+    yi, xi = np.arange(ny) / 2.0, np.arange(nx) / 2.0
+    y0 = np.clip(np.floor(yi).astype(int), 0, f.shape[0] - 1)
+    y1 = np.clip(y0 + 1, 0, f.shape[0] - 1)
+    wy = (yi - y0)[:, None]
+    x0 = np.clip(np.floor(xi).astype(int), 0, f.shape[1] - 1)
+    x1 = np.clip(x0 + 1, 0, f.shape[1] - 1)
+    wx = (xi - x0)[None, :]
+    g = f[y0] * (1 - wy) + f[y1] * wy
+    return g[:, x0] * (1 - wx) + g[:, x1] * wx
