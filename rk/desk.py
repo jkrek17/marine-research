@@ -19,7 +19,18 @@ from .store import _save
 
 BUCKET = "https://noaa-ndfd-pds.s3.amazonaws.com/"
 PRODUCTS = ("YCYZ98", "YCYZ97")
-HOURS = (10, 22)
+HOURS = (1, 10, 13, 22)    # snapshot hours that can hold a desk full update (see ISSUE_HOURS)
+# Which snapshot holds each basin's full update after the 00Z and 12Z runs (checked on 5 days, Jan-Mar 2026,
+# share of HSF-area cells changed > 2 kt between snapshots): the Atlantic lands in the ~10Z and ~22Z
+# snapshots, the Pacific in the ~13Z and ~01Z (next day) snapshots.
+ISSUE_HOURS = {"natl": {0: (0, 10), 12: (0, 22)}, "npac": {0: (0, 13), 12: (1, 1)}}
+
+
+def issue_for(basin, cycle):
+    """Snapshot datetime holding the basin's desk full update made from the `cycle` (00 or 12Z) runs."""
+    day, hour = ISSUE_HOURS[basin][cycle.hour]
+    d = dt.datetime(cycle.year, cycle.month, cycle.day) + dt.timedelta(days=day)
+    return d.replace(hour=hour)
 VALID_HOURS = (0, 6, 12, 18)
 MISSING = 9998.0          # NDFD marks missing with 9999
 _NS = "{http://s3.amazonaws.com/doc/2006-03-01/}"

@@ -103,7 +103,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 
 ## rk/desk.py (the marine desk's issued wind grids: NDFD oceanic wind speed, 10 m)
 - Source: public S3 bucket `noaa-ndfd-pds` (`wmo/wspd/YYYY/MM/DD/{product}_KWBN_{YYYYMMDDHHMM}`, one snapshot about every 3 h). Products: `YCYZ98` (days 1-3, ~27-32 MB, steps 2,5,8,... h from the issuance hour, Mercator 2517 x 1793, 10 km) and `YCYZ97` (days 4-7, ~15 MB; its grid and steps are read from the file, never assumed equal to YCYZ98). `PRODUCTS = ("YCYZ98", "YCYZ97")`, primary first. 10 m wind speed (`10si`), m/s, missing 9999 (land and off-grid). Raw files are never kept.
-- Full updates go out after the 00Z and 12Z model cycles: the 10Z and 22Z snapshots. `HOURS = (10, 22)`.
+- Full updates go out after the 00Z and 12Z model cycles. The Atlantic's lands in the ~10Z and ~22Z snapshots, the Pacific's in the ~13Z and ~01Z (next day) snapshots (checked on 5 days Jan-Mar 2026). `HOURS = (1, 10, 13, 22)`; `ISSUE_HOURS`; `issue_for(basin, cycle) -> datetime` gives the snapshot to use for a basin and model cycle. Each cached snapshot still holds both basins.
 - `issuances(day, product="YCYZ98") -> list[(datetime snapshot, key, size)]` for one UTC date, sorted.
 - `pick(day, hour, product="YCYZ98") -> key | None`: the first snapshot of the product at or after `hour`:00 on that day and before hour+3.
 - `box_index(lat, lon, basin) -> int array` flat index into the basin's 0.25 deg grid (row-major, `ny*nx`) of the box each NDFD cell centre falls in, -1 outside. Snapping is `floor(x/0.25 + 0.5)` (never `np.rint`). `area_mean(values, idx, n) -> float32 [n]`: mean over the cells of each box, NaN where no cell is valid (values at or above 9998, or non-finite, are missing).

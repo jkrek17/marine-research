@@ -56,6 +56,14 @@ def test_pick_window_logic():
         desk.issuances = real
 
 
+def test_issue_for():
+    c0, c12 = dt.datetime(2026, 1, 20, 0), dt.datetime(2026, 1, 20, 12)
+    assert desk.issue_for("natl", c0) == dt.datetime(2026, 1, 20, 10)
+    assert desk.issue_for("natl", c12) == dt.datetime(2026, 1, 20, 22)
+    assert desk.issue_for("npac", c0) == dt.datetime(2026, 1, 20, 13)
+    assert desk.issue_for("npac", c12) == dt.datetime(2026, 1, 21, 1)
+
+
 def test_unscan():
     raw = np.array([[1, 2, 3], [6, 5, 4], [7, 8, 9]], float).ravel()   # row 1 stored east to west
     assert desk.unscan(raw, 3, 1).tolist() == list(range(1, 10))

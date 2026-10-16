@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fill the desk wind cache (rk.desk) for a range of dates.
 
-  python3 tools/fill_desk.py --start 2026-01-01 --end 2026-01-31 [--workers 3] [--hours 10,22]
+  python3 tools/fill_desk.py --start 2026-01-01 --end 2026-01-31 [--workers 3] [--hours 10,22; the Pacific needs 1,13]
 
 Loads the 10Z and 22Z full-update issuances (YCYZ98 days 1-3 and YCYZ97 days 4-7), averages them onto both
 basins' 0.25 deg grids and caches the result under $RK_DESK (default DATA/desk). Raw GRIB files are deleted.
