@@ -18,7 +18,7 @@ Each also scored with the +5 kt core lift applied where the live core likelihood
 1. gale tiles (5x5 deg, any ASCAT 34+): CSI higher, with the whole-week 95% interval above zero; and
 2. storm tiles (48+): catch not lower by more than 2 points; and
 3. 34+ area ratio (forecast / ASCAT at seen cells) not further from 1 than A's.
-If B and C both pass, take the one with the higher gale CSI. If neither passes, AIFS stays as is. Per-lead and buoy numbers are reported but do not decide.
+The verdict is taken on Core Lifted (Jason's question); the plain blend's verdict is printed beside it. If B and C both pass, take the one with the higher gale CSI. If neither passes, AIFS stays as is. Per-lead and buoy numbers are reported but do not decide.
 
 **Cases:** winter 2025-26 (1 Nov - 31 Mar), 00 and 12 UTC cycles, +24..+120 h, both basins; held-out weeks per `rk.cases.held_out`. Nothing is fitted, so tune weeks are also reported as a second look, labelled as such.
 
