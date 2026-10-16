@@ -1,6 +1,6 @@
 """Desk added value: score the desk's issued wind grids against their alternatives.
 
-For each issuance I (10Z with the 00Z model cycle c, 22Z with the 12Z cycle), basin and valid time V
+For each model cycle c (00/12Z), basin and valid time V
 (00/06/12/18Z the desk grid has), every method is scored on the same water: the cells inside the OPC High Seas Forecast area (rk.basins.opc_mask) where the desk and the
 previous shift's grid (I-12h) are both present and the analysis mask is open ice-free water.
 
@@ -12,8 +12,10 @@ present among gefs, ens, aifs-ens. A model that is missing is skipped, so a reru
 store fills adds those columns with no code change.
 
 Outputs (RK data folder extra/desk-value/): scores.csv.gz, edits.csv.gz, built from per-issuance parts in parts/.
-Resumable: an issuance whose part files exist is skipped.  Usage: score.py START END [--workers N] [--rebuild]
-(dates YYYY-MM-DD, inclusive; only issuances whose desk grids are already cached are scored).
+Resumable: a cycle whose part files exist is skipped.  Usage: score.py START END [--workers N] [--rebuild]
+(dates YYYY-MM-DD, inclusive, of model cycles 00/12Z; only cycles whose desk snapshots are cached are scored).
+Per cycle c and basin: desk = snapshot desk.issue_for(basin, c), prev12/prev24 = snapshots for cycles c-12h/c-24h.
+Valid 06/18Z: ASCAT only, open-water mask from the analysis 6 h earlier. `issue` = snapshot used, `cycle` = model cycle.
 """
 import argparse
 import datetime as dt
@@ -46,6 +48,7 @@ def tag(t):
 
 
 def cached(issue):
+    """Both basins' files of a snapshot exist (desk.load needs both)."""
     return all(desk._path(b, issue).exists() for b in BASINS)
 
 
@@ -143,30 +146,34 @@ def stats(fc, ob):
     return r
 
 
-def score_issue(issue):
-    """-> (scores rows, edits rows) for one issuance."""
+def score_cycle(c):
+    """-> (scores rows, edits rows) for model cycle c (00 or 12Z). Per basin, the desk grid is the snapshot
+    desk.issue_for(basin, c); prev12 and prev24 are the snapshots for the cycles 12 and 24 h earlier."""
     srows, erows = [], []
-    wk = issue.isocalendar()
-    base = dict(issue=issue.strftime("%Y-%m-%d %H:%M"), iso_week=f"{wk[0]}-W{wk[1]:02d}",
-                held_out=bool(cases.held_out(issue)))
-    c = dt.datetime(issue.year, issue.month, issue.day, 0 if issue.hour == 10 else 12)
-    prev12, prev24 = issue - dt.timedelta(hours=12), issue - dt.timedelta(hours=24)
+    wk = c.isocalendar()
+    base = dict(cycle=c.strftime("%Y-%m-%d %H:%M"), iso_week=f"{wk[0]}-W{wk[1]:02d}", held_out=bool(cases.held_out(c)))
     for basin in BASINS:
-        d = _desk(issue)
-        if d is None or d.get(basin) is None:
+        I = desk.issue_for(basin, c)
+        I12 = desk.issue_for(basin, c - dt.timedelta(hours=12))
+        I24 = desk.issue_for(basin, c - dt.timedelta(hours=24))
+        d = _desk(I)
+        if d is None or d.get(basin) is None or not cached(I12):
             continue
         for V in d[basin]["valid"]:
             lead = int((V - c).total_seconds() // 3600)
             if lead <= 0:
                 continue
-            dk = desk_at(issue, basin, V)
-            p12 = desk_at(prev12, basin, V) if cached(prev12) else None
+            dk = desk_at(I, basin, V)
+            p12 = desk_at(I12, basin, V)
             if dk is None or p12 is None:
                 continue
-            an = truth.analysis(basin, V)
+            # 00/12Z valid: the analysis (mask and anl truth). 06/18Z valid: ASCAT only, with the open-water mask
+            # of the analysis 6 h earlier (the mask barely changes).
+            has_anl = V.hour in (0, 12)
+            an = truth.analysis(basin, V if has_anl else V - dt.timedelta(hours=6))
             if an is None:
                 continue
-            p24 = desk_at(prev24, basin, V) if cached(prev24) else None
+            p24 = desk_at(I24, basin, V) if cached(I24) else None
             grids = {"desk": dk, "prev12": p12}
             if p24 is not None:
                 grids["prev24"] = p24
@@ -180,7 +187,7 @@ def score_issue(issue):
             asc = snap_ascat(basin, V)
             common = (np.isfinite(dk) & np.isfinite(p12) & np.asarray(an["mask"], bool)
                       & basins.opc_mask(basin))  # the OPC High Seas Forecast area only
-            key = dict(base, basin=basin, valid=V.strftime("%Y-%m-%d %H:%M"), lead=lead)
+            key = dict(base, issue=I.strftime("%Y-%m-%d %H:%M"), basin=basin, valid=V.strftime("%Y-%m-%d %H:%M"), lead=lead)
             ob_anl = an["mean_speed"].astype(np.float32)
             for cname in CLASS_NAMES:
                 if cname == "all":
@@ -194,7 +201,7 @@ def score_issue(issue):
                 meths = {m: g for m, g in grids.items() if np.isfinite(g[sel]).all()}
                 if "desk" not in meths:
                     continue
-                truths = [("anl", sel & np.isfinite(ob_anl), ob_anl)]
+                truths = [("anl", sel & np.isfinite(ob_anl), ob_anl)] if has_anl else []
                 asc_sel = None
                 if asc is not None:
                     asc_sel = sel & np.isfinite(asc)
@@ -228,22 +235,24 @@ def score_issue(issue):
     return srows, erows
 
 
-def part_paths(issue):
-    t = tag(issue)
+
+
+def part_paths(c):
+    t = tag(c)
     return PARTS / f"{t}_scores.csv.gz", PARTS / f"{t}_edits.csv.gz"
 
 
-def run_one(issue):
+def run_one(c):
     t0 = time.time()
-    sp, ep = part_paths(issue)
+    sp, ep = part_paths(c)
     for attempt in range(4):  # a dropped connection while a missing analysis is fetched should not end the run
         try:
-            s, e = score_issue(issue)
+            s, e = score_cycle(c)
             break
         except Exception as ex:  # noqa: BLE001
-            print(f"{tag(issue)} attempt {attempt + 1} failed: {ex!r}", flush=True)
+            print(f"{tag(c)} attempt {attempt + 1} failed: {ex!r}", flush=True)
             if attempt == 3:
-                return tag(issue), -1, -1, False, time.time() - t0
+                return tag(c), -1, -1, False, time.time() - t0
             time.sleep(10 * (attempt + 1))
     ecm = any(r["method"] in ("ifs", "aifs") for r in s)
     # (returned above without writing parts when all attempts failed, so a rerun retries it)
@@ -251,7 +260,7 @@ def run_one(issue):
         tmp = p.with_name(p.name + ".tmp")
         pd.DataFrame(rows).to_csv(tmp, index=False, compression="gzip")
         os.replace(tmp, p)
-    return tag(issue), len(s), len(e), ecm, time.time() - t0
+    return tag(c), len(s), len(e), ecm, time.time() - t0
 
 
 def combine():
@@ -279,16 +288,16 @@ def main():
     a = ap.parse_args()
     PARTS.mkdir(parents=True, exist_ok=True)
     d0, d1 = (dt.datetime.strptime(x, "%Y-%m-%d") for x in (a.start, a.end))
-    issues = []
+    issues = []  # model cycles 00/12Z whose desk snapshot is cached for at least one basin
     d = d0
     while d <= d1:
-        for h in desk.HOURS:
-            i = d.replace(hour=h)
-            if cached(i):
-                issues.append(i)
+        for h in (0, 12):
+            c = d.replace(hour=h)
+            if any(desk._path(b, desk.issue_for(b, c)).exists() for b in BASINS):
+                issues.append(c)
         d += dt.timedelta(days=1)
     todo = [i for i in issues if a.rebuild or not all(p.exists() for p in part_paths(i))]
-    print(f"{len(issues)} cached issuances in range, {len(todo)} to score", flush=True)
+    print(f"{len(issues)} cycles in range with cached desk snapshots, {len(todo)} to score", flush=True)
     t0 = time.time()
     if a.workers > 1:
         import multiprocessing as mp

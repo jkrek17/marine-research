@@ -64,11 +64,16 @@ def issuances(day, product="YCYZ98"):
     return sorted(out)
 
 
+# YCYZ98 is posted every 3 h; YCYZ97 (days 4-7) only at ~04, 10, 16 and 22Z, so a 13Z or 01Z
+# issuance takes the next YCYZ97 snapshot (16Z, 04Z).
+WINDOW_H = {"YCYZ98": 3, "YCYZ97": 6}
+
+
 def pick(day, hour, product="YCYZ98"):
-    """Key of the first snapshot at or after hour:00 on the day and before hour+3, or None."""
+    """Key of the first snapshot at or after hour:00 on the day and before hour + WINDOW_H[product], or None."""
     t0 = dt.datetime(day.year, day.month, day.day, hour)
     for t, key, _ in issuances(day, product):
-        if t0 <= t < t0 + dt.timedelta(hours=3):
+        if t0 <= t < t0 + dt.timedelta(hours=WINDOW_H[product]):
             return key
     return None
 

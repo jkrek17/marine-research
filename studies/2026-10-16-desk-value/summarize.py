@@ -28,7 +28,7 @@ def load():
     e = pd.read_csv(DATA / "edits.csv.gz")
     for d in (s, e):
         d["leadday"] = np.ceil(d["lead"] / 24).astype(int)
-        d["cycle"] = pd.to_datetime(d["issue"])
+        d["cycle"] = pd.to_datetime(d["cycle"])
     return s, e
 
 
@@ -53,7 +53,7 @@ def metrics(g):
 def sums(s, by):
     cols = ["n", "n25", "sum_abs", "sum_err"] + [f"{k}{t}" for t in THR for k in ("hits", "fa", "miss", "fc_cells", "ob_cells")]
     g = s.groupby(by)[cols].sum()
-    g["n_issues"] = s.groupby(by)["issue"].nunique()
+    g["n_issues"] = s.groupby(by)["cycle"].nunique()
     return g
 
 
