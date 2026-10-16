@@ -441,6 +441,65 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     return out
 
 
+# ---- ASCAT on the model grid: single cells and 3 x 3 boxes ----
+
+def ascat_to_grid(basin, lat, lon, spd_kt):
+    """Snap ASCAT cells to the basin's 0.25 deg model grid with floor(x + 0.5) (RSS centres sit 0.125 deg off
+    the grid; np.rint empties every other row and column). Several cells in one grid cell (two satellites or
+    passes inside the window) are averaged. Returns (grid, count): grid [ny, nx] in kt, NaN where there is
+    no cell; count = number of cells averaged."""
+    lats, lons = grid(basin)
+    ny, nx = len(lats), len(lons)
+    iy = np.floor((lats[0] - np.asarray(lat, float)) / 0.25 + 0.5).astype(int)
+    ix = np.floor((np.asarray(lon, float) % 360 - lons[0]) / 0.25 + 0.5).astype(int)
+    k = (iy >= 0) & (iy < ny) & (ix >= 0) & (ix < nx) & np.isfinite(spd_kt)
+    s = np.zeros(ny * nx)
+    c = np.zeros(ny * nx)
+    flat = iy[k] * nx + ix[k]
+    np.add.at(s, flat, np.asarray(spd_kt, float)[k])
+    np.add.at(c, flat, 1.0)
+    c = c.reshape(ny, nx)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        g = np.where(c > 0, s.reshape(ny, nx) / c, np.nan)
+    return g, c
+
+
+def box_mean(grid_kt, min_valid=6, size=3):
+    """Mean of the valid cells in the size x size box centred on every grid cell, NaN where fewer than
+    min_valid of the size*size cells are valid (edges count missing cells as invalid). The centre cell need
+    not itself be valid. Returns (mean, n_valid)."""
+    g = np.asarray(grid_kt, float)
+    ok = np.isfinite(g)
+    r = size // 2
+    ny, nx = g.shape
+    pv = np.pad(np.where(ok, g, 0.0), r)
+    po = np.pad(ok.astype(float), r)
+    s = np.zeros((ny, nx))
+    n = np.zeros((ny, nx))
+    for dy in range(size):
+        for dx in range(size):
+            s += pv[dy:dy + ny, dx:dx + nx]
+            n += po[dy:dy + ny, dx:dx + nx]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        m = np.where(n >= min_valid, s / n, np.nan)
+    return m, n
+
+
+def ascat_box(basin, valid, intercal=True, max_dt_min=90, real=True, min_valid=6):
+    """ASCAT truth on the basin's model grid at a valid time -> dict or None (as ascat()).
+    cells: real 10 m wind, Metop-B/C offset met halfway by ascat(intercal=) snapped to the grid and averaged where cells
+    coincide, NaN without a cell. box: mean of the valid cells in the 3 x 3 box, NaN where fewer than
+    min_valid of 9 are valid. n_box: valid cells in the box. Events: box >= threshold (the main truth) or
+    cells >= threshold (the single-cell version, for comparison)."""
+    a = ascat(basin, valid, max_dt_min=max_dt_min, real=real, intercal=intercal)
+    if a is None:
+        return None
+    spd = np.asarray(a["spd_kt"], float)
+    cells, _ = ascat_to_grid(basin, a["lat"], a["lon"], spd)
+    box, nb = box_mean(cells, min_valid=min_valid)
+    return {"cells": cells.astype(np.float32), "box": box.astype(np.float32), "n_box": nb.astype(np.int8)}
+
+
 def ascat_grid(basin, valid, **kw):
     """rk.truth.ascat cells (same keyword arguments) on the basin grid -> (seen, spd_kt) 2-D arrays, or
     (None, None) when ascat() returns None. seen is True where any cell landed; spd_kt holds the largest
