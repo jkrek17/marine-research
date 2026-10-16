@@ -1,6 +1,6 @@
 # Storm-core lift retrain: design card
 
-*For Jason's yes before any run. Status: waiting on Jason's answers to the questions at the end.*
+*Status: approved 2026-10-16 08:05Z with the recommendations below; 08:06Z Jason: "pull the data we need to make the best determination".*
 
 **Question** (Jason, 2026-10-16 07:55Z, "go both" on the coordinator's proposal): retrain the storm-core lift on both basins with held-out weeks, so the held-out score is the score we keep, and say whether the lift should stay at +5 kt or depend on the likelihood.
 
@@ -39,3 +39,10 @@ Lift rule, each on the best model: +5 kt at P >= 35% (today); +3/+5/+8 with thre
 2. **One model or two.** One model for both basins with basin as an input, or a separate model per basin? Recommended: one model (the Pacific has ~1/3 the ASCAT storm cells).
 3. **Win line.** Is "+5 points of held-out storm-tile catch at no more false alarms, storm area under 1.5x ASCAT, gales no worse" the right bar?
 4. **Lift size.** Keep a single +5 kt unless a likelihood-dependent lift wins on the same score, or are you open to a bigger lift (e.g. +8 kt) if it catches more at the false-alarm cost you accept?
+
+## Jason's answers (2026-10-16 08:05-08:06Z)
+1. Pull the lower-level fields ("pull the data we need to make the best determination"): GFS now (~10 GB streamed), IFS and AIFS after the ECMWF store fill ends. Method 5 is still kept only if it adds on CV.
+2. One model, basin as an input.
+3. Win line as written.
+4. Keep +5 kt unless a likelihood-dependent lift wins on the same score.
+ASCAT: every winter day is cached with all passes; the Pacific final score waits for the 06/18Z-valid steps in the store.
