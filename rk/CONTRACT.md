@@ -23,6 +23,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `crop(basin) -> (iy: slice, ix: np.ndarray)` indices into the global grid (lat 90..-90 721 rows, lon 0..359.75 1440 cols).
 - `sample(field, basin, lat, lon) -> np.ndarray` bilinear; lon any convention.
 - `inside(basin, lat, lon) -> bool array`.
+- `to_quarter(field_half, basin) -> np.ndarray` bilinear regrid of a 0.5 deg field (every second 0.25 point of the box, same north/west origin) onto the basin's 0.25 deg grid; exact at shared points; a trailing 0.25 row/column with no 0.5 neighbour repeats the last (natl has 300 columns).
 
 ## rk/cases.py
 - `tag(dt) -> "YYYYMMDDHH"`, `parse(tag) -> datetime`.
@@ -64,9 +65,9 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - Low centres (MSLP in hPa on the basin grid; defaults are the day 5-7 lows study's `lib.py`: 13-cell window, 150 km dedupe, 300 km hit radius; lows table columns `lat, lon (0-360), hpa`):
   - `find_lows(msl, basin, below=1000.0, size=13, inset_deg=0.0, sep_km=150.0) -> DataFrame[lat, lon, hpa]`: local minima below `below`, 2 cells in from the grid edge, optionally `inset_deg` inside the box, deduplicated within `sep_km` keeping the deepest (sorted deepest first).
   - `km(lat1, lon1, lat2, lon2)`: great-circle km, longitudes in any convention (date line safe).
-  - `match_lows(truth_lows, fc_lows, radius_km=300.0) -> DataFrame` one row per truth low: `lat, lon, hpa` (truth), `matched`, `pos_err_km`, `depth_err_hpa` (forecast minus truth, negative = forecast too deep), `fc_lat, fc_lon, fc_hpa`. The nearest forecast low within the radius is the match; unmatched rows carry NaN errors.
+  - `match_lows(truth_lows, fc_lows, radius_km=300.0, miss_penalty_km=None, miss_depth="nan", fc_msl=None, basin=None) -> DataFrame` one row per truth low: `lat, lon, hpa` (truth), `matched`, `pos_err_km`, `depth_err_hpa` (forecast minus truth, negative = forecast too deep), `fc_lat, fc_lon, fc_hpa`. The nearest forecast low within the radius is the match; by default unmatched rows carry NaN errors. `miss_penalty_km` (study: 1000) gives a miss that position error, so a method that drops hard lows cannot look better by skipping them; `miss_depth="field"` (needs `fc_msl`, `basin`) gives a miss the forecast field value at the analysed centre minus the truth depth.
   - `false_lows(truth_lows_all, fc_lows, radius_km=300.0) -> int`: forecast lows with no truth low (any depth in the table given) within the radius.
-  - `low_scores(truth_msl, fc_msl, basin, below=1000.0, radius_km=300.0) -> dict(hits, misses, false, pos_err_km_median, depth_err_hpa_mean, n_truth)`: truth lows from `find_lows(..., inset_deg=3.0)`, forecast lows over the whole box, false lows judged against all truth lows below `below + 5`.
+  - `low_scores(truth_msl, fc_msl, basin, below=1000.0, radius_km=300.0, fc_below=None, false_radius_km=None, false_truth_below=None, miss_penalty_km=None, miss_depth="nan") -> dict(hits, misses, false, pos_err_km_median, depth_err_hpa_mean, n_truth)`: truth lows from `find_lows(..., below, inset_deg=3.0)`, forecast lows for matching from `find_lows(fc, fc_below)` (default `below`), false lows = those forecast lows deeper than `below` with no truth low under `false_truth_below` (default `below + 5`) within `false_radius_km` (default `radius_km`). Miss options go to `match_lows`; the error statistics use the filled values. Day 5-7 study call: `below=1000, fc_below=1010, radius_km=300, false_radius_km=500, false_truth_below=1005, miss_penalty_km=1000, miss_depth="field"`.
 
 ## rk/compare.py
 - `paired(df, method, baseline, value, by=None, block="week", n_boot=2000, seed=0) -> DataFrame`: mean difference method minus baseline with 95% intervals from resampling whole ISO weeks (storms within a week are not independent). Column `significant`.

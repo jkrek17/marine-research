@@ -195,14 +195,30 @@ def find_lows(msl, basin, below=1000.0, size=13, inset_deg=0.0, sep_km=150.0):
     return out.iloc[keep].reset_index(drop=True)
 
 
-def match_lows(truth_lows, fc_lows, radius_km=300.0):
+def match_lows(truth_lows, fc_lows, radius_km=300.0, miss_penalty_km=None, miss_depth="nan",
+               fc_msl=None, basin=None):
     """Match each truth low to the nearest forecast low within radius_km (study default 300 km).
 
     One row per truth low: lat, lon, hpa (truth), matched, pos_err_km (distance to the nearest
     forecast low, NaN if none within the radius), depth_err_hpa (forecast minus truth; negative =
     forecast too deep; NaN if unmatched), fc_lat, fc_lon, fc_hpa (NaN if unmatched). A forecast
     low may match more than one truth low.
+
+    Miss convention (defaults keep the NaN behaviour above):
+      miss_penalty_km: if set (the day 5-7 study used 1000), an unmatched truth low gets this
+        position error. The point: a method that drops hard lows must not look better on position
+        by skipping them; a miss has to cost something. Matched rows keep their true distance.
+      miss_depth: "nan" leaves the depth error of a miss NaN; "field" fills it with the forecast
+        field value at the analysed centre minus the truth depth (needs fc_msl, the forecast MSLP
+        on the basin grid, and basin; bilinear, exact at grid points). A forecast with no low
+        there is then charged for the pressure it actually has.
+    Note the study also let a low 300-1000 km away supply the depth error of a miss; here a miss
+    is always charged the field value at the centre.
     """
+    if miss_depth not in ("nan", "field"):
+        raise ValueError("miss_depth must be 'nan' or 'field', not %r" % (miss_depth,))
+    if miss_depth == "field" and (fc_msl is None or basin is None):
+        raise ValueError("miss_depth='field' needs fc_msl and basin")
     t, fc = _as_lows(truth_lows), _as_lows(fc_lows)
     rows = []
     for la, lo, p in t[_LOW_COLS].itertuples(index=False):
@@ -211,7 +227,12 @@ def match_lows(truth_lows, fc_lows, radius_km=300.0):
         if j >= 0 and d[j] <= radius_km:
             rows.append((la, lo, p, True, float(d[j]), float(fc.hpa[j] - p), fc.lat[j], fc.lon[j], fc.hpa[j]))
         else:
-            rows.append((la, lo, p, False, np.nan, np.nan, np.nan, np.nan, np.nan))
+            pos = np.nan if miss_penalty_km is None else float(miss_penalty_km)
+            dep = np.nan
+            if miss_depth == "field":
+                from rk.basins import sample
+                dep = float(sample(fc_msl, basin, la, lo)) - p
+            rows.append((la, lo, p, False, pos, dep, np.nan, np.nan, np.nan))
     cols = ["lat", "lon", "hpa", "matched", "pos_err_km", "depth_err_hpa", "fc_lat", "fc_lon", "fc_hpa"]
     df = pd.DataFrame(rows, columns=cols)
     df["matched"] = df["matched"].astype(bool)
@@ -233,21 +254,43 @@ def false_lows(truth_lows_all, fc_lows, radius_km=300.0):
     return n
 
 
-def low_scores(truth_msl, fc_msl, basin, below=1000.0, radius_km=300.0):
-    """Score forecast lows against analysed lows in one call.
+def low_scores(truth_msl, fc_msl, basin, below=1000.0, radius_km=300.0, fc_below=None,
+               false_radius_km=None, false_truth_below=None, miss_penalty_km=None, miss_depth="nan"):
+    """Score forecast lows against analysed lows in one call. Every threshold is a parameter.
 
-    Truth lows: find_lows(truth_msl, basin, below, inset_deg=3.0) (the study's analysed lows).
-    Forecast lows: find_lows(fc_msl, basin, below) over the whole box. False lows are forecast lows
-    with no truth low below `below + 5` hPa within radius_km. Returns dict(hits, misses, false,
-    pos_err_km_median, depth_err_hpa_mean, n_truth); the error entries are NaN with no hits.
-    Depth error is forecast minus truth (negative = forecast too deep).
+    below: truth-low threshold, hPa (study 1000). Truth lows: find_lows(truth_msl, basin, below,
+      inset_deg=3.0), the study's analysed lows.
+    fc_below: threshold for the forecast lows used for MATCHING (default = below; study 1010, so a
+      shallow forecast low near a deep analysed one still counts as the match).
+    radius_km: hit radius (study 300).
+    false_radius_km: radius for false lows (default = radius_km; study 500).
+    false_truth_below: threshold of the truth lows a forecast low is judged against for being
+      false (default below + 5; study 1005).
+    False lows are the forecast lows (found at fc_below) that are deeper than `below` and have no
+    truth low under false_truth_below within false_radius_km (study: forecast < 1000, truth < 1005).
+    miss_penalty_km, miss_depth: passed to match_lows (study: 1000 and "field"). When the penalty
+      is set, pos_err_km_median covers ALL truth lows with misses charged the penalty; otherwise
+      hits only. depth_err_hpa_mean covers hits plus, with miss_depth="field", the misses.
+
+    The study's preregistered call:
+      low_scores(an, fc, basin, below=1000, fc_below=1010, radius_km=300, false_radius_km=500,
+                 false_truth_below=1005, miss_penalty_km=1000, miss_depth="field")
+    Returns dict(hits, misses, false, pos_err_km_median, depth_err_hpa_mean, n_truth); the error
+    entries are NaN when nothing contributes. Depth error is forecast minus truth (negative =
+    forecast too deep).
     """
+    fc_below = below if fc_below is None else fc_below
+    false_radius_km = radius_km if false_radius_km is None else false_radius_km
+    false_truth_below = below + 5.0 if false_truth_below is None else false_truth_below
     truth = find_lows(truth_msl, basin, below, inset_deg=3.0)
-    fc = find_lows(fc_msl, basin, below)
-    truth_all = find_lows(truth_msl, basin, below + 5.0)
-    m = match_lows(truth, fc, radius_km)
+    fc = find_lows(fc_msl, basin, fc_below)
+    truth_all = find_lows(truth_msl, basin, false_truth_below)
+    m = match_lows(truth, fc, radius_km, miss_penalty_km=miss_penalty_km, miss_depth=miss_depth,
+                   fc_msl=fc_msl, basin=basin)
     hits = int(m.matched.sum())
-    return {"hits": hits, "misses": int(len(m) - hits), "false": false_lows(truth_all, fc, radius_km),
-            "pos_err_km_median": float(m.pos_err_km.median()) if hits else float("nan"),
-            "depth_err_hpa_mean": float(m.depth_err_hpa.mean()) if hits else float("nan"),
+    pos, dep = m.pos_err_km.dropna(), m.depth_err_hpa.dropna()
+    return {"hits": hits, "misses": int(len(m) - hits),
+            "false": false_lows(truth_all, fc[fc.hpa < below], false_radius_km),
+            "pos_err_km_median": float(pos.median()) if len(pos) else float("nan"),
+            "depth_err_hpa_mean": float(dep.mean()) if len(dep) else float("nan"),
             "n_truth": int(len(truth))}

@@ -133,6 +133,55 @@ def test_lows_across_date_line():
     assert (s["hits"], s["misses"], s["false"]) == (1, 0, 0)
 
 
+def test_miss_penalty_and_field_depth():
+    tr = _field("natl", [(50, 320, 970.0)])
+    dlon = 500 / (111.19 * np.cos(np.radians(50)))
+    fc = _field("natl", [(50, 320 + dlon, 975.0)])
+    t, fcl = score.find_lows(tr, "natl"), score.find_lows(fc, "natl")
+    m = score.match_lows(t, fcl)                      # defaults unchanged
+    assert np.isnan(m.pos_err_km[0]) and np.isnan(m.depth_err_hpa[0])
+    m = score.match_lows(t, fcl, miss_penalty_km=1000)
+    assert m.pos_err_km[0] == 1000 and np.isnan(m.depth_err_hpa[0])
+    m = score.match_lows(t, fcl, miss_penalty_km=1000, miss_depth="field", fc_msl=fc, basin="natl")
+    from rk.basins import sample
+    assert abs(m.depth_err_hpa[0] - (sample(fc, "natl", 50, 320) - m.hpa[0])) < 1e-9
+    assert m.depth_err_hpa[0] > 20                    # forecast is nearly flat at the analysed centre
+    try:
+        score.match_lows(t, fcl, miss_depth="field")
+        assert False
+    except ValueError:
+        pass
+    # no forecast lows at all: a miss costs the penalty
+    m = score.match_lows(t, None, miss_penalty_km=1000)
+    assert m.pos_err_km[0] == 1000
+    # matched rows are untouched by the penalty
+    m = score.match_lows(t, score.find_lows(tr, "natl"), miss_penalty_km=1000)
+    assert m.pos_err_km[0] == 0
+
+
+def test_low_scores_thresholds():
+    tr = _field("natl", [(50, 320, 970.0)])
+    # forecast low is shallow (1005) and 400 km away: needs fc_below 1010 and a 500 km radius
+    dlon = 400 / (111.19 * np.cos(np.radians(50)))
+    fc = _field("natl", [(50, 320 + dlon, 1005.0)])
+    s = score.low_scores(tr, fc, "natl")
+    assert (s["hits"], s["misses"], s["false"]) == (0, 1, 0) and np.isnan(s["pos_err_km_median"])
+    s = score.low_scores(tr, fc, "natl", fc_below=1010, radius_km=500)
+    assert s["hits"] == 1 and 390 < s["pos_err_km_median"] < 410
+    # study call: miss filled with 1000 km and the field depth; the 1005 low is not "deeper than 1000"
+    s = score.low_scores(tr, fc, "natl", fc_below=1010, false_radius_km=500, false_truth_below=1005,
+                         miss_penalty_km=1000, miss_depth="field")
+    assert (s["hits"], s["misses"], s["false"]) == (0, 1, 0)
+    assert s["pos_err_km_median"] == 1000 and s["depth_err_hpa_mean"] > 20
+    # false-low radius and truth threshold
+    fc2 = _field("natl", [(50, 320, 970.0), (50, 320 + 2 * dlon, 990.0)], sigma_deg=1.5)      # second low 800 km away
+    assert score.low_scores(tr, fc2, "natl")["false"] == 1
+    assert score.low_scores(tr, fc2, "natl", false_radius_km=900)["false"] == 0
+    tr2 = _field("natl", [(50, 320, 970.0), (50, 320 + 2 * dlon, 1003.0)], sigma_deg=1.5)
+    assert score.low_scores(tr2, fc2, "natl")["false"] == 0                    # 1003 < below + 5
+    assert score.low_scores(tr2, fc2, "natl", false_truth_below=1000)["false"] == 1
+
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):
