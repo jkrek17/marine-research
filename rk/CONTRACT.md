@@ -61,6 +61,12 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `error(fc, ob, min_kt=25, mask=None) -> {"bias","mae","rmse","n"}` over cells where either is at least min_kt.
 - `tile_peaks(fc_at_obs, ob, lat, lon, size_deg=5, min_n=150, min_peak=34) -> DataFrame` one row per tile: obs max and p98, forecast max and p98 at the same points.
 - `points(fc, basin, obs) -> DataFrame` sample a grid at obs points, with error columns.
+- Low centres (MSLP in hPa on the basin grid; defaults are the day 5-7 lows study's `lib.py`: 13-cell window, 150 km dedupe, 300 km hit radius; lows table columns `lat, lon (0-360), hpa`):
+  - `find_lows(msl, basin, below=1000.0, size=13, inset_deg=0.0, sep_km=150.0) -> DataFrame[lat, lon, hpa]`: local minima below `below`, 2 cells in from the grid edge, optionally `inset_deg` inside the box, deduplicated within `sep_km` keeping the deepest (sorted deepest first).
+  - `km(lat1, lon1, lat2, lon2)`: great-circle km, longitudes in any convention (date line safe).
+  - `match_lows(truth_lows, fc_lows, radius_km=300.0) -> DataFrame` one row per truth low: `lat, lon, hpa` (truth), `matched`, `pos_err_km`, `depth_err_hpa` (forecast minus truth, negative = forecast too deep), `fc_lat, fc_lon, fc_hpa`. The nearest forecast low within the radius is the match; unmatched rows carry NaN errors.
+  - `false_lows(truth_lows_all, fc_lows, radius_km=300.0) -> int`: forecast lows with no truth low (any depth in the table given) within the radius.
+  - `low_scores(truth_msl, fc_msl, basin, below=1000.0, radius_km=300.0) -> dict(hits, misses, false, pos_err_km_median, depth_err_hpa_mean, n_truth)`: truth lows from `find_lows(..., inset_deg=3.0)`, forecast lows over the whole box, false lows judged against all truth lows below `below + 5`.
 
 ## rk/compare.py
 - `paired(df, method, baseline, value, by=None, block="week", n_boot=2000, seed=0) -> DataFrame`: mean difference method minus baseline with 95% intervals from resampling whole ISO weeks (storms within a week are not independent). Column `significant`.
