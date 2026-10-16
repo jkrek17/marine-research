@@ -48,6 +48,22 @@ Detection by lead time is 97% at 24 h and 94% at 48 h for gale (desk 98% and 96%
 - **Not tested:** other lead times, other seasons, and 06 or 18 UTC.
 - **ASCAT reads low in the strongest winds**, so storm events near HF strength may count as storm.
 
+## Follow-up: lines kept only where the members back them (Jason, 2026-10-16 19:40Z)
+This applies the Core Lifted idea to the warning lines. The line is the strongest model plus an offset, kept only where at least q of the 132 members reach the level minus dT within about 1 degree (`gated_lines.py`). Settings were picked on the tune weeks, as before; the results below are from the held-out weeks.
+
+| Line | Events caught | False warned area | False warned areas (by count) | Mean area, nm2 |
+|---|---|---|---|---|
+| Storm, strongest model +7 kt | 98% | 23% | 41% | 36,800 |
+| Storm, +5 kt where 20%+ of members reach 44 kt nearby | 90% | 12% | 28% | 20,700 |
+| Storm, +7 kt where 30%+ of members reach 44 kt nearby | 87% | 15% | 20% | 28,700 |
+| HF, strongest model +12 kt | 100% (15) | 59% | 70% | 1,700 |
+| HF, +16 kt where 15%+ of members reach 56 kt nearby | 100% (15) | 62% | 62% | 3,400 |
+| Desk, storm / HF | 92% / 67% | 69% / 62% | 41% / 37% | 142,000 / 6,400 |
+
+**Storm:** member backing halves the false area, with detection still near 90%. This is a real choice between catching every storm and drawing about half as much false storm warning.
+
+**HF:** member backing does not help. The false HF patches sit where the members agree too. They are deep lows with 52 kt or more in a model that the archive did not log as HF within 500 km. The cause could be the forecast or gaps in the archive; this test cannot tell which.
+
 ## How it was done
 - **Truth.** Gale and storm events are 8-connected ASCAT areas of 2 or more cells at or above the level (`rk.truth.ascat_grid`, Metop-B/C intercalibrated, ±90 min, rain dropped). An event is caught when a warned cell lies within 4 cells (about 60 nm). HF events are archive fixes with category HF at the valid time (`rk.truth.hf_fixes`), caught within 500 km. A false warned cell is one ASCAT saw with no wind at the level within 60 nm, or, for HF, one more than 500 km from an HF low. Scoring is inside the OPC high seas areas over open water: the Atlantic 31-67N west of 35W (cut at 75W), and the Pacific east of the Bering Strait-53N172E-50N180W-30N180W line.
 - **Baseline.** The issued HSFAT1/HSFEP1 at 0430 and 1630 UTC (valid 00 and 12 UTC), parsed to grids by `desk_masks.py`. Warned at level L means the union of blocks whose wind range reaches L. Only hours where every 34 kt+ block parsed are used, about two thirds of them.
