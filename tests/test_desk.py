@@ -56,6 +56,12 @@ def test_pick_window_logic():
         desk.issuances = real
 
 
+def test_unscan():
+    raw = np.array([[1, 2, 3], [6, 5, 4], [7, 8, 9]], float).ravel()   # row 1 stored east to west
+    assert desk.unscan(raw, 3, 1).tolist() == list(range(1, 10))
+    assert desk.unscan(raw, 3, 0).tolist() == raw.tolist()
+
+
 def test_net():
     if os.environ.get("RK_NET") != "1":
         print("note: RK_NET not set; network test skipped")
@@ -85,6 +91,14 @@ def test_net():
         assert all(p == "YCYZ97" for p in g["product"][n98:])
     nat = r["natl"]["speed"][r["natl"]["valid"].index(dt.datetime(2026, 1, 16, 0))]
     assert np.isfinite(nat).mean() > 0.5
+    # Rows must line up (alternative row scanning undone): land edges agree row to row and the wind is
+    # as smooth north-south as east-west. With every second row mirrored, both fail badly.
+    ok = np.isfinite(nat)
+    assert (ok[1:] == ok[:-1]).mean() > 0.97, (ok[1:] == ok[:-1]).mean()
+    a = nat.astype(float)
+    dr = np.nanmean(np.abs(np.diff(a, axis=0)))
+    dc = np.nanmean(np.abs(np.diff(a, axis=1)))
+    assert dr < 1.8 * dc, (dr, dc)   # 1.4-1.5 when right (rows 28 km apart, columns ~17 km); 2.5 mirrored
     t0 = time.time()
     assert desk.load(dt.datetime(2026, 1, 15, 10))["natl"]["valid"] == r["natl"]["valid"]   # from cache
     print("cached load took %.2f s" % (time.time() - t0))

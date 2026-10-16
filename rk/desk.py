@@ -78,6 +78,28 @@ def box_index(lat, lon, basin):
     return np.where(ok, row * nx + col, -1).astype(np.int32)
 
 
+def unscan(values, ni, alternative):
+    """NDFD oceanic GRIB uses alternative row scanning (every second row runs east to west) and eccodes
+    returns the values in file order while its latitudes/longitudes run west to east on every row, so the
+    odd rows must be reversed to line up with them."""
+    v = np.asarray(values)
+    if not alternative:
+        return v
+    v = v.reshape(-1, ni).copy()
+    v[1::2] = v[1::2, ::-1]
+    _check_rows(v)
+    return v.ravel()
+
+
+def _check_rows(v):
+    """Native 10 km grid: a field with rows lined up is about as smooth north-south as east-west
+    (mirrored rows were ~25x rougher). Guards against a decoder that starts undoing the scan itself."""
+    ok = v < MISSING
+    dr = np.abs(np.diff(v, axis=0))[ok[1:] & ok[:-1]].mean()
+    dc = np.abs(np.diff(v, axis=1))[ok[:, 1:] & ok[:, :-1]].mean()
+    assert dr < 3 * dc + 0.05, "NDFD rows look mirrored (row %.2f vs column %.2f m/s)" % (dr, dc)
+
+
 def area_mean(values, idx, n):
     """Mean of the valid cells in each box -> float32 [n] (NaN where a box has no valid cell).
     values: 1-D NDFD values (>= 9998 or non-finite is missing); idx from box_index."""
@@ -130,7 +152,8 @@ def _decode(path, product):
                 if ref is None:
                     d, t = ec.codes_get(h, "dataDate"), ec.codes_get(h, "dataTime")
                     ref = dt.datetime.strptime("%08d%04d" % (d, t), "%Y%m%d%H%M")
-                v = ec.codes_get_values(h)
+                v = unscan(ec.codes_get_values(h), ec.codes_get(h, "Ni"),
+                           ec.codes_get(h, "alternativeRowScanning"))
                 valid = dt.datetime.strptime("%08d%04d" % (vd, vt), "%Y%m%d%H%M")
                 for b in BASINS:
                     ny, nx = len(grid(b)[0]), len(grid(b)[1])
