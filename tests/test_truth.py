@@ -100,6 +100,42 @@ def test_smap_not_posted_guard():
         truth.fetch.get = real
 
 
+def test_ascat_grid_snaps_without_gaps():
+    # two adjacent RSS rows/columns (centres at x.125 / x.375) must land on adjacent grid rows/columns
+    from rk.basins import grid
+    lats, lons = grid("natl")
+    lat = np.array([60.125, 59.875, 60.125, 59.875], np.float32)
+    lon = np.array([320.125, 320.125, 320.375, 320.375], np.float32)
+    real = truth.ascat
+    truth.ascat = lambda basin, valid, **kw: dict(lat=lat, lon=lon, spd_kt=np.array([50, 40, 30, 20], np.float32))
+    try:
+        seen, spd = truth.ascat_grid("natl", None)
+    finally:
+        truth.ascat = real
+    iy, ix = np.nonzero(seen)
+    assert seen.sum() == 4 and np.ptp(iy) == 1 and np.ptp(ix) == 1, (iy, ix)
+    assert spd.max() == 50
+
+
+def test_hf_archive_parse(tmp=None):
+    import datetime as dt, tempfile
+    from rk import paths
+    old = truth.data
+    with tempfile.TemporaryDirectory() as d:
+        truth.data = lambda *p: Path(d).joinpath(*[str(x) for x in p])
+        Path(d, "truth", "hf_lows").mkdir(parents=True)
+        Path(d, "truth", "hf_lows", "HF_Data_-_Pac.csv").write_text(
+            "ID,date,Latitude,Longitude,Category,Pressure\n"
+            "1,2026010112,49.3,171.8,HF,982\n1,2026010112,45,-170,S,nopres\n2,2026010112,20,150,HF,990\n3,2018232906,50,180,HF,960\n")
+        try:
+            a = truth.hf_archive("npac")
+            f = truth.hf_fixes("npac", dt.datetime(2026, 1, 1, 12))
+        finally:
+            truth.data = old
+    assert len(a) == 3 and np.isnan(a["hpa"][1]) and a["lon"][1] == 190.0     # typo date 2018232906 dropped
+    assert len(f) == 1 and f["hpa"][0] == 982          # S dropped; 20N lies outside the box
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

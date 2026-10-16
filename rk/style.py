@@ -20,6 +20,7 @@ METHOD_COLORS = {
     "blend": "#1baf7a", "corelift": "#008300", "mean3": "#7a7974",
     "gefs": "#eb6834", "ens": "#2a78d6", "aifs-ens": "#6250d6",
     "desk": "#1f1f1d", "analysis": "#5f5e5a", "ascat": "#e34948", "buoys": "#eda100",
+    "vote": "#a0522d",
 }
 # Ensemble means use their parent's hue, dashed. Everything else is solid.
 METHOD_DASHES = {"gefs": (4, 2), "ens": (4, 2), "aifs-ens": (4, 2)}
@@ -27,7 +28,7 @@ METHOD_LABELS = {
     "gfs": "GFS", "ifs": "ECMWF", "ecmwf": "ECMWF", "aifs": "AIFS", "blend": "Blend",
     "corelift": "Core Lifted", "mean3": "3-model mean", "gefs": "GEFS mean", "ens": "ENS mean",
     "aifs-ens": "AIFS ENS mean", "desk": "Desk", "analysis": "Analysis", "ascat": "ASCAT",
-    "buoys": "Buoys",
+    "buoys": "Buoys", "vote": "Member vote",
 }
 
 WIND_LEVELS = [0, 10, 15, 20, 25, 30, 34, 41, 48, 56, 64, 80]

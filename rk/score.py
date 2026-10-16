@@ -388,3 +388,77 @@ def low_scores(truth_msl, fc_msl, basin, below=1000.0, radius_km=300.0, fc_below
             "pos_err_km_median": float(pos.median()) if len(pos) else float("nan"),
             "depth_err_hpa_mean": float(dep.mean()) if len(dep) else float("nan"),
             "n_truth": int(len(truth))}
+
+
+# ---- warnings: areas of wind at or above a level, scored as events ----
+
+def _label(m):
+    from scipy import ndimage
+    lab, n = ndimage.label(m, structure=np.ones((3, 3)))
+    sizes = ndimage.sum(m, lab, range(1, n + 1)) if n else np.array([])
+    return lab, sizes
+
+
+def warning_events(warned, truth_kt, seen, thr, mask=None, slack=4, min_cells=2, min_area_cells=3,
+                   judge_frac=0.3, judge_min=10):
+    """Score one warned area (boolean grid) at one level against observed wind (e.g. ASCAT on the grid).
+
+    events   8-connected areas of observed >= thr (seen cells only, >= min_cells cells) inside mask
+    hits     events with a warned cell within `slack` cells (4 cells ~ 60 nm at 0.25 deg)
+    areas    8-connected warned areas (>= min_area_cells cells); `judged` = those the observations saw
+             (>= judge_min seen cells and >= judge_frac of the area); `false` = judged areas with no
+             observed >= thr within `slack` cells
+    cells    warned cells that were seen; `bad_cells` = those with no observed >= thr within `slack`
+    Returns dict(events, hits, areas, judged, false, cells, bad_cells, warned_cells)."""
+    from scipy import ndimage
+    warned = np.asarray(warned, bool)
+    seen = np.asarray(seen, bool)
+    if mask is not None:
+        warned = warned & mask
+        seen = seen & mask
+    obs = seen & (np.nan_to_num(np.asarray(truth_kt, float)) >= thr)
+    k = np.ones((2 * slack + 1, 2 * slack + 1), bool)
+    near_obs = ndimage.binary_dilation(obs, k) if obs.any() else obs
+    near_warn = ndimage.binary_dilation(warned, k) if warned.any() else warned
+    elab, esz = _label(obs)
+    ev = [i + 1 for i in range(len(esz)) if esz[i] >= min_cells]
+    hit_lab = set(np.unique(elab[near_warn & obs]))
+    hits = sum(1 for i in ev if i in hit_lab)
+    wlab, wsz = _label(warned)
+    areas = [i + 1 for i in range(len(wsz)) if wsz[i] >= min_area_cells]
+    judged = false = 0
+    if areas:
+        nseen = ndimage.sum(seen, wlab, areas)
+        nnear = ndimage.sum(near_obs, wlab, areas)
+        for j, i in enumerate(areas):
+            if nseen[j] >= judge_min and nseen[j] >= judge_frac * wsz[i - 1]:
+                judged += 1
+                false += int(nnear[j] == 0)
+    ws = warned & seen
+    return dict(events=len(ev), hits=hits, areas=len(areas), judged=judged, false=false,
+                cells=int(ws.sum()), bad_cells=int((ws & ~near_obs).sum()), warned_cells=int(warned.sum()))
+
+
+def warning_points(warned, basin, lat, lon, radius_km, mask=None, min_area_cells=3):
+    """Score one warned area against point events (e.g. archive hurricane-force low centres).
+
+    hits     points with a warned cell within radius_km
+    false    warned areas (>= min_area_cells) with no point within radius_km of any of their cells
+    bad_cells  warned cells farther than radius_km from every point
+    Returns dict(events, hits, areas, judged, false, cells, bad_cells, warned_cells) like warning_events
+    (judged = areas: a point truth judges every area)."""
+    from .basins import grid
+    warned = np.asarray(warned, bool)
+    if mask is not None:
+        warned = warned & mask
+    lats, lons = grid(basin)
+    la2, lo2 = np.meshgrid(lats, lons, indexing="ij")
+    lat, lon = np.atleast_1d(np.asarray(lat, float)), np.atleast_1d(np.asarray(lon, float))
+    near = [km(la2, lo2, a, o) <= radius_km for a, o in zip(lat, lon)]
+    near_any = np.any(near, 0) if near else np.zeros(warned.shape, bool)
+    hits = sum(int((n & warned).any()) for n in near)
+    wlab, wsz = _label(warned)
+    areas = [i + 1 for i in range(len(wsz)) if wsz[i] >= min_area_cells]
+    false = sum(int(not (near_any & (wlab == i)).any()) for i in areas)
+    return dict(events=len(near), hits=hits, areas=len(areas), judged=len(areas), false=false,
+                cells=int(warned.sum()), bad_cells=int((warned & ~near_any).sum()), warned_cells=int(warned.sum()))

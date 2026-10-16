@@ -3,6 +3,8 @@
 obs()    ship and buoy 10 m wind rebuilt from the GDAS first guess plus the O-B departure
 ascat()  RSS ASCAT v2.1 cells near the valid time, equivalent-neutral or real 10 m wind
 smap_day()  RSS SMAP v1.0 L3 daily winds (L-band radiometer), a second equivalent-neutral instrument
+ascat_grid()  ascat() snapped to the basin grid (seen mask, max speed)
+hf_archive(), hf_fixes()  OPC hurricane-force low fixes from the jkrek17/hf-low archive
 Everything here is cached under DATA/truth. A loader returns None when its source is not posted.
 """
 import datetime as dt
@@ -13,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from . import KT, fetch
-from .basins import BASINS, inside, sample
+from .basins import BASINS, grid, inside, sample
 from .cases import tag
 from .paths import data
 from .store import _save, analysis  # noqa: F401  (analysis is re-exported)
@@ -448,3 +450,62 @@ def ascat_target(basin, valid, thr=48.0, box=(5, 7), max_dt_min=90):
     out_spd = np.where(seen, spd, np.nan).astype(np.float32)
     max_nb = np.where(seen, max_nb, np.nan).astype(np.float32)
     return {"seen": seen, "spd": out_spd, "max_nb": max_nb, "y": seen & (max_nb >= thr)}
+
+def ascat_grid(basin, valid, **kw):
+    """rk.truth.ascat cells (same keyword arguments) on the basin grid -> (seen, spd_kt) 2-D arrays, or
+    (None, None) when ascat() returns None. seen is True where any cell landed; spd_kt holds the largest
+    spd_kt there (0 elsewhere). RSS centres sit 0.125 deg off the 0.25 grid, so each snaps with
+    floor(x + 0.5): np.rint's half-to-even rounding would send two rows to every even index and none
+    to the odd ones, which breaks connected areas."""
+    c = ascat(basin, valid, **kw)
+    if c is None:
+        return None, None
+    lats, lons = grid(basin)
+    seen = np.zeros((lats.size, lons.size), bool)
+    spd = np.zeros(seen.shape, np.float32)
+    iy = np.floor((lats[0] - c["lat"]) / 0.25 + 0.5).astype(int)
+    ix = np.floor((np.asarray(c["lon"]) % 360 - lons[0]) / 0.25 + 0.5).astype(int)
+    ok = (iy >= 0) & (iy < lats.size) & (ix >= 0) & (ix < lons.size)
+    seen[iy[ok], ix[ok]] = True
+    np.maximum.at(spd, (iy[ok], ix[ok]), np.asarray(c["spd_kt"], np.float32)[ok])
+    return seen, spd
+
+
+# ---- OPC hurricane-force lows (jkrek17/hf-low archive) ----
+
+HF_LOWS_URL = "https://raw.githubusercontent.com/jkrek17/hf-low/main/data/hf_lows/HF_Data_-_{f}.csv"
+HF_FILES = {"natl": "Atl", "npac": "Pac"}
+
+
+def hf_archive(basin, refresh=False):
+    """The hf-low archive for a basin -> DataFrame(event_id, valid (datetime), lat, lon (0-360), hpa, category).
+    Categories as archived: HF (hurricane force), S (storm), DHF/DS (developing, not yet at that force).
+    The spreadsheet behind it is the source; the CSV is cached under truth/hf_lows/ and re-read from GitHub
+    when refresh=True (the archive keeps growing). Returns None if it cannot be read. hpa is NaN where
+    the archive has no pressure; rows whose date does not parse (archive typos) are dropped."""
+    import pandas as pd
+    p = data("truth", "hf_lows", "HF_Data_-_%s.csv" % HF_FILES[basin])
+    if refresh or not p.exists():
+        r = fetch.get(HF_LOWS_URL.format(f=HF_FILES[basin]))
+        if r is None:
+            return None
+        p.write_bytes(r.content)
+    d = pd.read_csv(p, dtype=str)
+    valid = pd.to_datetime(d["date"], format="%Y%m%d%H", errors="coerce")   # the archive has typo dates
+    d, valid = d[valid.notna()], valid[valid.notna()]                        # (e.g. 2018232906): dropped
+    return pd.DataFrame({
+        "event_id": d["ID"].values, "valid": valid.values,
+        "lat": d["Latitude"].astype(float).values, "lon": d["Longitude"].astype(float).values % 360,
+        "hpa": pd.to_numeric(d["Pressure"], errors="coerce").values, "category": d["Category"].str.strip().values})
+
+
+def hf_fixes(basin, valid, categories=("HF",), in_box=True):
+    """Archive fixes at one valid time (exact hour) -> DataFrame (as hf_archive), inside the basin box by
+    default. Fixes are 6-hourly (00/06/12/18 UTC)."""
+    a = hf_archive(basin)
+    if a is None:
+        return None
+    k = (a["valid"] == valid) & a["category"].isin(categories)
+    if in_box:
+        k &= inside(basin, a["lat"].values, a["lon"].values)
+    return a[k].reset_index(drop=True)

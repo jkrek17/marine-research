@@ -10,6 +10,9 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Buoys sit at ~4 m, ships run high.** Raise buoys to 10 m (neutral profile), scale ships by 0.88. *In `rk.truth.obs`.*
 - **RSS ASCAT cell centres sit 0.125 deg off the 0.25 deg model grid.** Snap with floor(x + 0.5), not np.rint: half-to-even rounding empties every other row and column.
 - **Metop-B reads ~1 kt higher than Metop-C at storm force**, and 1 kt moves the 48 kt frequency ~17%; single-cell noise matters far less (~5%). *`rk.truth.ascat(intercal=True)` meets them halfway.*
+- **RSS ASCAT lags about 2 days.** Score days at least 3 days back, or the truth is missing, not the wind.
+- **The hf-low archive has typo dates** (e.g. `2018232906` in the Atlantic sheet); a strict date parse fails the whole file. *`rk.truth.hf_archive` drops rows whose date does not parse.* Fixes belong in the spreadsheet (hf-low's "Fixes wanted in the sheet").
+- **Score warnings on issued areas only where the text parsed completely.** The HSF parser reads about 2 in 3 winter hours fully; a partial mask makes the desk look like it missed.
 - **ERA5 is too weak to referee gales** (catches 49 of 131 buoy gales vs 80 for the operational analyses). Fine for pressure.
 - **Don't trust MSLP gradients over Greenland or within ~80 km of land** for wind; they are reduction artefacts.
 
@@ -34,8 +37,13 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **sklearn's HistGradientBoosting cannot fit a column that is all NaN** (`window shape cannot be larger than input array shape`). A no-low table carries the eight low-level features as NaN, so only the store feature sets train on it. *`train.py` skips and says so.*
 - **Fork plus OpenMP deadlocks** after an sklearn fit: use a spawn pool.
 - **Date line:** keep Pacific longitudes 160-245; -180..180 broke distances and lost lows once.
+- **The forecast-record grid starts at 180W, not 0E.** Crop with `(IX - 720) % 1440`, and test crops on real data shapes, not toy grids.
+- **GitHub can skip scheduled jobs for hours** (every one from 01:41 to 08:28Z on 10-16). Check the Actions run history before blaming code; dispatch a missed cycle by hand only after its ensembles are complete.
+- **Draft PRs must be marked ready before they merge.** Fetch force-pushed data branches with a `+` refspec, or the fetch is refused.
+- **The shared folder has a 10 GB quota.** It filled on 10-16 and blocked every thread's writes. Model fields go through `rk.store` to the data repo releases; the shared folder holds truth and small results only.
 - **netCDF4/HDF5 is not thread-safe.** Reading SMAP files from 4 threads raised `NetCDF: HDF error` and hung the fill. *`rk.truth._smap_cells` holds a lock around the read.*
 - **Apply the decision rule with the method the design named.** The first storm-truth draft passed the rule on a check method (same-cell pairs) when the pre-set storm-peak test had failed; the independent check caught it. Say "not passed" and give the default.
 - **Peaks picked by one instrument flatter it.** Storm peaks selected in ASCAT put SMAP 6 kt higher at 56-64 kt; selected in SMAP, 1 kt lower. Always run both directions.
 - **A missing remote file can come back as an HTML page, not an error.** SMAP FINAL files have no `_FINAL` suffix; the guessed name returned an HTML 404 page that looked like a download. Check the file's magic bytes before caching. *`rk.truth._smap_get`.*
 - **Check a proposed avenue against the dead ends before ranking it.** The research agenda's first draft ranked aligned-member wind #1; `core/lift.md` had already tested it (CSI .30 vs .45). Search the findings before calling anything new.
+- **Compare low-finding methods at equal false lows.** A method that draws more lows misses fewer and so looks better on position; one that draws fewer looks better on false alarms. The day 5-7 vote was tuned on whole curves (position vs false lows per map), not single points. *`studies/2026-10-16-pressure-d5-7/tune.py`.*
