@@ -19,6 +19,9 @@ If something can be made reusable and efficient, that comes first. Downloads, tr
 - Any change to awips-tools, hf-low or a public page that comes out of a study.
 - Pulls expected to stream more than ~50 GB: give the estimate and what the store already has.
 
+## Merging (Jason, 2026-10-16)
+Pull requests here merge themselves once the tests and `tools/check_repo.py` pass; tell Jason in one line what landed.
+
 ## Never
 - Commit data, caches, tokens or files over 10 MB, or use `git add -A` / `git add .`.
 - Hardcode `/home/...` or `/tmp/...` paths; find the repo from `__file__` and data from `rk.paths`.
