@@ -22,7 +22,7 @@ def lead_chart(out):
                     textcoords="offset points", va="center", fontsize=9, color=style.METHOD_COLORS[key])
     ax.set_xticks(leads); ax.set_xlim(20, 138)
     ax.set_xlabel("Lead time (h)"); ax.set_ylabel("Wind MAE where 25+ kt (kt)")
-    style.title(ax, "Core-lifted blend has the lowest error at every lead",
+    style.title(ax, "Core Lifted has the lowest error at every lead",
                 "142 cases, Nov 2025-Mar 2026, N Atlantic 12 UTC (synthetic)")
     style.save(fig, Path(out) / "lead_chart.png")
 
