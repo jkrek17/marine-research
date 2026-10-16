@@ -9,17 +9,18 @@ Every study since 10-13 had the same shape. This is that shape, with the parts t
 
 ## 0. Before anything
 - Read `STUDIES.md` (has someone answered this already, or part of it?) and `LESSONS.md` (traps).
-- Check what the shared store already holds: `python3 tools/fill_store.py --start ... --end ... --dry-run`.
+- Check what the field store needs: `python3 tools/fill_store.py --start ... --end ... --dry-run` (the estimate ignores what the release already holds; `rk.store` reads the cache, the old `RK_DATA/fields`, then the release, so published cycles cost a ~15 MB download, not an AWS pull).
 
 ## 1. Design card → Jason's yes
 Copy `templates/design_card.md` to `studies/<yyyy-mm-dd>-<short-name>/design.md`. Fill it: his question in his words, truth, baseline, what counts as a win (decided now), cases and held-out weeks, data cost, methods simplest first. Post it and wait for his yes. Add a row to `STUDIES.md` marked Running.
 
 ## 2. Data
 - Cases: `rk.cases.cycles(basin, start, end)`; the Atlantic runs at 12 UTC and the Pacific at 00 UTC by default (ASCAT coverage). Winter = Nov-Mar.
-- Fields: `rk.store.load_det / load_ens`; anything missing: `tools/fill_store.py` in the background (it waits out the marine wind build windows by itself). Big pulls (more than ~50 GB streamed): say the estimate first.
+- Fields: `rk.store.load_det / load_ens / load`; anything missing: `tools/fill_store.py` in the background (it waits out the marine wind build windows by itself). Fields live in releases of jkrek17/marine-research-data plus the local cache `RK_CACHE`, not in `RK_DATA`. Big pulls (more than ~50 GB streamed): say the estimate first.
+- Your own derived fields (a `gfs_low_f024` file, f144/f168, 06/18 UTC steps): `rk.store.put(basin, cycle, name, **arrays)`, then `python3 tools/publish_store.py --repo <clone of marine-research-data>` (or `RK_DATA_REPO`) so other threads get them from the release. Publishing merges with what is already there, and clears the unpublished marks after the push.
 - Truth: `rk.truth.analysis` (where), `rk.truth.ascat` (how strong, real 10 m), `rk.truth.obs` (buoys, ships).
 - Anything general a study needs (a new field, truth source or score) goes into `rk/` with a test, not a private copy.
-- Fields the store does not carry (925 mb, temperatures, full members): fetch with `rk.fetch` and cache under `rk.paths.data("extra", "<study>")`, not in a session folder.
+- Fields the store does not carry (925 mb, temperatures, full members): fetch with `rk.fetch` and cache under `rk.paths.data("extra", "<study>")` (small) or `rk.paths.cache("extra", "<study>")` (large, local), not in a session folder.
 
 ## 3. Run
 - Code lives in `studies/<name>/`; it imports `rk` and finds the repo from its own path.
