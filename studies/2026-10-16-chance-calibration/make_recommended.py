@@ -2,8 +2,8 @@
 
     python3 make_recommended.py [--out DIR] [--page-json PATH]
 
-34 kt: per-basin ASCAT-box curves (curves.json from `run_first_look.py report`). 48 kt: the shared ASCAT-box curve
-(curves_shared.json, both basins' tune weeks added), same curve under natl and npac. 64 kt: copied unchanged from
+34 kt: per-basin ASCAT-box curves (curves.json from `run_first_look.py report`). 48 kt: Atlantic from the shared ASCAT-box curve
+(curves_shared.json, both basins' tune weeks added), Pacific from its own curve (the shared one over-forecasts raw 5-10% there). 64 kt: copied unchanged from
 the page's current file (too few hurricane-force cases to refit). The page's current file is read from
 --page-json (default: calibration_page_current.json in the output folder, a copy of awips-tools
 marine_wind/pipeline/calibration.json on origin/main).
@@ -21,7 +21,7 @@ from rk import calibrate as C, paths  # noqa: E402
 
 RAW_PCT = (5, 10, 20, 30, 50)
 NOTE = ("Recommended chance calibration, winter 2025-26 hindcast vs ASCAT 3x3 box, pooled GEFS+ENS+AIFS ENS member share. "
-        "34 kt: per basin. 48 kt: one shared curve fitted on both basins' tune weeks (same under natl and npac). "
+        "34 kt: per basin. 48 kt: Atlantic from the shared curve (both basins' tune weeks), Pacific from its own curve (provisional: few Pacific storm events). "
         "64 kt: UNCHANGED from the current page file (too few hurricane-force cases to refit). Provisional, not yet agreed.")
 
 
@@ -44,7 +44,7 @@ def main():
     for basin in ("natl", "npac"):
         for g in C.LEAD_GROUPS:
             curves[(34, basin, g)] = tuple(map(r1, knots(per, 34, basin, g)))
-            curves[(48, basin, g)] = tuple(map(r1, knots(sh, 48, basin, g)))
+            curves[(48, basin, g)] = tuple(map(r1, knots(sh if basin == "natl" else per, 48, basin, g)))   # Pacific: own curve (shared one over-forecasts raw 5-10% there)
             curves[(64, basin, g)] = knots(page, 64, basin, g)
     C.to_page_json(curves, note=NOTE, path=out / "calibration_recommended.json")
     rec = json.load(open(out / "calibration_recommended.json"))
