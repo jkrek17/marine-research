@@ -189,6 +189,49 @@ def test_ascat_target_box_logic():
         truth.ascat = orig
 
 
+def test_det_weights_and_blend():
+    """det_weights scales a model's support weight: {aifs: 0} equals the 2-model base, 0.5 lies between."""
+    from rk import store
+    lats, lons = grid("natl")
+    shape = (len(lats), len(lons))
+    rng = np.random.default_rng(7)
+    base = 30 + 20 * rng.random(shape).astype(np.float32)
+    off = {"gfs": 0.0, "ifs": 3.0, "aifs": -8.0}
+    det = lambda m: {"speed": base + off[m], "u": base, "v": base, "msl": base}
+    ens = {"spd_mean": base, "spd_std": 0 * base + 4, "p34": 0 * base, "p48": 0 * base, "p64": 0 * base,
+           "n": store.MIN_MEMBERS + 10}
+    saved = (store.load_det, store.load_ens)
+    store.load_det = lambda b, c, m, s: det(m)
+    store.load_ens = lambda b, c, e, s: None if e == "aifs-ens" else ens
+    cyc = __import__("datetime").datetime(2026, 1, 1, 12)
+    try:
+        three = features.blend("natl", cyc, 48)
+        two = features.blend("natl", cyc, 48, models=("gfs", "ifs"))
+        zero = features.blend("natl", cyc, 48, det_weights={"aifs": 0})
+        half = features.blend("natl", cyc, 48, det_weights={"aifs": 0.5})
+        ones = features.blend("natl", cyc, 48, det_weights={"aifs": 1, "gfs": 1})
+        assert np.allclose(zero["base"], two["base"], atol=1e-4)
+        assert np.allclose(zero["r10"], two["r10"], atol=1e-4)
+        assert np.array_equal(ones["base"], three["base"])
+        assert np.allclose(three["r10"], three["base"] + three["boost"])
+        assert np.allclose(three["boost"], two["boost"])         # member SD ignores the deterministic set
+        # AIFS is the low model here, so halving its weight raises the base, between the 3- and 2-model values
+        lo, hi = np.minimum(three["base"], two["base"]) - 1e-4, np.maximum(three["base"], two["base"]) + 1e-4
+        assert ((half["base"] >= lo) & (half["base"] <= hi)).all()
+        assert (half["base"] - three["base"]).mean() > 0 and (two["base"] - three["base"]).mean() > 0
+        for bad in ({"nope": 1}, {"aifs": -1}):
+            try:
+                features.blend("natl", cyc, 48, det_weights=bad)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("det_weights %r should be refused" % (bad,))
+        store.load_det = lambda b, c, m, s: None if m == "aifs" else det(m)
+        assert features.blend("natl", cyc, 48) is None
+    finally:
+        store.load_det, store.load_ens = saved
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

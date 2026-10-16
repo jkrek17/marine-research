@@ -85,10 +85,12 @@ def pool(stats):
     return out
 
 
-def support_closed_form(speeds, stats, h=SUPPORT_KT):
+def support_closed_form(speeds, stats, h=SUPPORT_KT, weights=None):
     """build.support_base with the member average of the Gaussian kernel replaced by its expectation under
     a normal member distribution per ensemble (n-weighted). speeds [k, y, x] kt; stats list of
-    store.load_ens dicts. Returns the weighted mean speed [y, x] (the page's `mean`)."""
+    store.load_ens dicts. `weights` (optional, one multiplier per row of `speeds`, default all 1) scales each
+    model's support weight after the 1e-6 floor, so a weight of 0 removes the model exactly and 0.5 halves its
+    pull. Returns the weighted mean speed [y, x] (the page's `mean`)."""
     n = np.array([s["n"] for s in stats], np.float64)
     w = n / n.sum()
     wt = []
@@ -99,6 +101,8 @@ def support_closed_form(speeds, stats, h=SUPPORT_KT):
             acc = acc + wi * h / np.sqrt(var) * np.exp(-0.5 * (s["spd_mean"].astype(np.float64) - sp) ** 2 / var)
         wt.append(acc)
     wt = np.array(wt) + 1e-6
+    if weights is not None:
+        wt = wt * np.asarray(weights, np.float64).reshape((-1,) + (1,) * (wt.ndim - 1))
     return (wt * speeds).sum(0) / wt.sum(0)
 
 
@@ -107,11 +111,26 @@ def _sm(a, s=1.5):
     return ndimage.gaussian_filter(np.nan_to_num(a, nan=float(np.nanmean(a))), s, mode="nearest")
 
 
-def assemble(lats, speeds, pooled, stats, step, pa48=None, low=None, names=MODELS):
+def _weights(names, det_weights):
+    """Per-model multipliers in `names` order from {model: multiplier} (default 1); None when all are 1."""
+    if not det_weights:
+        return None
+    bad = set(det_weights) - set(names)
+    if bad:
+        raise ValueError("det_weights names models not in use: %s" % sorted(bad))
+    w = [float(det_weights.get(m, 1.0)) for m in names]
+    if min(w) < 0 or sum(w) <= 0:
+        raise ValueError("det_weights must be >= 0 and not all zero")
+    return None if all(x == 1.0 for x in w) else w
+
+
+def assemble(lats, speeds, pooled, stats, step, pa48=None, low=None, names=MODELS, det_weights=None):
     """The feature dict from already-loaded pieces (core() and the tests call this).
 
     lats [y]; speeds [k, y, x] kt for the models in `names`; pooled = pool(stats); stats the list of ensemble
-    dicts; pa48 [y, x] or None; low = dict of 3-model means (winds kt, temperatures K) or None."""
+    dicts; pa48 [y, x] or None; low = dict of 3-model means (winds kt, temperatures K) or None.
+    det_weights {model: multiplier} scales that model's support weight in r10 only (the other features,
+    including mod_max and the s10_ columns, still see every model)."""
     shape = speeds.shape[1:]
     LAT = np.repeat(np.asarray(lats, np.float64)[:, None], shape[1], 1)
     dx = R_EARTH * np.cos(np.deg2rad(LAT)) * np.deg2rad(0.25)
@@ -119,7 +138,7 @@ def assemble(lats, speeds, pooled, stats, step, pa48=None, low=None, names=MODEL
     ddx = lambda a: np.gradient(a, axis=1) / dx
     ddy = lambda a: -np.gradient(a, axis=0) / dy
 
-    mean = support_closed_form(speeds, stats)
+    mean = support_closed_form(speeds, stats, weights=_weights(names, det_weights))
     sigma = pooled["sd"]
     boost = np.minimum(k_for(step) * sigma, CAP_KT)
     wind = mean + boost
@@ -153,7 +172,31 @@ def assemble(lats, speeds, pooled, stats, step, pa48=None, low=None, names=MODEL
     return {k: np.asarray(c[k], np.float32) for k in FEATURES}
 
 
-def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=True, low_models=MODELS):
+def blend(basin, cycle, step, models=MODELS, ens=ENSEMBLES, det_weights=None):
+    """The page's blend wind for one basin, cycle and lead from the store -> {"r10", "boost", "base"} or None.
+
+    base = support-weighted mean of the `models` deterministic speeds (GEFS + ENS pooled support, optional
+    `det_weights` {model: multiplier} on each model's support weight), boost = min(k x member SD, 5 kt),
+    r10 = base + boost (kt, float32, basin grid). The member SD is GEFS + ENS and does not depend on `models`.
+    None if any model or ensemble is missing; nothing is filled. Same approximations as core()."""
+    models, ens = tuple(models), tuple(ens)
+    if not models or not ens:
+        raise ValueError("need at least one model and one ensemble")
+    dets = [store.load_det(basin, cycle, m, step) for m in models]
+    stats = [store.load_ens(basin, cycle, e, step) for e in ens]
+    if any(d is None for d in dets) or any(s is None for s in stats):
+        return None
+    if any(s["n"] < store.MIN_MEMBERS for s in stats):
+        return None
+    speeds = np.array([d["speed"] for d in dets], np.float32)
+    base = support_closed_form(speeds, stats, weights=_weights(models, det_weights))
+    boost = np.minimum(k_for(step) * pool(stats)["sd"], CAP_KT)
+    return {"r10": np.asarray(base + boost, np.float32), "boost": np.asarray(boost, np.float32),
+            "base": np.asarray(base, np.float32)}
+
+
+def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=True, low_models=MODELS,
+         det_weights=None):
     """Storm-core features for one basin, cycle and lead from the store -> dict or None.
 
     Keys: the 28 FEATURES (float32 [y, x] on the basin grid), "ocean" (bool), "cand" (ocean & (r10 >= 28 |
@@ -165,6 +208,7 @@ def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=Tr
     eight low-level features, e.g. ("gfs",) while only GFS low fields are in the store; it must include "gfs"
     (land/ice) and be a subset of `models`. The result's "low_models" says which were used (empty tuple when
     low=False), so a table never passes a GFS-only mean off as the live one.
+    `det_weights` {model: multiplier} scales a model's support weight in r10 (see blend()); default all 1.
     See the module docstring for every approximation."""
     models, ens = tuple(models), tuple(ens)
     low_models = tuple(low_models)
@@ -201,7 +245,8 @@ def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=Tr
             return None
         lw, ocean = None, an["mask"].astype(bool)
     lats, _ = grid(basin)
-    f = assemble(lats, speeds, pool(stats), stats, step, pa48=pa48, low=lw, names=models)
+    f = assemble(lats, speeds, pool(stats), stats, step, pa48=pa48, low=lw, names=models,
+                 det_weights=det_weights)
     if f["r10"].shape != ocean.shape:
         return None
     f["ocean"] = ocean
