@@ -120,9 +120,9 @@ def test_ascat_grid_snaps_without_gaps():
 def test_hf_archive_parse(tmp=None):
     import datetime as dt, tempfile
     from rk import paths
-    old = truth.data
+    old = paths.CACHE
     with tempfile.TemporaryDirectory() as d:
-        truth.data = lambda *p: Path(d).joinpath(*[str(x) for x in p])
+        paths.CACHE = Path(d)
         Path(d, "truth", "hf_lows").mkdir(parents=True)
         Path(d, "truth", "hf_lows", "HF_Data_-_Pac.csv").write_text(
             "ID,date,Latitude,Longitude,Category,Pressure\n"
@@ -131,7 +131,7 @@ def test_hf_archive_parse(tmp=None):
             a = truth.hf_archive("npac")
             f = truth.hf_fixes("npac", dt.datetime(2026, 1, 1, 12))
         finally:
-            truth.data = old
+            paths.CACHE = old
     assert len(a) == 3 and np.isnan(a["hpa"][1]) and a["lon"][1] == 190.0     # typo date 2018232906 dropped
     assert len(f) == 1 and f["hpa"][0] == 982          # S dropped; 20N lies outside the box
 

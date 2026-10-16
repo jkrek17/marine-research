@@ -5,7 +5,10 @@ ascat()  RSS ASCAT v2.1 cells near the valid time, equivalent-neutral or real 10
 smap_day()  RSS SMAP v1.0 L3 daily winds (L-band radiometer), a second equivalent-neutral instrument
 ascat_grid()  ascat() snapped to the basin grid (seen mask, max speed)
 hf_archive(), hf_fixes()  OPC hurricane-force low fixes from the jkrek17/hf-low archive
-Everything here is cached under DATA/truth. A loader returns None when its source is not posted.
+Everything here is cached as truth files (rk.store.truth_*): CACHE/truth first, then the legacy
+DATA/truth, then the release truth-{kind}[-{basin}]-{YYYYMM} of marine-research-data. A new file is written
+to CACHE/truth and marked unpublished; tools/publish_store.py sends it. A loader returns None when its source
+is not posted. The hf-low archive is not in releases: hf_archive() reads it from the hf-low repo over HTTPS.
 """
 import datetime as dt
 import io
@@ -16,9 +19,8 @@ import numpy as np
 
 from . import KT, fetch
 from .basins import BASINS, grid, inside, sample
-from .cases import tag
-from .paths import data
-from .store import _save, analysis  # noqa: F401  (analysis is re-exported)
+from . import paths
+from .store import (analysis, truth_cache_path, truth_locate, truth_save)  # noqa: F401  (analysis is re-exported)
 
 HERE = Path(__file__).resolve().parent
 BLACKLIST_FILE = HERE / "data" / "obs_blacklist_basins.txt"
@@ -81,10 +83,6 @@ def charnock_factor(spd, z_from, z_to=10.0, alpha=0.011, nu=1.5e-5, k=0.4, g=9.8
     return np.log(z_to / z0) / np.log(z_from / z0)
 
 
-def _obs_path(basin, valid):
-    return data("truth", "obs", basin, tag(valid) + ".npz")
-
-
 def _build_obs(valid):
     """Download the marine csv and the GDAS background for the valid time and cache both basins."""
     import pandas as pd
@@ -121,7 +119,7 @@ def _build_obs(valid):
         ou, ov = bu + m.Bg_dep_u.to_numpy(), bv + m.Bg_dep_v.to_numpy()
         st = np.maximum(m.StatusFlag_u.to_numpy(), m.StatusFlag_v.to_numpy()).astype(np.int16)
         sid = m.Station_id.astype(str).to_numpy().astype("U12")
-        _save(_obs_path(b, valid), lat=lat, lon=lo, u=ou, v=ov, dt_hours=dth, station_id=sid, status=st,
+        truth_save("obs", b, valid, lat=lat, lon=lo, u=ou, v=ov, dt_hours=dth, station_id=sid, status=st,
               platform=_platform(sid, lat, lo), land=sample(land, b, lat, lo),
               bg_speed_kt=np.hypot(bu, bv) * KT)
     return True
@@ -129,9 +127,11 @@ def _build_obs(valid):
 
 def obs_points(basin, valid):
     """All status-flagged marine points of the valid time's csv, with the rebuilt wind -> dict or None."""
-    p = _obs_path(basin, valid)
-    if not p.exists() and not _build_obs(valid):
-        return None
+    p = truth_locate("obs", basin, valid)
+    if p is None:
+        if not _build_obs(valid):
+            return None
+        p = truth_cache_path("obs", basin, valid)
     with np.load(p) as z:
         return {k: z[k] for k in z.files}
 
@@ -221,14 +221,15 @@ def enw_to_real(enw_kt, dT, T=285.0, k=0.4, g=9.81, alpha=0.011, nu=1.5e-5, zt=2
 
 def airsea(basin, valid):
     """GFS analysis 2 m air minus skin temperature (K, box grid) at the valid time -> array or None.
-    Cached under truth/airsea/{basin}/{YYYYMMDDHH}.npz (both basins at once)."""
-    p = data("truth", "airsea", basin, tag(valid) + ".npz")
-    if not p.exists():
+    Cached as truth kind "airsea" (both basins at once)."""
+    p = truth_locate("airsea", basin, valid)
+    if p is None:
         out = fetch._ncep(fetch.gfs_url(valid, 0), {"TMP:2 m above ground": "t2", "TMP:surface": "skt"})
         if out is None:
             return None
         for b in BASINS:
-            _save(data("truth", "airsea", b, tag(valid) + ".npz"), t2=out["t2"][b], skt=out["skt"][b])
+            truth_save("airsea", b, valid, t2=out["t2"][b], skt=out["skt"][b])
+        p = truth_cache_path("airsea", basin, valid)
     with np.load(p) as z:
         return (z["t2"] - z["skt"]).astype(np.float32)
 
@@ -286,11 +287,11 @@ def _ascat_cells(a, sat_id):
 
 def ascat_day(day):
     """All valid ocean cells of a UTC day (both Metop satellites, 15-70N, all longitudes) -> dict or None.
-    t_min is minutes after 00 UTC of that day. Cached under truth/ascat/{YYYYMMDD}.npz. A day with only one
+    t_min is minutes after 00 UTC of that day. Cached as truth kind "ascat" (one file per day). A day with only one
     satellite posted is cached only once it is a week old (the other may still arrive)."""
     ymd = day.strftime("%Y%m%d")
-    p = data("truth", "ascat", ymd + ".npz")
-    if p.exists():
+    p = truth_locate("ascat", None, day)
+    if p is not None:
         with np.load(p) as z:
             return {k: z[k] for k in z.files if k != "sats"}
     parts, sats = [], ""
@@ -304,7 +305,7 @@ def ascat_day(day):
     c = {k: np.concatenate([q[k] for q in parts]) for k in parts[0]}
     age = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - dt.datetime.combine(day, dt.time())
     if len(sats) == 2 or age > dt.timedelta(days=7):
-        _save(p, sats=np.array(sats), **c)
+        truth_save("ascat", None, day, sats=np.array(sats), **c)
     return c
 
 
@@ -354,11 +355,11 @@ def smap_day(day):
     """All valid ocean cells of a UTC day of RSS SMAP v1.0 L3 daily winds (15-70N, all longitudes, both
     nodes) -> dict or None if neither FINAL nor NRT is posted. Fields: lat, lon (0-360), t_min (minute of the
     UTC day), spd_enw_kt (equivalent-neutral 10 m wind, kt), node (0 ascending ~18 h local, 1 descending ~06 h
-    local). FINAL is tried first, then NRT. Cached under truth/smap/{YYYYMMDD}.npz with final = 1 for FINAL,
+    local). FINAL is tried first, then NRT. Cached as truth kind "smap" with final = 1 for FINAL,
     0 for NRT (a cached NRT day is not re-fetched when FINAL appears; delete the file to refresh)."""
     ymd = day.strftime("%Y%m%d")
-    p = data("truth", "smap", ymd + ".npz")
-    if p.exists():
+    p = truth_locate("smap", None, day)
+    if p is not None:
         with np.load(p) as z:
             return {k: z[k] for k in z.files if k != "final"}
     blob, final = _smap_get(day, "FINAL"), 1
@@ -367,7 +368,7 @@ def smap_day(day):
     if blob is None:
         return None
     c = _smap_cells(blob)
-    _save(p, final=np.array(final, np.uint8), **c)
+    truth_save("smap", None, day, final=np.array(final, np.uint8), **c)
     return c
 
 
@@ -469,16 +470,22 @@ HF_FILES = {"natl": "Atl", "npac": "Pac"}
 def hf_archive(basin, refresh=False):
     """The hf-low archive for a basin -> DataFrame(event_id, valid (datetime), lat, lon (0-360), hpa, category).
     Categories as archived: HF (hurricane force), S (storm), DHF/DS (developing, not yet at that force).
-    The spreadsheet behind it is the source; the CSV is cached under truth/hf_lows/ and re-read from GitHub
+    The spreadsheet behind it is the source; the CSV is not in the releases: it is read from the hf-low repo over
+    HTTPS, cached under CACHE/truth/hf_lows/ (legacy DATA/truth/hf_lows as an offline fallback) and re-read from GitHub
     when refresh=True (the archive keeps growing). Returns None if it cannot be read. hpa is NaN where
     the archive has no pressure; rows whose date does not parse (archive typos) are dropped."""
     import pandas as pd
-    p = data("truth", "hf_lows", "HF_Data_-_%s.csv" % HF_FILES[basin])
+    name = "HF_Data_-_%s.csv" % HF_FILES[basin]
+    p = paths.cache("truth", "hf_lows", name)
+    legacy = paths.DATA / "truth" / "hf_lows" / name       # old shared folder, read only
     if refresh or not p.exists():
         r = fetch.get(HF_LOWS_URL.format(f=HF_FILES[basin]))
-        if r is None:
+        if r is not None:
+            p.write_bytes(r.content)
+        elif legacy.exists() and not p.exists():
+            p = legacy
+        elif not p.exists():
             return None
-        p.write_bytes(r.content)
     d = pd.read_csv(p, dtype=str)
     valid = pd.to_datetime(d["date"], format="%Y%m%d%H", errors="coerce")   # the archive has typo dates
     d, valid = d[valid.notna()], valid[valid.notna()]                        # (e.g. 2018232906): dropped

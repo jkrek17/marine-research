@@ -274,6 +274,30 @@ def test_publish_merges_pushes_and_clears():
         assert run("git", "ls-remote", "--heads", str(bare)).count("refs/heads/upload/") == 1
 
 
+def test_publish_leaves_no_local_upload_refs_or_zip_blobs():
+    with Env() as e:
+        bare, clone = e.t / "bare.git", e.t / "clone"
+        run("git", "init", "-q", "--bare", "-b", "main", str(bare))
+        run("git", "clone", "-q", str(bare), str(clone))
+        (clone / "README.md").write_text("x")
+        run("git", "add", "README.md", cwd=clone)
+        run("git", "commit", "-q", "-m", "init", cwd=clone)
+        run("git", "push", "-q", "origin", "HEAD:main", cwd=clone)
+        store.put("natl", CYC, "gfs_f024", **det_arrays(3))
+        assert publish_store.main(["--repo", str(clone)]) == 0
+        heads = run("git", "ls-remote", "--heads", str(bare))
+        br = [h.split("refs/heads/")[1] for h in heads.splitlines() if "upload/" in h][0]
+        zbytes = subprocess.run(["git", "show", br + ":incoming/natl/%s.zip" % TAG], cwd=bare,
+                                capture_output=True, check=True).stdout          # the pushed zip, from the remote
+        sha = subprocess.run(["git", "hash-object", "--stdin"], input=zbytes, cwd=clone,
+                             capture_output=True, check=True).stdout.decode().strip()
+        refs = run("git", "for-each-ref", "--format=%(refname)", cwd=clone)
+        assert "upload/" not in refs, refs                                        # no local or remote-tracking ref
+        assert subprocess.run(["git", "cat-file", "-e", sha], cwd=clone).returncode != 0   # blob gone locally
+        assert run("git", "rev-parse", "--abbrev-ref", "HEAD", cwd=clone).strip() == "main"
+        assert subprocess.run(["git", "cat-file", "-e", sha], cwd=bare).returncode == 0    # still on the remote
+
+
 def test_publish_batches_by_size():
     with Env() as e:
         bare, clone = e.t / "bare.git", e.t / "clone"
