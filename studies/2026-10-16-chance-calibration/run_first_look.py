@@ -16,6 +16,7 @@ import datetime as dt
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -59,6 +60,31 @@ HOURS = {"natl": [0, 12], "npac": [0]}
 START, END = dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31)
 
 
+BACKOFF = (5, 20, 60)
+
+
+def retry(fn, *a, what=""):
+    """Call fn(*a); on any exception retry after 5/20/60 s (3 retries), then re-raise. Network resets land here."""
+    for i in range(len(BACKOFF) + 1):
+        try:
+            return fn(*a)
+        except Exception as ex:
+            if i == len(BACKOFF):
+                raise
+            print("retry %d %s: %r" % (i + 1, what, ex), flush=True)
+            time.sleep(BACKOFF[i])
+
+
+def _write_atomic(counts, rows):
+    """counts.json and cycle_rows.csv via temp file then rename, so a crash never leaves a half-written file."""
+    tmp = OUT / "counts.json.tmp"
+    json.dump({k: v.tolist() for k, v in counts.items()}, open(tmp, "w"))
+    os.replace(tmp, OUT / "counts.json")
+    tmp = OUT / "cycle_rows.csv.tmp"
+    pd.DataFrame(rows, columns="basin truth thr step cycle split n events".split()).to_csv(tmp, index=False)
+    os.replace(tmp, OUT / "cycle_rows.csv")
+
+
 def accumulate():
     OUT.mkdir(parents=True, exist_ok=True)
     counts, rows, log = {}, [], []
@@ -73,23 +99,38 @@ def accumulate():
     for basin in BASINS:
         tcache = {}
         cyc = sorted(c for h in HOURS[basin] for c in cases.cycles(basin, START, END, hour=h)
-                     if store.load_ens(basin, c, "gefs", 24) is not None)
+                     if retry(store.load_ens, basin, c, "gefs", 24, what="gefs index %s" % c) is not None)
         print(basin, "cycles with GEFS in the store:", len(cyc), flush=True)
-        for c in cyc:
+        for ci, c in enumerate(cyc):
+            if ci and ci % 10 == 0:
+                _write_atomic(counts, rows)
+                print("checkpoint", basin, ci, "/", len(cyc), flush=True)
             fetch.wait_for_quiet()
             split = cases.split(c)
             for step in cases.STEPS:
                 if (basin, c.strftime("%Y%m%d%H"), step) in done:
                     continue
-                ch = load_chance(basin, c, step)
+                try:
+                    ch = retry(load_chance, basin, c, step, what="load_ens %s %s %d" % (basin, c, step))
+                except Exception as ex:
+                    log.append("FAILED load_ens %s %s step %d: %r" % (basin, c, step, ex))
+                    print(log[-1], flush=True)
+                    continue
                 if ch is None:
                     continue
                 pp, nm = ch
                 valid = c + dt.timedelta(hours=step)
                 if valid not in tcache:
-                    have = store._analysis_path(basin, valid).exists()     # never trigger an analysis download
-                    ag = truth.ascat_box(basin, valid) if have else None
-                    an = truth.analysis(basin, valid) if have else None
+                    def _truth():
+                        have = store.truth_locate("analysis", basin, valid) is not None     # cache or release; never rebuild an analysis from GRIB
+                        return (truth.ascat_box(basin, valid) if have else None,
+                                truth.analysis(basin, valid) if have else None)
+                    try:
+                        ag, an = retry(_truth, what="truth %s %s" % (basin, valid))
+                    except Exception as ex:
+                        log.append("FAILED truth %s %s (cycle %s step %d): %r" % (basin, valid, c, step, ex))
+                        print(log[-1], flush=True)
+                        continue          # not marked done: a later run retries it
                     t = {}
                     if ag is not None:
                         t["box"], t["cell"] = ag["box"], ag["cells"]
@@ -115,8 +156,7 @@ def accumulate():
                         arr[1] += np.bincount(k[e], minlength=nm + 1)
                         rows.append((basin, tn, thr, step, c.strftime("%Y%m%d%H"), split, int(m.sum()), int(e.sum())))
         print(basin, "done; new cycles used this run:", len(used[basin]), flush=True)
-    json.dump({k: v.tolist() for k, v in counts.items()}, open(OUT / "counts.json", "w"))
-    pd.DataFrame(rows, columns="basin truth thr step cycle split n events".split()).to_csv(OUT / "cycle_rows.csv", index=False)
+    _write_atomic(counts, rows)
     (OUT / "accumulate.log").write_text("\n".join(log) + "\n")   # missing-truth notes of the last run
     print("wrote", OUT, "missing-truth notes:", len(log), flush=True)
 
