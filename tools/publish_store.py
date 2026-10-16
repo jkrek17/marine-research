@@ -11,7 +11,9 @@ already published (downloaded from the release, if the asset exists) plus the lo
 a new step or a gfs_low file never drops what another thread published. Zips are committed as
 incoming/{basin}/{YYYYMMDDHH}.zip on a branch upload/<utc-timestamp>-<n> (batches of at most --max-mb)
 and pushed; the data repo's workflow turns them into release assets and deletes the branch. The
-unpublished marks are cleared only after a batch's push succeeded. A cycle whose local files are all
+unpublished marks are cleared only after a batch's push succeeded; then the local upload branch and its
+remote-tracking ref are deleted, and at the end of a run that pushed anything the clone's reflogs are
+expired and it is gc'd with --prune=now, so the uploaded zips are not kept locally (they once filled the disk). A cycle whose local files are all
 identical to the published ones is not re-uploaded (its marks are just cleared).
 
 --include-legacy also treats every file under RK_DATA/fields (the old shared layout) as local, for the
@@ -80,6 +82,10 @@ def push_batch(repo, batch, stamp, n):
     mb = sum(Path(z).stat().st_size for _, _, z, _ in batch) / 1e6
     git(repo, "commit", "-q", "-m", "upload: %d cycles, %.1f MB\n\n%s" % (len(batch), mb, "\n".join(rels)))
     git(repo, "push", "-q", "origin", "%s:refs/heads/%s" % (branch, branch))
+    # pushed: drop the local refs so the zips become unreachable (the data repo's workflow owns the remote one)
+    git(repo, "checkout", "-q", "--detach")
+    git(repo, "branch", "-q", "-D", branch)
+    git(repo, "update-ref", "-d", "refs/remotes/origin/" + branch, check=False)
     return branch
 
 
@@ -147,6 +153,9 @@ def main(argv=None):
     finally:
         if not a.dry_run:
             git(repo, "checkout", "-q", was, check=False)   # back to the branch (or commit) it was on
+            if branches:                                    # free the pushed zips from the local object store
+                git(repo, "reflog", "expire", "--expire=now", "--all", check=False)
+                git(repo, "gc", "-q", "--prune=now", check=False)
     print("%s %d cycles, %.1f MB%s" % ("would push" if a.dry_run else "pushed",
           built, total / 1e6, (" on " + ", ".join(branches)) if branches else ""))
     return 0

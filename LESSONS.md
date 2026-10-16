@@ -34,6 +34,7 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Caches in session folders die with the session.** Fields and truth go in the shared data folder through `rk.store`.
 - **`pkill -f pattern` and `pgrep -f pattern` match their own shell.** Wait on a PID or a log line.
 - **Don't mix runs in one case.** If a model is missing for a cycle, skip the cycle.
+- **The session container is reclaimed when idle and kills detached (nohup) jobs; keep a background watcher running while they work.**
 - **Fork plus OpenMP deadlocks** after an sklearn fit: use a spawn pool.
 - **Date line:** keep Pacific longitudes 160-245; -180..180 broke distances and lost lows once.
 - **The forecast-record grid starts at 180W, not 0E.** Crop with `(IX - 720) % 1440`, and test crops on real data shapes, not toy grids.
