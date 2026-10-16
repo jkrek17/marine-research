@@ -5,8 +5,8 @@
          [--hours 0,12] [--root DIR] [--workers 4] [--every-days N]
 
 One fetch per cycle, model and step serves both basins. Files already present are skipped, so a rerun
-only fills the gaps. --root stores under DIR/fields/... instead of the shared RK_DATA (use a local folder
-when the shared one is short of space). Waits out the marine wind build windows (rk.fetch.wait_for_quiet).
+only fills the gaps. --root stores under DIR/fields/... instead of writing through rk.store.put (then publish with
+tools/publish_store.py). Waits out the marine wind build windows (rk.fetch.wait_for_quiet).
 Prints one line per cycle.
 """
 import argparse
@@ -30,7 +30,8 @@ def fill_cycle(cycle, models, steps, root, workers):
         for s in steps:
             if not cases.available(m, cycle):
                 rep["missing"] += 1
-            elif all(store.low_path(b, cycle, m, s, root).exists() for b in BASINS):
+            elif all((store.low_path(b, cycle, m, s, root).exists() if root else store.load_low(b, cycle, m, s) is not None)
+                     for b in BASINS):
                 rep["existing"] += 1
             else:
                 jobs.append((m, s))

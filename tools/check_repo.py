@@ -51,7 +51,7 @@ def main():
         elif ext in IMAGE_EXT and size > IMG_WARN_BYTES:
             warnings.append(f"{rel}: image is {size / 1e6:.1f} MB (over 1 MB), shrink it or keep it out of git")
         if ext in DATA_EXT or any(part.endswith(".zarr") for part in Path(rel).parts):
-            errors.append(f"{rel}: data file type, bulk data belongs in RK_DATA, not git")
+            errors.append(f"{rel}: data file type, bulk data belongs in RK_DATA or the release store, not git")
         try:
             text = p.read_text(errors="replace") if size <= MAX_BYTES else ""
         except OSError:
