@@ -416,3 +416,35 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
         out = {f: v[good] for f, v in out.items()}
         out["spd_kt"] = enw_to_real(out["spd_enw_kt"], dT[good]).astype(np.float32)
     return out
+
+
+def ascat_target(basin, valid, thr=48.0, box=(5, 7), max_dt_min=90):
+    """ASCAT storm-core target on the basin grid -> dict or None (None when ascat() is None: a day not posted).
+
+    Uses ascat(real=True, intercal=True). Cells are snapped to the 0.25 deg grid with floor(x + 0.5) (the
+    RSS centres sit 0.125 deg off the grid; see LESSONS); when several observations fall in one cell the
+    highest counts. Returns
+      seen    bool [y, x]  a (rain-free, open-water) ASCAT cell landed here
+      spd     float [y, x] ASCAT real 10 m wind (kt) in the cell, NaN where unseen
+      max_nb  float [y, x] maximum of spd over the box (rows, columns) centred on the cell, unseen cells
+              ignored; NaN at unseen cells. box (5, 7) is about 50 km each way at 30-67 N, as the live
+              model's target (wind-focus core/code/ascat_target.py: 5x7 maximum filter, -1 for unseen).
+      y       bool [y, x]  seen & (max_nb >= thr); the training label. Only cells ASCAT saw count.
+    No seen cell at all gives all-False / all-NaN grids (a valid case with nothing to score)."""
+    from scipy import ndimage
+    from .basins import grid
+    a = ascat(basin, valid, max_dt_min=max_dt_min, real=True, intercal=True)
+    if a is None:
+        return None
+    lats, lons = grid(basin)
+    ny, nx = len(lats), len(lons)
+    row = np.floor((lats[0] - np.asarray(a["lat"], np.float64)) / 0.25 + 0.5).astype(int)
+    col = np.floor(((np.asarray(a["lon"], np.float64) % 360) - lons[0]) / 0.25 + 0.5).astype(int)
+    ok = (row >= 0) & (row < ny) & (col >= 0) & (col < nx)
+    spd = np.full((ny, nx), -1.0, np.float32)
+    np.maximum.at(spd, (row[ok], col[ok]), np.asarray(a["spd_kt"], np.float32)[ok])
+    seen = spd >= 0
+    max_nb = ndimage.maximum_filter(spd, size=box)
+    out_spd = np.where(seen, spd, np.nan).astype(np.float32)
+    max_nb = np.where(seen, max_nb, np.nan).astype(np.float32)
+    return {"seen": seen, "spd": out_spd, "max_nb": max_nb, "y": seen & (max_nb >= thr)}
