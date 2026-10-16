@@ -40,6 +40,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - Before any network work, `wait_for_quiet()`: if the UTC time is within the marine wind page build windows (02:15-03:15, 08:15-09:15, 14:15-15:15, 20:15-21:15 UTC), sleep until the window ends and say so on stderr. `RK_IGNORE_BUILD_WINDOWS=1` skips it.
 - Every decoder crops both basins from one GRIB message.
 - `det(model, cycle, step) -> {basin: {"u","v","msl"}} | None` for model in `gfs`, `ifs`, `aifs` (u, v m/s, msl hPa). Step 0 of gfs/ifs is the analysis.
+- `low(model, cycle, step) -> {basin: {"t2","skt","u925","v925","t925","u850","v850"[, "land","ice"]}} | None` for model in `gfs`, `ifs`, `aifs` (temperatures K, winds m/s; `land` and `ice` 0-1, gfs only, from LAND and ICEC). Key maps `GFS_LOW`, `EC_LOW_SFC`, `EC_LOW_PL` copied from the marine wind page. None if not posted or any field is missing.
 - `members(ens, cycle, step, msl=True) -> {basin: {"u": [n,y,x], "v": [n,y,x], "msl": [n,y,x]}} | None` for ens in `gefs` (c00 + p01..p30), `ens` (IFS ENS, `-ef`), `aifs-ens` (`-cf` + `-pf`).
 - `gdas_background(valid) -> {basin: {"u": [7,y,x], "v": [7,y,x], "land"}}`: the previous GDAS cycle's f003..f009 10 m wind, for building ship and buoy winds.
 
@@ -47,6 +48,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - Layout: `fields/{basin}/{YYYYMMDDHH}/{model}_f{step:03d}.npz` (deterministic: u, v float16 m/s, msl float32 hPa) and `{ens}_f{step:03d}.npz` (member statistics: `mean_u`, `mean_v` (mean of members' u, v), `spd_mean`, `spd_std` (kt), `p34`, `p48`, `p64` (fraction of members), `msl_mean`, `msl_std` (hPa), `n` members). Written with `np.savez_compressed`, atomically (temp file then rename).
 - `load_det(basin, cycle, model, step) -> {"u","v","speed","msl"} | None` (speed in kt, float32).
 - `load_ens(basin, cycle, ens, step) -> dict | None`.
+- Lower-level fields: `fields/{basin}/{YYYYMMDDHH}/{model}_low_f{step:03d}.npz` (`t2`, `skt`, `t925`, `t850` float32 K; `u925`, `v925`, `u850`, `v850` float16 m/s; gfs only `land` uint8 = LAND >= 0.5 and `ice` uint8 = ICEC x 100). `save_low(basin, cycle, model, step, r, root=None)` (atomic) and `load_low(basin, cycle, model, step, root=None) -> dict | None` (all float32; `land` bool, `ice` fraction 0-1). `root` overrides `rk.paths.DATA`, so a local cache can be used while the shared folder is short of space. Filled by `tools/fill_low.py`.
 - `fill(cycle, steps=STEPS, models=..., ens=..., workers=6) -> report dict`: fetch what is missing for both basins at once; skip a cycle's ensemble if fewer than 20 members came back; never mix runs.
 - `analysis(basin, valid) -> {"gfs": det, "ifs": det, "mean_speed" (kt), "msl" (hPa, mean), "mask" (open, ice-free water)} | None`, cached under `truth/analysis/{basin}/{YYYYMMDDHH}.npz`. `analysis_arrays(g, i, land, ice)` builds the stored arrays (shared with `tools/import_wx_cache.py`, which imports another study's analysis cache into this layout).
 

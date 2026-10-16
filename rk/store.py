@@ -2,12 +2,15 @@
 
 fields/{basin}/{YYYYMMDDHH}/{model}_f{step:03d}.npz
   deterministic: u, v (float16 m/s), msl (float32 hPa)
+  low (storm-core inputs): {model}_low_f{step:03d}.npz, t2 skt t925 t850 float32 K; u925 v925 u850 v850
+            float16 m/s; gfs also land (uint8, 0/1: GFS LAND >= 0.5) and ice (uint8, ICEC fraction x100)
   ensemble: mean_u, mean_v, spd_mean, spd_std (kt), p34, p48, p64 (fraction of members at or
             above the threshold in kt), msl_mean, msl_std (hPa), n (members)
 """
 import datetime as dt
 import os
 import tempfile
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -61,6 +64,42 @@ def load_ens(basin, cycle, ens, step):
     with np.load(p) as z:
         out = {k: z[k].astype(np.float32) for k in z.files if k != "n"}
         out["n"] = int(z["n"])
+    return out
+
+
+LOW_T = ("t2", "skt", "t925", "t850")
+LOW_W = ("u925", "v925", "u850", "v850")
+
+
+def save_low(basin, cycle, model, step, r, root=None):
+    """Store one basin's fetch.low() dict (atomic). Temperatures float32 K, winds float16 m/s, land uint8
+    (1 where LAND >= 0.5), ice uint8 (ICEC x100, rounded; NaN -> 0). root overrides rk.paths.DATA."""
+    arrays = {k: np.asarray(r[k], np.float32) for k in LOW_T}
+    arrays.update({k: np.asarray(r[k]).astype(np.float16) for k in LOW_W})
+    if "land" in r:
+        arrays["land"] = (np.nan_to_num(np.asarray(r["land"], np.float32)) >= 0.5).astype(np.uint8)
+        arrays["ice"] = np.clip(np.rint(np.nan_to_num(np.asarray(r["ice"], np.float32)) * 100), 0, 100).astype(np.uint8)
+    p = low_path(basin, cycle, model, step, root)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    _save(p, **arrays)
+
+
+def low_path(basin, cycle, model, step, root=None):
+    rel = Path("fields", basin, tag(cycle), "%s_low_f%03d.npz" % (model, step))
+    return (Path(root) / rel) if root is not None else data(*rel.parts)
+
+
+def load_low(basin, cycle, model, step, root=None):
+    """Stored lower-level fields -> dict (temperatures K, winds m/s, float32; gfs also land bool and
+    ice fraction 0-1 float32) or None. root overrides rk.paths.DATA."""
+    p = low_path(basin, cycle, model, step, root)
+    if not p.exists():
+        return None
+    with np.load(p) as z:
+        out = {k: z[k].astype(np.float32) for k in z.files if k not in ("land", "ice")}
+        if "land" in z.files:
+            out["land"] = z["land"].astype(bool)
+            out["ice"] = z["ice"].astype(np.float32) / 100.0
     return out
 
 
