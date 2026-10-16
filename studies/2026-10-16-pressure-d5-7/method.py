@@ -12,6 +12,7 @@ voter's low is taken at its own centre, the depth is not smeared the way an aver
 import os, datetime as dt
 import numpy as np
 from lib import CACHE, km, find_lows, dec, dedupe, STEPS
+import store_io
 
 ENS = ("gefs", "ens", "aifsens")
 DET = ("gfs", "ifs", "aifs")
@@ -22,7 +23,7 @@ def load(src, ymd):
     k = (src, ymd)
     if k not in _cache:
         p = os.path.join(CACHE, "fc_%s_%s.npz" % (src, ymd))
-        _cache[k] = dict(np.load(p)) if os.path.exists(p) else None
+        _cache[k] = dict(np.load(p)) if os.path.exists(p) else store_io.get("fc", src, ymd)
         if len(_cache) > 12:
             _cache.pop(next(iter(_cache)))
     return _cache[k]
@@ -32,11 +33,10 @@ def analysis(ymd, dom):
     out = []
     for src, name in (("noaa", "gfs"), ("ec", "ifs")):
         p = os.path.join(CACHE, "an_%s_%s.npz" % (src, ymd))
-        if os.path.exists(p):
-            z = np.load(p)
-            k = "an_%s_%s" % (name, dom)
-            if k in z.files:
-                out.append(dec(z[k]))
+        z = dict(np.load(p)) if os.path.exists(p) else (store_io.get("an", src, ymd) or {})
+        k = "an_%s_%s" % (name, dom)
+        if k in z:
+            out.append(dec(z[k]))
     return None if len(out) < 2 else (out[0] + out[1]) / 2
 
 
