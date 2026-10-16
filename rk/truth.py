@@ -7,6 +7,7 @@ Everything here is cached under DATA/truth. A loader returns None when its sourc
 """
 import datetime as dt
 import io
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -309,6 +310,7 @@ def ascat_day(day):
 
 SMAP_URL = "https://data.remss.com/smap/wind/L3/v01.0/daily/{kind}/{y}/RSS_smap_wind_daily_{y}_{m}_{d}{nrt}_v01.0.nc"
 _SMAP_LAT = -89.875 + 0.25 * np.arange(720)
+_NC_LOCK = threading.Lock()  # the netCDF/HDF5 library is not thread-safe
 _SMAP_MAGIC = (b"\x89HDF\r\n\x1a\n", b"CDF\x01", b"CDF\x02")
 
 
@@ -327,7 +329,7 @@ def _smap_cells(blob):
     (equivalent-neutral 10 m), minute int16 of the UTC day, -9999 missing; node 0 ascending (~18 h local),
     1 descending (~06 h local). Layout [lat 720, lon 1440, node 2]-agnostic: axes are read by dimension name."""
     import netCDF4
-    with netCDF4.Dataset("smap.nc", memory=blob) as ds:
+    with _NC_LOCK, netCDF4.Dataset("smap.nc", memory=blob) as ds:
         out = {}
         for name in ("wind", "minute"):
             v = ds.variables[name]

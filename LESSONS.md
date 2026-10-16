@@ -29,3 +29,4 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Don't mix runs in one case.** If a model is missing for a cycle, skip the cycle.
 - **Fork plus OpenMP deadlocks** after an sklearn fit: use a spawn pool.
 - **Date line:** keep Pacific longitudes 160-245; -180..180 broke distances and lost lows once.
+- **netCDF4/HDF5 is not thread-safe.** Reading SMAP files from 4 threads raised `NetCDF: HDF error` and hung the fill. *`rk.truth._smap_cells` holds a lock around the read.*

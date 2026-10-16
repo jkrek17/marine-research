@@ -17,7 +17,7 @@ LOG = paths.data("logs", "storm_truth_fill.log")
 
 def say(msg):
     with open(LOG, "a") as f:
-        f.write("%s %s\n" % (dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), msg))
+        f.write("%s %s\n" % (dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), msg))
 
 
 def one(job):
