@@ -82,3 +82,17 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `HAZARD_COLORS` for gale, storm, hf.
 - `title(ax, finding, detail)`: finding as the title, case count and period beneath.
 - `save(fig, path)`: PNG at 150 dpi plus the same name in SVG.
+
+## rk/desk.py (the marine desk's issued wind grids: NDFD oceanic wind speed, 10 m)
+- Source: public S3 bucket `noaa-ndfd-pds` (`wmo/wspd/YYYY/MM/DD/{product}_KWBN_{YYYYMMDDHHMM}`, one snapshot about every 3 h). Products: `YCYZ98` (days 1-3, ~27-32 MB, steps 2,5,8,... h from the issuance hour, Mercator 2517 x 1793, 10 km) and `YCYZ97` (days 4-7, ~15 MB; its grid and steps are read from the file, never assumed equal to YCYZ98). `PRODUCTS = ("YCYZ98", "YCYZ97")`, primary first. 10 m wind speed (`10si`), m/s, missing 9999 (land and off-grid). Raw files are never kept.
+- Full updates go out after the 00Z and 12Z model cycles: the 10Z and 22Z snapshots. `HOURS = (10, 22)`.
+- `issuances(day, product="YCYZ98") -> list[(datetime snapshot, key, size)]` for one UTC date, sorted.
+- `pick(day, hour, product="YCYZ98") -> key | None`: the first snapshot of the product at or after `hour`:00 on that day and before hour+3.
+- `box_index(lat, lon, basin) -> int array` flat index into the basin's 0.25 deg grid (row-major, `ny*nx`) of the box each NDFD cell centre falls in, -1 outside. Snapping is `floor(x/0.25 + 0.5)` (never `np.rint`). `area_mean(values, idx, n) -> float32 [n]`: mean over the cells of each box, NaN where no cell is valid (values at or above 9998, or non-finite, are missing).
+- `load(issue_dt) -> {basin: {"ref": datetime, "valid": [datetimes], "speed": float16 [n_valid, ny, nx] (kt, NaN where no valid NDFD cell), "product": [str per valid], "refs": [datetime per valid]}} | None` for `issue_dt` at 10Z or 22Z. Merges YCYZ98 and YCYZ97 into one valid-time list (00, 06, 12, 18 UTC only) out to day 7; where both products have a valid time, YCYZ98 wins. `ref` is the YCYZ98 GRIB data date/time. None when YCYZ98 is not posted; when only YCYZ97 is missing the result holds days 1-3 and `fill` counts it under `partial`. Area mean: every NDFD cell whose centre falls in a 0.25 deg box contributes (values are 10 km cell means, not point winds).
+- Cache: `{cache}/{basin}/{YYYYMMDDHH}.npz` (`speed` float16 kt, `valid` YYYYMMDDHH strings, `ref`, `refs`, `product`), written atomically; `cache = $RK_DESK` or `rk.paths.data("desk")`. The cell-to-box mapping is cached as `{cache}/map_{product}.npz`.
+- `fill(start, end, hours=(10, 22), workers=3) -> {"ok", "missing", "failed", "partial", "cached"}` (counts; lists of tags for failed and partial under `failed_tags`, `partial_tags`). `partial` is a subset of `ok`. Skips cached issuances; one download gives both basins.
+
+## rk/classes.py (the marine wind page's routine / attention classes)
+- `RIDE, AGREE, FOCUS, HIGH = 0, 1, 2, 3`; `NAMES = ("ride", "agree", "focus", "high impact")`.
+- `classes(speeds) -> uint8 [y, x]` for `speeds` [3, y, x] kt (GFS, IFS, AIFS). The page rule (`focus_grid` in awips-tools `marine_wind/pipeline/build.py` at commit 3eb2ff5), copied and kept identical for basin boxes (reflect mode at the edges). If the page rule changes, this changes with it.
