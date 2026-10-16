@@ -28,6 +28,9 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Check a live port against the research table at matched cells.** The storm-core model's live features matched the study within r >= 0.994 before it shipped; do this for any exported model.
 - **Don't overstate one score.** "AIFS for track" was claimed from one metric and walked back; check position, depth and misses together.
 
+- **Count the chances' sample in weeks, and check the cycles with an event.** Hundreds of thousands of cells came from 14 held-out cycles per basin; 64 kt had 1-4 cycles with an event. State it before any curve. *Counts in `studies/2026-10-16-chance-calibration/` results.csv.*
+- **A chance calibrated on one ensemble does not carry to the pool.** GEFS alone over-forecasts gale against ASCAT in the Atlantic while the pooled page chance under-forecasts it.
+
 ## Running
 - **Don't run heavy downloads during the marine wind build** (~02:30, 08:30, 14:30, 20:30 UTC) or alongside a verification backfill: ECMWF pulls fail. *`rk.fetch.wait_for_quiet`.*
 - **Fresh ECMWF ENS files return 503 SlowDown.** Retry fast with jitter, many times. *`rk.fetch.get`.*

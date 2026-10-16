@@ -76,6 +76,19 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `ascat_grid(basin, valid, **ascat_kwargs) -> (seen bool, spd_kt float32) | (None, None)`: `ascat()` snapped to the basin grid with floor(x + 0.5) (never np.rint: RSS centres sit 0.125 deg off the grid); `spd_kt` is the largest cell value per grid point, 0 where unseen.
 - `hf_archive(basin, refresh=False) -> DataFrame(event_id, valid, lat, lon (0-360), hpa, category) | None`: the jkrek17/hf-low OPC hurricane-force low archive (`data/hf_lows/HF_Data_-_{Atl,Pac}.csv` on main, read over HTTPS), not in releases: read from the hf-low repo over HTTPS and cached under `RK_CACHE/truth/hf_lows/` (legacy `RK_DATA/truth/hf_lows` as an offline fallback). Categories as archived: HF, S, DHF, DS.
 - `hf_fixes(basin, valid, categories=("HF",), in_box=True) -> DataFrame | None`: archive fixes at one valid time.
+- ASCAT on the model grid (offline helpers plus one loader):
+  - `ascat_to_grid(basin, lat, lon, spd_kt) -> (grid, count)`: snap to the basin's 0.25 deg grid with floor(x+0.5); cells in the same grid cell are averaged; NaN where none.
+  - `box_mean(grid_kt, min_valid=6, size=3) -> (mean, n_valid)`: mean of valid cells in the 3x3 box, NaN where fewer than 6 of 9 are valid (edges count missing cells as invalid; the centre need not be valid).
+  - `ascat_box(basin, valid, intercal=True, real=True, min_valid=6) -> {"cells", "box", "n_box"} | None`: `ascat()` cells, from `ascat(..., intercal=)` (Metop offset handled there), on the basin grid (kt, float32, NaN = no truth). Event = `box >= thr` (the main truth for chances) or `cells >= thr` (single cell, for comparison).
+
+## rk/calibrate.py (plain numpy arrays in; chances 0-1, knots in percent)
+- `EDGES`: bin edges `[0, .01, .02, .05, .10, .15, .20, .30, .40, .50, .60, .70, .80, .90, 1.00001]`. `LEAD_GROUPS = {"le48": (24, 48), "72": (72,), "ge96": (96, 120)}`; `lead_group(step)`.
+- `table(p, event, edges=EDGES, w=None) -> dict` of per-bin arrays `n, events, sum_p, sum_p2, sum_p_ev` (w = optional counts); `add_tables(*tabs)` sums them, so many cycles pool without keeping cells.
+- `reliability(p, event, edges=EDGES) -> dict`: per bin `n`, `events`, `mean_fc` (mean forecast), `obs_freq` (NaN if empty), `edges`.
+- `fit(table, nmin=2000) -> (raw_knots_pct, cal_knots_pct)`: the page's fitter (`wind-focus/basins/code/fit_calibration.py`): bin mean raw -> observed frequency, shrunk toward raw by min(1, n/nmin), starts (0, 0), ends (100, 100) if the data stop short, calibrated forced non-decreasing. Takes a summed table or a `reliability()` dict; one truth.
+- `apply(p, raw_knots, cal_knots)` -> 0-1; `cal_at(raw_pct, raw, cal)` -> percent; `raw_for(target_pct, raw, cal)` -> the lowest raw percent that gives the calibrated target (NaN if never reached).
+- `brier(p, event, w=None)`, `brier_skill(p, event, clim, w=None)` (1 - BS/BS of the constant clim; NaN when climate is perfect), `reliability_error(table)` (n-weighted RMS of mean forecast minus observed frequency over bins, 0-1).
+- `to_page_json(curves, note="", path=None)`: `curves = {(thr, basin, group): (raw, cal)}` -> the layout of awips-tools `marine_wind/pipeline/calibration.json`: `{"note", "thresholds": {"48": {"natl": {"le48": {"raw", "cal"}, "72": ..., "ge96": ...}, "npac": ...}, "64": ..., "34": ...}}`.
 
 ## rk/score.py (grids: forecast and truth on the same grid; mask optional)
 - `contingency(fc, ob, thr, mask=None) -> (hits, false_alarms, misses)`.
@@ -105,6 +118,6 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `use()`: apply the house matplotlib style.
 - `METHOD_COLORS`, `METHOD_LABELS`: fixed per method key (gfs, ifs, aifs, mean3, blend, corelift, gefs, ens, aifs-ens, desk, analysis, ascat, buoys).
 - `WIND_LEVELS`, `wind_cmap()`, `wind_norm()`: the page's knot breaks; gale and above in the page's colours.
-- `HAZARD_COLORS` for gale, storm, hf.
+- `HAZARD_COLORS` for gale, storm, hf. `BASIN_COLORS` (natl, npac): one colour per basin, for figures that compare basins (distinct from the method hues).
 - `title(ax, finding, detail)`: finding as the title, case count and period beneath.
 - `save(fig, path)`: PNG at 150 dpi plus the same name in SVG.
