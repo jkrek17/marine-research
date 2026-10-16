@@ -18,6 +18,7 @@ Copy `templates/design_card.md` to `studies/<yyyy-mm-dd>-<short-name>/design.md`
 - Cases: `rk.cases.cycles(basin, start, end)`; the Atlantic runs at 12 UTC and the Pacific at 00 UTC by default (ASCAT coverage). Winter = Nov-Mar.
 - Fields: `rk.store.load_det / load_ens`; anything missing: `tools/fill_store.py` in the background (it waits out the marine wind build windows by itself). Big pulls (more than ~50 GB streamed): say the estimate first.
 - Truth: `rk.truth.analysis` (where), `rk.truth.ascat` (how strong, real 10 m), `rk.truth.obs` (buoys, ships).
+- Anything general a study needs (a new field, truth source or score) goes into `rk/` with a test, not a private copy.
 - Fields the store does not carry (925 mb, temperatures, full members): fetch with `rk.fetch` and cache under `rk.paths.data("extra", "<study>")`, not in a session folder.
 
 ## 3. Run

@@ -16,6 +16,8 @@
 
 **Data:** <what is already in the shared store; what must be fetched; rough GB and hours; kept clear of build windows>
 
+**Reused / new:** <which rk modules, store data and earlier study code this uses; anything new and why it can't live in rk/ for the next study>
+
 **Methods tried, simplest first:** each must beat the one before it to stay in.
 1. ...
 2. ...

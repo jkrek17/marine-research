@@ -2,6 +2,9 @@
 
 Research for the marine forecast desk: models, ensembles, ASCAT and buoys, scored in forecaster terms. Results feed the marine wind page and GFE tools in jkrek17/awips-tools, but only after Jason agrees. Several threads run studies at once, so the shared code, data and rules live here.
 
+## Build for the long term (Jason, 2026-10-16)
+If something can be made reusable and efficient, that comes first. Downloads, truth and scores come from `rk/`; a study that needs a new one adds it to `rk/` (with a test) rather than writing a private copy, and its design card says what is reused and what is new.
+
 ## First
 1. Read `STUDIES.md` and `LESSONS.md`.
 2. Run `git config core.hooksPath .githooks`.
