@@ -25,6 +25,7 @@ import datetime as dt
 import glob
 import os
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -91,6 +92,17 @@ def desk_masks(basin, valid, hour):
 
 
 def run_case(args):
+    """Score one case; the shared folder is a network mount, so a read error is retried a few times."""
+    for i in range(4):
+        try:
+            return _run_case(args)
+        except OSError:
+            if i == 3:
+                raise
+            time.sleep(10 * (i + 1))
+
+
+def _run_case(args):
     basin, f = args
     run, step = os.path.basename(f)[:-4].split("_")
     run, step = dt.datetime.strptime(run, "%Y%m%d%H"), int(step)
