@@ -372,6 +372,19 @@ def smap_day(day):
     return c
 
 
+def mask_time(basin, valid):
+    """The time whose analysis supplies the open-water mask for `valid`: valid itself when its analysis exists, else
+    the 00/12 UTC analysis 6 h or less away (the earlier one first), else None."""
+    cands = [valid]
+    if valid.hour not in (0, 12):
+        h = valid.hour % 12
+        cands += [valid - dt.timedelta(hours=h), valid + dt.timedelta(hours=12 - h)]
+    for c in cands:
+        if abs((c - valid).total_seconds()) <= 6 * 3600 and analysis(basin, c) is not None:
+            return c
+    return None
+
+
 def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     """ASCAT cells within max_dt_min of the valid time, inside the basin box -> dict of 1-D arrays, or None
     when a needed day is not posted (RSS lags about 2 days) or the analysis is missing.
@@ -384,7 +397,11 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     intercal (default True): Metop-B reads higher than Metop-C by a gap that grows with speed (+0.30 kt at
     25-35 kt to +1.25 at 55+, INTERCAL_*); half the gap is subtracted from B and added to C on the
     equivalent-neutral speed before the real-wind conversion, so spd_enw_kt and spd_kt both carry it.
-    spd_enw_raw_kt is the unadjusted equivalent-neutral speed. intercal=False gives the raw RSS values."""
+    spd_enw_raw_kt is the unadjusted equivalent-neutral speed. intercal=False gives the raw RSS values.
+
+    Fallback: where the analysis (open-water mask) or the GFS air-sea field is missing at the valid time itself
+    (06/18 UTC: the IFS analysis is not posted), the nearest 00/12 UTC analysis within 6 h supplies both, the earlier
+    one preferred (mask_time). At 00/12 UTC the behaviour is unchanged."""
     valid = dt.datetime.combine(valid, dt.time()) if type(valid) is dt.date else valid
     lo, hi = valid - dt.timedelta(minutes=max_dt_min), valid + dt.timedelta(minutes=max_dt_min)
     days = sorted({lo.date(), hi.date()})
@@ -401,9 +418,10 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     k = np.abs(c["dt_min"]) <= max_dt_min
     k &= (c["scat_rain"] == 0) & (c["rad_rain"] < 2) & inside(basin, c["lat"], c["lon"])
     c = {f: v[k] for f, v in c.items()}
-    an = analysis(basin, valid)
-    if an is None:
+    tm = mask_time(basin, valid)
+    if tm is None:
         return None
+    an = analysis(basin, tm)
     ok = sample(an["mask"].astype(float), basin, c["lat"], c["lon"]) > 0.99
     out = {f: v[ok] for f, v in c.items() if f not in ("scat_rain", "rad_rain", "sos")}
     out["spd_enw_raw_kt"] = out["spd_enw_kt"].copy()
@@ -412,6 +430,8 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     out["spd_kt"] = out["spd_enw_kt"].copy()
     if real:
         a = airsea(basin, valid)
+        if a is None and tm != valid:
+            a = airsea(basin, tm)
         if a is None:
             return None
         dT = sample(a, basin, out["lat"], out["lon"])

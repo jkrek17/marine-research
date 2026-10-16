@@ -76,6 +76,18 @@ def test_to_quarter():
         pass
 
 
+
+def test_opc_mask():
+    import numpy as np
+    for b, inside_pt, outside_pt in (("natl", (50.0, 320.0), (50.0, 330.0)),
+                                     ("npac", (40.0, 200.0), (40.0, 175.0))):
+        m = basins.opc_mask(b)
+        la, lo = basins.grid(b)
+        r = lambda p: (int(np.argmin(abs(la - p[0]))), int(np.argmin(abs(lo - p[1]))))
+        assert m[r(inside_pt)] and not m[r(outside_pt)], b
+    assert basins.opc_mask("npac")[int(np.argmin(abs(basins.grid("npac")[0] - 52))),
+                                   int(np.argmin(abs(basins.grid("npac")[1] - 176)))]   # west of 180 north of 50N
+
 if __name__ == "__main__":
     for k, f in list(globals().items()):
         if k.startswith("test_"):
