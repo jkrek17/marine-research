@@ -136,6 +136,24 @@ def test_hf_archive_parse(tmp=None):
     assert len(f) == 1 and f["hpa"][0] == 982          # S dropped; 20N lies outside the box
 
 
+def test_ascat_fallback_06z():
+    """Live check (needs the shared ASCAT cache): 06Z has cells via the 00Z mask; 00Z is unchanged by the fallback."""
+    import datetime as dt
+    try:
+        a = truth.ascat("npac", dt.datetime(2026, 1, 16, 6))
+        b = truth.ascat("natl", dt.datetime(2026, 1, 16, 0))
+    except Exception as e:  # no network or cache
+        print("note: live ascat check skipped:", repr(e)[:60])
+        return
+    if a is None:
+        print("note: ASCAT cache not available, 06Z check skipped")
+        return
+    assert len(a["spd_kt"]) > 100
+    assert truth.mask_time("natl", dt.datetime(2026, 1, 16, 0)) == dt.datetime(2026, 1, 16, 0)
+    assert truth.mask_time("npac", dt.datetime(2026, 1, 16, 6)) == dt.datetime(2026, 1, 16, 0)
+    assert b is not None and len(b["spd_kt"]) > 100
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

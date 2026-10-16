@@ -5,8 +5,8 @@ For each model cycle c (00/12Z), basin and valid time V
 previous shift's grid (I-12h) are both present and the analysis mask is open ice-free water.
 
 Methods (kt, basin 0.25 grid): desk; prev12 and prev24 (desk grids of I-12h and I-24h at V); auto24 =
-prev24 + (M_c(V) - M_{c-24}(V)), M the mean of the deterministic models present for both cycles (the 12 h version,
-auto12, waits for 12-h-offset steps in the store); gfs, ifs, aifs; mean3; blend (page recipe, no member-support
+prev24 + (M_c(V) - M_{c-24}(V)) and auto12 = prev12 + (M_c(V) - M_{c-12}(V)), M the mean of the deterministic models
+present for both cycles (auto12 needs the store's 12-h-offset steps f036, f060, ...); gfs, ifs, aifs; mean3; blend (page recipe, no member-support
 weighting) = mean3 + min(k * spd_std, 5 kt), k = 0.15 at lead 24 else 0.25, spd_std the mean over the ensembles
 present among gefs, ens, aifs-ens. A model that is missing is skipped, so a rerun after the ECMWF half of the
 store fills adds those columns with no code change.
@@ -119,20 +119,21 @@ def model_fields(basin, c, lead):
     return out
 
 
-def auto24_field(basin, c, lead, prev24):
-    """prev24 + (M_c(V) - M_{c-24}(V)); M over the deterministic models present for both cycles.
-    (auto12 would use the cycle 12 h earlier; the store has no 12-h-offset steps yet.)"""
-    if prev24 is None or lead + 24 not in cases.STEPS:
+def auto_field(basin, c, lead, base, dh):
+    """base + (M_c(V) - M_{c-dh}(V)): the previous grid plus the change in the deterministic-model mean between the
+    cycle c and the cycle dh hours earlier (auto24: base = prev24, dh = 24; auto12: base = prev12, dh = 12).
+    M is the mean of the models present for both cycles; None when the older cycle's step lead+dh is not stored."""
+    if base is None:
         return None
-    c0 = c - dt.timedelta(hours=24)
+    c0 = c - dt.timedelta(hours=dh)
     pairs = []
     for m in DET:
-        a, b = _det(basin, c, m, lead), _det(basin, c0, m, lead + 24)
+        a, b = _det(basin, c, m, lead), _det(basin, c0, m, lead + dh)
         if a is not None and b is not None:
             pairs.append((a, b))
     if not pairs:
         return None
-    return prev24 + (np.mean([p[0] for p in pairs], axis=0) - np.mean([p[1] for p in pairs], axis=0))
+    return base + (np.mean([p[0] for p in pairs], axis=0) - np.mean([p[1] for p in pairs], axis=0))
 
 
 def stats(fc, ob):
@@ -140,6 +141,9 @@ def stats(fc, ob):
     e = score.error(fc, ob, 25)
     r = dict(n=int(len(fc)), n25=e["n"],
              sum_abs=e["mae"] * e["n"] if e["n"] else 0.0, sum_err=e["bias"] * e["n"] if e["n"] else 0.0)
+    # truth-defined sample: the cells where the truth is >= 25 kt, the same cells for every method
+    d = fc[ob >= 25] - ob[ob >= 25]
+    r.update(n25t=int(len(d)), sum_abs_t=float(np.abs(d).sum()), sum_err_t=float(d.sum()))
     for t in THR:
         h, fa, mi = score.contingency(fc, ob, t)
         r.update({f"hits{t}": h, f"fa{t}": fa, f"miss{t}": mi, f"fc_cells{t}": h + fa, f"ob_cells{t}": h + mi})
@@ -178,9 +182,12 @@ def score_cycle(c):
             if p24 is not None:
                 grids["prev24"] = p24
             grids.update(model_fields(basin, c, lead))
-            a24 = auto24_field(basin, c, lead, p24)
+            a24 = auto_field(basin, c, lead, p24, 24)
             if a24 is not None:
                 grids["auto24"] = a24
+            a12 = auto_field(basin, c, lead, p12, 12)
+            if a12 is not None:
+                grids["auto12"] = a12
             cls_grid = None
             if all(m in grids for m in DET):
                 cls_grid = classes.classes(np.stack([grids[m] for m in DET]))
@@ -219,7 +226,7 @@ def score_cycle(c):
                           edited=int((np.abs(diff) > 2).sum()), sum_abs_edit=float(np.abs(diff).sum()),
                           raised=int((diff > 2).sum()), lowered=int((diff < -2).sum()),
                           n_ascat=0, edited_ascat=0, toward=0, away=0, toward_ed=0, away_ed=0,
-                          n_ascat_a=0, toward_a=0, away_a=0)
+                          n_ascat_a=0, toward_a=0, away_a=0, n_ascat_a12=0, toward_a12=0, away_a12=0)
                 if asc_sel is not None and asc_sel.any() and int((common & np.isfinite(asc)).sum()) >= MIN_ASCAT:
                     ob_a = asc[asc_sel]
                     dd, pp = np.abs(dk[asc_sel] - ob_a), np.abs(p12[asc_sel] - ob_a)
@@ -231,6 +238,10 @@ def score_cycle(c):
                         da = np.abs(a24[asc_sel] - ob_a)
                         er.update(n_ascat_a=int(len(ob_a)), toward_a=int((dd < da - 0.5).sum()),
                                   away_a=int((dd > da + 0.5).sum()))
+                    if "auto12" in meths:
+                        da = np.abs(a12[asc_sel] - ob_a)
+                        er.update(n_ascat_a12=int(len(ob_a)), toward_a12=int((dd < da - 0.5).sum()),
+                                  away_a12=int((dd > da + 0.5).sum()))
                 erows.append(er)
     return srows, erows
 
