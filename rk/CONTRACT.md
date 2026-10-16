@@ -68,7 +68,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 
 ## rk/style.py (light figures; see STYLE.md)
 - `use()`: apply the house matplotlib style.
-- `METHOD_COLORS`, `METHOD_LABELS`: fixed per method key (gfs, ifs, aifs, mean3, blend, page, gefs, ens, aifs-ens, desk, analysis, ascat, buoys).
+- `METHOD_COLORS`, `METHOD_LABELS`: fixed per method key (gfs, ifs, aifs, mean3, blend, corelift, gefs, ens, aifs-ens, desk, analysis, ascat, buoys).
 - `WIND_LEVELS`, `wind_cmap()`, `wind_norm()`: the page's knot breaks; gale and above in the page's colours.
 - `HAZARD_COLORS` for gale, storm, hf.
 - `title(ax, finding, detail)`: finding as the title, case count and period beneath.

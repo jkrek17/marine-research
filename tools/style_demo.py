@@ -13,7 +13,7 @@ from rk.basins import BASINS
 def lead_chart(out):
     fig, ax = plt.subplots(figsize=(6.4, 3.8))
     leads = np.arange(24, 121, 24)
-    base = {"gfs": 4.2, "ecmwf": 3.7, "aifs": 3.9, "blend": 3.5, "page": 3.3}
+    base = {"gfs": 4.2, "ecmwf": 3.7, "aifs": 3.9, "blend": 3.5, "corelift": 3.3}
     for m, b in base.items():
         key = "ifs" if m == "ecmwf" else m
         y = b + 0.022 * (leads - 24) + (0.2 if m == "gfs" else 0)
@@ -22,7 +22,7 @@ def lead_chart(out):
                     textcoords="offset points", va="center", fontsize=9, color=style.METHOD_COLORS[key])
     ax.set_xticks(leads); ax.set_xlim(20, 138)
     ax.set_xlabel("Lead time (h)"); ax.set_ylabel("Wind MAE where 25+ kt (kt)")
-    style.title(ax, "Page wind has the lowest error at every lead",
+    style.title(ax, "Core-lifted blend has the lowest error at every lead",
                 "142 cases, Nov 2025-Mar 2026, N Atlantic 12 UTC (synthetic)")
     style.save(fig, Path(out) / "lead_chart.png")
 

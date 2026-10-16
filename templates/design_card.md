@@ -8,7 +8,7 @@
 
 **Truth:** <anl for where / ASCAT for how strong / buoys / issued products> — and why that truth fits this question.
 
-**Baseline to beat:** <live page wind, blend, desk, best single model>
+**Baseline to beat:** <core-lifted blend (the live page wind), blend, desk, best single model>
 
 **Win means:** <the number, in forecaster terms, decided now: e.g. "catches at least 10% more ASCAT storm tiles with no more than 5% more false alarms, on held-out weeks">
 

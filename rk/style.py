@@ -17,7 +17,7 @@ GRID = "#ecebe7"
 
 METHOD_COLORS = {
     "ifs": "#2a78d6", "ecmwf": "#2a78d6", "gfs": "#eb6834", "aifs": "#6250d6",
-    "blend": "#1baf7a", "page": "#008300", "mean3": "#7a7974",
+    "blend": "#1baf7a", "corelift": "#008300", "mean3": "#7a7974",
     "gefs": "#eb6834", "ens": "#2a78d6", "aifs-ens": "#6250d6",
     "desk": "#1f1f1d", "analysis": "#5f5e5a", "ascat": "#e34948", "buoys": "#eda100",
 }
@@ -25,7 +25,7 @@ METHOD_COLORS = {
 METHOD_DASHES = {"gefs": (4, 2), "ens": (4, 2), "aifs-ens": (4, 2)}
 METHOD_LABELS = {
     "gfs": "GFS", "ifs": "ECMWF", "ecmwf": "ECMWF", "aifs": "AIFS", "blend": "Blend",
-    "page": "Page wind", "mean3": "3-model mean", "gefs": "GEFS mean", "ens": "ENS mean",
+    "corelift": "Core-lifted blend", "mean3": "3-model mean", "gefs": "GEFS mean", "ens": "ENS mean",
     "aifs-ens": "AIFS ENS mean", "desk": "Desk", "analysis": "Analysis", "ascat": "ASCAT",
     "buoys": "Buoys",
 }

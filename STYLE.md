@@ -11,7 +11,7 @@ Call `rk.style.use()` before plotting and `rk.style.save(fig, path)` to write PN
 
 | Method | Colour | | Method | Colour |
 |---|---|---|---|---|
-| ECMWF (IFS) | blue `#2a78d6` | | Page wind (core-lifted) | green `#008300` |
+| ECMWF (IFS) | blue `#2a78d6` | | Core-lifted blend (the page's wind: blend + 5 kt where storm-core chance is 35%+) | green `#008300` |
 | GFS | orange `#eb6834` | | 3-model mean | grey `#7a7974` |
 | AIFS | violet `#6250d6` | | Desk (issued) | near-black `#1f1f1d` |
 | Blend | aqua `#1baf7a` | | ASCAT / buoys | red `#e34948` / amber `#eda100` |
