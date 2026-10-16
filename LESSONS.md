@@ -8,6 +8,7 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **ASCAT coverage follows the satellite, not the study.** At 12 UTC it covers the Atlantic and barely the western edge of the Pacific box; the Pacific is seen at 00 UTC. *Basin default hours in `rk.basins`.*
 - **75 fixed coastal stations hide in the ship table** and read 3-5 kt low in offshore cold flow. *Removed in `rk.truth.obs`.*
 - **Buoys sit at ~4 m, ships run high.** Raise buoys to 10 m (neutral profile), scale ships by 0.88. *In `rk.truth.obs`.*
+- **RSS ASCAT cell centres sit 0.125 deg off the 0.25 deg model grid.** Snap with floor(x + 0.5), not np.rint: half-to-even rounding empties every other row and column.
 - **ERA5 is too weak to referee gales** (catches 49 of 131 buoy gales vs 80 for the operational analyses). Fine for pressure.
 - **Don't trust MSLP gradients over Greenland or within ~80 km of land** for wind; they are reduction artefacts.
 
