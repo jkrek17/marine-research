@@ -27,6 +27,9 @@ TRUTHS = ("box", "cell", "anl")
 TRUTH_LABEL = {"box": "ASCAT 3x3 box", "cell": "ASCAT single cell", "anl": "analysis"}
 BASINS = ("natl", "npac")
 LABEL = "GEFS only, first look"
+# Cycle hours (UTC) per basin. ASCAT covers the Atlantic box equally at 00 and 12 UTC; the Pacific is only
+# in the store at 00 UTC. Adding Pacific 06/18 UTC later is a one-line change: "npac": [0, 6, 18].
+HOURS = {"natl": [0, 12], "npac": [0]}
 START, END = dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31)
 
 
@@ -35,7 +38,8 @@ def accumulate():
     counts, rows, log = {}, [], []
     for basin in BASINS:
         tcache = {}
-        cyc = [c for c in cases.cycles(basin, START, END) if store.load_ens(basin, c, "gefs", 24) is not None]
+        cyc = sorted(c for h in HOURS[basin] for c in cases.cycles(basin, START, END, hour=h)
+                     if store.load_ens(basin, c, "gefs", 24) is not None)
         print(basin, "cycles with GEFS in the store:", len(cyc), flush=True)
         for c in cyc:
             fetch.wait_for_quiet()
