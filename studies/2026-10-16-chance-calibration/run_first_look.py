@@ -88,7 +88,7 @@ def accumulate():
                 valid = c + dt.timedelta(hours=step)
                 if valid not in tcache:
                     have = store._analysis_path(basin, valid).exists()     # never trigger an analysis download
-                    ag = truth.ascat_grid(basin, valid) if have else None
+                    ag = truth.ascat_box(basin, valid) if have else None
                     an = truth.analysis(basin, valid) if have else None
                     t = {}
                     if ag is not None:

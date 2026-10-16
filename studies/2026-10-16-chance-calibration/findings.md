@@ -40,6 +40,6 @@ Figures: `reliability_box_{34,48,64}.png` (main), `reliability_cell_*`, `reliabi
 
 ## How it was done
 - Chance: GEFS member fraction p34/p48/p64 (31 members) from `rk.store`; no model downloads.
-- Truths: `rk.truth.ascat_grid` (rain dropped, real 10 m wind, `intercal` on, floor(x+0.5) snapping, box kept where 6 of 9 cells valid), single-cell version, and `rk.truth.analysis` mean speed in its mask.
+- Truths: `rk.truth.ascat_box` (rain dropped, real 10 m wind, `intercal` on, floor(x+0.5) snapping, box kept where 6 of 9 cells valid), single-cell version, and `rk.truth.analysis` mean speed in its mask.
 - Split `rk.cases.held_out` on the cycle date; remap fitted on tune weeks per basin x truth x threshold x lead group with `rk.calibrate.fit`, scored once on held-out weeks. Cycle hours per basin are `HOURS` in the run script.
 - Code: `studies/2026-10-16-chance-calibration/run_first_look.py`; `rk/calibrate.py`. Not yet checked by an independent recompute.

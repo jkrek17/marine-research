@@ -182,6 +182,61 @@ def test_low_scores_thresholds():
     assert score.low_scores(tr2, fc2, "natl", false_truth_below=1000)["false"] == 1
 
 
+def test_low_case():
+    tr = _field("natl", [(50, 320, 970.0)])
+    # forecast low 450 km away: not a 300 km hit, but it supplies position and depth (study rule)
+    dlon = 450 / (111.19 * np.cos(np.radians(50)))
+    fc = _field("natl", [(50, 320 + dlon, 975.0)])
+    rows, false, n_fc = score.low_case(tr, fc, "natl")
+    assert len(rows) == 1 and not rows.hit[0]
+    assert abs(rows.pos_km[0] - 450) < 15 and abs(rows.depth_err_hpa[0] - 5.0) < 0.05
+    assert false == 0 and n_fc == 1
+    # perfect forecast: hit, zero errors
+    rows, false, n_fc = score.low_case(tr, tr, "natl")
+    assert rows.hit[0] and rows.pos_km[0] < 1e-6 and rows.depth_err_hpa[0] == 0 and false == 0
+    # no forecast low at all: miss charged 1000 km, depth from the field at the analysed centre
+    rows, false, n_fc = score.low_case(tr, np.full_like(tr, 1012.0), "natl")
+    assert rows.pos_km[0] == 1000.0 and not rows.hit[0] and abs(rows.depth_err_hpa[0] - 42.0) < 1e-3
+    assert false == 0 and n_fc == 0
+    # a forecast low far from every analysed low is a false low
+    far = _field("natl", [(50, 320, 970.0), (40, 290, 985.0)])
+    rows, false, n_fc = score.low_case(tr, far, "natl")
+    assert false == 1 and n_fc == 2
+
+
+def test_warning_events():
+    ob = np.zeros((40, 40)); seen = np.ones(ob.shape, bool)
+    ob[5:7, 5:7] = 50            # event A (4 cells)
+    ob[30, 30] = 50              # single cell: below min_cells, not an event
+    ob[20:22, 20:22] = 40        # event B at 34 only
+    w = np.zeros(ob.shape, bool)
+    w[8:12, 8:12] = True         # 2-5 cells from A: a hit within slack 4, not a false area
+    w[30:34, 0:4] = True         # far from everything: false area
+    r = score.warning_events(w, ob, seen, 48)
+    assert (r["events"], r["hits"], r["areas"], r["judged"], r["false"]) == (1, 1, 2, 2, 1)
+    assert r["cells"] == 32 and r["bad_cells"] == 16 + 7      # row 11 and column 11 lie beyond the slack
+    r = score.warning_events(w, ob, seen, 34)
+    assert (r["events"], r["hits"]) == (2, 1)
+    # an area the observations did not see is not judged
+    unseen = seen.copy(); unseen[28:36, 0:6] = False
+    r = score.warning_events(w, ob, unseen, 48)
+    assert (r["judged"], r["false"]) == (1, 0)
+    # diagonal neighbours are one event (8-connected)
+    ob2 = np.zeros((10, 10)); ob2[2, 2] = ob2[3, 3] = 50
+    assert score.warning_events(np.zeros((10, 10), bool), ob2, np.ones((10, 10), bool), 48)["events"] == 1
+
+
+def test_warning_points():
+    from rk.basins import grid
+    lats, lons = grid("natl")
+    w = np.zeros((lats.size, lons.size), bool)
+    w[40:44, 100:104] = True                       # around lat 57, lon 310
+    w[120:123, 250:253] = True                     # far away: false
+    r = score.warning_points(w, "natl", [57.0, 40.0], [310.5, 300.0], 300)
+    assert (r["events"], r["hits"], r["areas"], r["false"]) == (2, 1, 2, 1)
+    assert r["bad_cells"] == 9
+
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):

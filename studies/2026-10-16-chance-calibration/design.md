@@ -16,7 +16,7 @@
 
 **Data:** the store only (GEFS `p34/p48/p64`, analyses). ASCAT daily bytemaps and the GFS air-sea analysis come through `rk.truth` (small downloads, cached in the store). No model downloads. `extra/warning-experiment/ascat_day` was checked: it holds a different layout (no equivalent-neutral speed, no rain bytes), so `rk.truth`'s own cache is used.
 
-**Reused / new:** reused `rk.cases`, `rk.store`, `rk.truth.ascat/analysis`, `rk.style`. New in `rk/`: `rk.calibrate` (reliability, fit, apply, scores, threshold translation, page JSON) and `rk.truth.ascat_grid/ascat_to_grid/box_mean` (ASCAT truth on the model grid), both with tests, so the page and GFE can call them.
+**Reused / new:** reused `rk.cases`, `rk.store`, `rk.truth.ascat/analysis`, `rk.style`. New in `rk/`: `rk.calibrate` (reliability, fit, apply, scores, threshold translation, page JSON) and `rk.truth.ascat_box/ascat_to_grid/box_mean` (ASCAT truth on the model grid), both with tests, so the page and GFE can call them.
 
 **Methods tried, simplest first:**
 1. Raw GEFS member fraction.
