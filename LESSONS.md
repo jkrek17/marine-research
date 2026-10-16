@@ -9,6 +9,7 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **75 fixed coastal stations hide in the ship table** and read 3-5 kt low in offshore cold flow. *Removed in `rk.truth.obs`.*
 - **Buoys sit at ~4 m, ships run high.** Raise buoys to 10 m (neutral profile), scale ships by 0.88. *In `rk.truth.obs`.*
 - **RSS ASCAT cell centres sit 0.125 deg off the 0.25 deg model grid.** Snap with floor(x + 0.5), not np.rint: half-to-even rounding empties every other row and column.
+- **Metop-B reads ~1 kt higher than Metop-C at storm force**, and 1 kt moves the 48 kt frequency ~17%; single-cell noise matters far less (~5%). *`rk.truth.ascat(intercal=True)` meets them halfway.*
 - **ERA5 is too weak to referee gales** (catches 49 of 131 buoy gales vs 80 for the operational analyses). Fine for pressure.
 - **Don't trust MSLP gradients over Greenland or within ~80 km of land** for wind; they are reduction artefacts.
 

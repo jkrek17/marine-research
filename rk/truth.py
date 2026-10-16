@@ -236,6 +236,21 @@ _LAT = -89.875 + 0.25 * np.arange(720)
 _LON = 0.125 + 0.25 * np.arange(1440)
 _LAT_RANGE = (15.0, 70.0)
 _SAT_ID = {"b": 2, "c": 3}
+# Metop-B minus Metop-C equivalent-neutral speed gap (kt) by speed (kt), band means from 3.3 million same-cell
+# B-C pairs within 60 min, winter 2025-26: +0.30 at 25-35 kt, +0.57 at 35-45, +0.84 at 45-55, +1.25 at 55+.
+# Source: /mnt/project-files/chance-calibration/ascat_noise/results.md (2026-10-16). Flat beyond the last knot.
+INTERCAL_SPEED = [0.0, 30.0, 40.0, 50.0, 60.0]
+INTERCAL_GAP = [0.0, 0.30, 0.57, 0.84, 1.25]
+
+
+def _intercal(spd, sat):
+    """Meet halfway: half the B-C gap off Metop-B (sat 2), half onto Metop-C (sat 3); other ids unchanged.
+    spd is equivalent-neutral kt, the gap is read at the raw speed."""
+    spd = np.asarray(spd, np.float32)
+    sat = np.asarray(sat)
+    half = 0.5 * np.interp(spd, INTERCAL_SPEED, INTERCAL_GAP)
+    sign = np.where(sat == _SAT_ID["b"], -1.0, np.where(sat == _SAT_ID["c"], 1.0, 0.0))
+    return (spd + sign * half).astype(np.float32)
 
 
 def _ascat_get(sat, ymd):
@@ -289,14 +304,19 @@ def ascat_day(day):
     return c
 
 
-def ascat(basin, valid, max_dt_min=90, real=True):
+def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     """ASCAT cells within max_dt_min of the valid time, inside the basin box -> dict of 1-D arrays, or None
     when a needed day is not posted (RSS lags about 2 days) or the analysis is missing.
 
     Rain dropped (scatterometer flag, or radiometer rain >= 2); open water only (analysis mask sampled at
     the cell > 0.99). spd_enw_kt is the equivalent-neutral 10 m wind; spd_kt equals it when real=False, else
     the real 10 m wind using the analysis air minus sea temperature at the cell. Also lat, lon, dt_min
-    (obs minus valid), dir_deg (from), sat (2 Metop-B, 3 Metop-C)."""
+    (obs minus valid), dir_deg (from), sat (2 Metop-B, 3 Metop-C).
+
+    intercal (default True): Metop-B reads higher than Metop-C by a gap that grows with speed (+0.30 kt at
+    25-35 kt to +1.25 at 55+, INTERCAL_*); half the gap is subtracted from B and added to C on the
+    equivalent-neutral speed before the real-wind conversion, so spd_enw_kt and spd_kt both carry it.
+    spd_enw_raw_kt is the unadjusted equivalent-neutral speed. intercal=False gives the raw RSS values."""
     valid = dt.datetime.combine(valid, dt.time()) if type(valid) is dt.date else valid
     lo, hi = valid - dt.timedelta(minutes=max_dt_min), valid + dt.timedelta(minutes=max_dt_min)
     days = sorted({lo.date(), hi.date()})
@@ -318,6 +338,9 @@ def ascat(basin, valid, max_dt_min=90, real=True):
         return None
     ok = sample(an["mask"].astype(float), basin, c["lat"], c["lon"]) > 0.99
     out = {f: v[ok] for f, v in c.items() if f not in ("scat_rain", "rad_rain", "sos")}
+    out["spd_enw_raw_kt"] = out["spd_enw_kt"].copy()
+    if intercal:
+        out["spd_enw_kt"] = _intercal(out["spd_enw_kt"], out["sat"])
     out["spd_kt"] = out["spd_enw_kt"].copy()
     if real:
         a = airsea(basin, valid)
