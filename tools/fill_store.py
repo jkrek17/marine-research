@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Fill the shared field cache (rk.store) and the analyses for a run of cycles.
+"""Fill the field store (rk.store) and the analyses for a run of cycles. Fields are written to the local
+cache (RK_CACHE) and marked unpublished; tools/publish_store.py sends them to the releases. Cycles already
+in the cache, the old RK_DATA/fields or a release are not fetched again.
 
   python3 tools/fill_store.py --start 20260101 --end 20260131 [--hours 0,12] [--basin both|natl|npac]
          [--every-days N] [--steps 24,48,...] [--workers 6] [--models noaa|ecmwf|gfs,ifs,...]

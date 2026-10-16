@@ -13,7 +13,7 @@ If something can be made reusable and efficient, that comes first. Downloads, tr
 ## Where things go
 - Code and small results (CSV, markdown, PNG under 1 MB): `studies/<yyyy-mm-dd>-<name>/`.
 - Shared library: `rk/` (interface in `rk/CONTRACT.md`; change the contract first).
-- Fields, truth tables, ASCAT: the shared data store, `RK_DATA` (default `/mnt/project-files/research-data`), through `rk.store` and `rk.truth`. Never in git.
+- Model fields: through `rk.store` (local cache `RK_CACHE`, releases of jkrek17/marine-research-data; add files with `rk.store.put`, send them with `tools/publish_store.py`). Truth tables, ASCAT and small results: the shared folder `RK_DATA` (default `/mnt/project-files/research-data`), through `rk.truth`. Never in git.
 
 ## Wait for Jason
 - Any change to awips-tools, hf-low or a public page that comes out of a study.
