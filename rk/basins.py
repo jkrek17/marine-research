@@ -79,3 +79,25 @@ def to_quarter(field_half, basin):
     wx = (xi - x0)[None, :]
     g = f[y0] * (1 - wy) + f[y1] * wy
     return g[:, x0] * (1 - wx) + g[:, x1] * wx
+
+
+# The OPC High Seas Forecast areas, copied from awips-tools marine_wind/hsf/areas.py (3eb2ff5+).
+OPC_AREAS = {
+    "npac": [(180, 30), (180, 50), (172, 53), (191.2, 65.7), (191.2, 67), (250, 67), (250, 30)],
+    "natl": [(278, 31), (278, 37), (285, 37), (285, 46), (289, 46), (289, 67), (325, 67), (325, 31)],
+}
+
+
+def opc_mask(basin):
+    """Cells of the basin's 0.25 deg grid inside its OPC High Seas Forecast area (even-odd test)."""
+    lats, lons = grid(basin)
+    lon, lat = np.meshgrid(lons, lats)
+    poly = OPC_AREAS[basin]
+    out = np.zeros(lon.shape, bool)
+    for i in range(len(poly)):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % len(poly)]
+        if y1 == y2:
+            continue
+        out ^= ((y1 > lat) != (y2 > lat)) & (lon < x1 + (lat - y1) * (x2 - x1) / (y2 - y1))
+    return out

@@ -25,6 +25,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `crop(basin) -> (iy: slice, ix: np.ndarray)` indices into the global grid (lat 90..-90 721 rows, lon 0..359.75 1440 cols).
 - `sample(field, basin, lat, lon) -> np.ndarray` bilinear; lon any convention.
 - `inside(basin, lat, lon) -> bool array`.
+- `OPC_AREAS = {"natl": [...], "npac": [...]}`: the High Seas Forecast areas as (lon 0-360, lat) outlines, copied from awips-tools `marine_wind/hsf/areas.py` (HSFAT1: 31-67N west of 35W; HSFEP1: 30-67N east of the Bering Strait - 53N172E - 50N180W - 30N180W line). `opc_mask(basin) -> bool [ny, nx]`: cells of the basin grid inside its OPC area (land not removed). Score desk products on this water only.
 - `to_quarter(field_half, basin) -> np.ndarray` bilinear regrid of a 0.5 deg field (every second 0.25 point of the box, same north/west origin) onto the basin's 0.25 deg grid; exact at shared points; a trailing 0.25 row/column with no 0.5 neighbour repeats the last (natl has 300 columns).
 
 ## rk/cases.py
