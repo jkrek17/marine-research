@@ -180,7 +180,15 @@ def _pool(counts, basin, tn, thr, group, split):
     return np.concatenate(ps), np.concatenate(es), np.concatenate(ws)
 
 
-def report():
+def _cat(parts):
+    parts = [x for x in parts if x is not None]
+    return tuple(np.concatenate([x[i] for x in parts]) for i in range(3)) if parts else None
+
+
+def report(shared=False):
+    """Fit per basin on tune weeks and score held-out weeks (fit="basin"). With shared=True, 48 and 64 kt are also
+    fitted on both basins' tune weeks added into one table per lead group and scored on each basin's held-out
+    weeks (fit="shared"); the tables are summed, so that is a straight add. 34 kt stays per basin."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -189,48 +197,65 @@ def report():
     counts = {k: np.array(v) for k, v in json.load(open(OUT / "counts.json")).items()}
     rows = pd.read_csv(OUT / "cycle_rows.csv")
     rows["group"] = rows.step.map(C.lead_group)
-    res, curves, allcurves, rel = [], {}, {}, []
-    for basin in BASINS:
-        for tn in TRUTHS:
-            for thr in THRS:
-                for g in C.LEAD_GROUPS:
-                    tune, held = _pool(counts, basin, tn, thr, g, "tune"), _pool(counts, basin, tn, thr, g, "held_out")
+    res, curves, allcurves, rel, shcurves = [], {}, {}, [], {}
+    SHARED_THR = (48, 64) if shared else ()
+
+    def score(basin, tn, thr, g, fit, tune, held, raw, cal, trows):
+        p, e, w = held
+        q = C.apply(p, raw, cal)
+        n = w.sum()
+        ev = (w * e).sum()
+        clim = ev / n
+        th_raw, th_cal = C.table(p, e, w=w), C.table(q, e, w=w)
+        r = rows[(rows.basin == basin) & (rows.truth == tn) & (rows.thr == thr) & (rows.group == g)]
+        rh = r[r.split == "held_out"]
+        anyev = lambda d: int((d.groupby(["basin", "cycle"]).events.sum() > 0).sum())  # noqa: E731
+        res.append(dict(
+            basin=basin, truth=tn, thr=thr, lead=g, fit=fit, label=LABEL,
+            tune_cells=int(tune[2].sum()), tune_events=int((tune[2] * tune[1]).sum()),
+            tune_cycles=trows.groupby(["basin", "cycle"]).ngroups, tune_cycles_with_event=anyev(trows),
+            held_cells=int(n), held_events=int(ev), held_cycles=rh.cycle.nunique(),
+            held_cycles_with_event=anyev(rh), held_base_rate=clim,
+            bss_raw=C.brier_skill(p, e, clim, w), bss_remap=C.brier_skill(q, e, clim, w),
+            brier_raw=C.brier(p, e, w), brier_remap=C.brier(q, e, w),
+            relerr_raw=C.reliability_error(th_raw), relerr_remap=C.reliability_error(th_cal),
+            raw_for_30=C.raw_for(30, raw, cal), raw_for_50=C.raw_for(50, raw, cal),
+            raw_for_90=C.raw_for(90, raw, cal), cal_at_30=float(C.cal_at(30, raw, cal)),
+            cal_at_10=float(C.cal_at(10, raw, cal)),
+            raw_knots=json.dumps(raw), cal_knots=json.dumps(cal)))
+        for kind, t in (("raw", th_raw), ("remap", th_cal)):
+            if fit == "shared" and kind == "raw":
+                continue                      # the raw curve is the same in both fits
+            rr = C._rel(t)
+            for i in range(len(rr["n"])):
+                rel.append(dict(basin=basin, truth=tn, thr=thr, lead=g, fit=fit, kind=kind, bin_lo=C.EDGES[i],
+                                n=rr["n"][i], events=rr["events"][i], mean_fc=rr["mean_fc"][i],
+                                obs_freq=rr["obs_freq"][i]))
+
+    for tn in TRUTHS:
+        for thr in THRS:
+            for g in C.LEAD_GROUPS:
+                pools = {b: (_pool(counts, b, tn, thr, g, "tune"), _pool(counts, b, tn, thr, g, "held_out")) for b in BASINS}
+                for basin in BASINS:
+                    tune, held = pools[basin]
                     if tune is None or held is None:
                         continue
-                    tt = C.table(*tune[:2], w=tune[2])
-                    raw, cal = C.fit(tt)
-                    curves_key = (thr, basin, g)
-                    allcurves.setdefault(tn, {})[curves_key] = (raw, cal)
+                    raw, cal = C.fit(C.table(*tune[:2], w=tune[2]))
+                    allcurves.setdefault(tn, {})[(thr, basin, g)] = (raw, cal)
                     if tn == "box":
-                        curves[curves_key] = (raw, cal)
-                    p, e, w = held
-                    q = C.apply(p, raw, cal)
-                    n = w.sum()
-                    ev = (w * e).sum()
-                    clim = ev / n
-                    th_raw, th_cal = C.table(p, e, w=w), C.table(q, e, w=w)
-                    r = rows[(rows.basin == basin) & (rows.truth == tn) & (rows.thr == thr) & (rows.group == g)]
-                    rh, rt = r[r.split == "held_out"], r[r.split == "tune"]
-                    anyev = lambda d: int((d.groupby("cycle").events.sum() > 0).sum())  # noqa: E731
-                    res.append(dict(
-                        basin=basin, truth=tn, thr=thr, lead=g, label=LABEL,
-                        tune_cells=int(tune[2].sum()), tune_events=int((tune[2] * tune[1]).sum()),
-                        tune_cycles=rt.cycle.nunique(), tune_cycles_with_event=anyev(rt),
-                        held_cells=int(n), held_events=int(ev), held_cycles=rh.cycle.nunique(),
-                        held_cycles_with_event=anyev(rh), held_base_rate=clim,
-                        bss_raw=C.brier_skill(p, e, clim, w), bss_remap=C.brier_skill(q, e, clim, w),
-                        brier_raw=C.brier(p, e, w), brier_remap=C.brier(q, e, w),
-                        relerr_raw=C.reliability_error(th_raw), relerr_remap=C.reliability_error(th_cal),
-                        raw_for_30=C.raw_for(30, raw, cal), raw_for_50=C.raw_for(50, raw, cal),
-                        raw_for_90=C.raw_for(90, raw, cal), cal_at_30=float(C.cal_at(30, raw, cal)),
-                        cal_at_10=float(C.cal_at(10, raw, cal)),
-                        raw_knots=json.dumps(raw), cal_knots=json.dumps(cal)))
-                    for kind, t in (("raw", th_raw), ("remap", th_cal)):
-                        rr = C._rel(t)
-                        for i in range(len(rr["n"])):
-                            rel.append(dict(basin=basin, truth=tn, thr=thr, lead=g, kind=kind, bin_lo=C.EDGES[i],
-                                            n=rr["n"][i], events=rr["events"][i], mean_fc=rr["mean_fc"][i],
-                                            obs_freq=rr["obs_freq"][i]))
+                        curves[(thr, basin, g)] = (raw, cal)
+                    score(basin, tn, thr, g, "basin", tune, held, raw, cal,
+                          rows[(rows.basin == basin) & (rows.truth == tn) & (rows.thr == thr) & (rows.group == g) & (rows.split == "tune")])
+                if thr in SHARED_THR:
+                    tune = _cat([pools[b][0] for b in BASINS])
+                    if tune is None:
+                        continue
+                    raw, cal = C.fit(C.table(*tune[:2], w=tune[2]))
+                    trows = rows[(rows.truth == tn) & (rows.thr == thr) & (rows.group == g) & (rows.split == "tune")]
+                    for basin in BASINS:
+                        if pools[basin][1] is not None:
+                            score(basin, tn, thr, g, "shared", tune, pools[basin][1], raw, cal, trows)
+                        shcurves.setdefault(tn, {})[(thr, basin, g)] = (raw, cal)
     df = pd.DataFrame(res)
     df.to_csv(OUT / "results.csv", index=False, float_format="%.5g")
     relf = pd.DataFrame(rel)
@@ -240,6 +265,11 @@ def report():
                                       else "Pooled as on the page; first look, not yet agreed."), path=OUT / "curves.json")
     json.dump({tn: json.loads(json.dumps(C.to_page_json(c))) for tn, c in allcurves.items()},
               open(OUT / "curves_all_truths.json", "w"), indent=1)
+    if shcurves:       # 48 and 64 kt fitted on both basins' tune weeks added together (same curve under natl and npac)
+        json.dump({tn: json.loads(json.dumps(C.to_page_json(c))) for tn, c in shcurves.items()},
+                  open(OUT / "curves_shared_all_truths.json", "w"), indent=1)
+        C.to_page_json(shcurves["box"], note="Shared 48/64 kt curves (both basins' tune weeks added), ASCAT box.",
+                       path=OUT / "curves_shared.json")
     # figures: one per truth x threshold, one panel per lead group, held-out weeks
     for tn in TRUTHS:
         for thr in THRS:
@@ -250,7 +280,7 @@ def report():
                     col = style.BASIN_COLORS[basin]
                     for kind in ("raw", "remap"):
                         d = relf[(relf.basin == basin) & (relf.truth == tn) & (relf.thr == thr) & (relf.lead == g)
-                                 & (relf.kind == kind) & (relf.n >= 30)]
+                                 & (relf.kind == kind) & (relf.fit == "basin") & (relf.n >= 30)]
                         if not len(d):
                             continue
                         hi = max(hi, d.mean_fc.max(), d.obs_freq.max())
@@ -258,22 +288,34 @@ def report():
                             ax.plot(d.mean_fc, d.obs_freq, "--", marker="o", mfc="white", mec=col, color=col, lw=1.3, ms=5)
                         else:
                             ax.plot(d.mean_fc, d.obs_freq, "-", marker="o", color=col, ms=5)
-                ax.text(0.04, 0.94, {"le48": "+24 and +48 h", "72": "+72 h", "ge96": "+96 and +120 h"}[g], transform=ax.transAxes,
-                        fontsize=10, color=style.INK, va="top")
+                for basin in BASINS:
+                    d = relf[(relf.basin == basin) & (relf.truth == tn) & (relf.thr == thr) & (relf.lead == g)
+                             & (relf.fit == "shared") & (relf.n >= 30)]
+                    if len(d):
+                        hi = max(hi, d.mean_fc.max(), d.obs_freq.max())
+                        ax.plot(d.mean_fc, d.obs_freq, ":", marker="s", color=style.BASIN_COLORS[basin], lw=2, ms=5)
+                ax.text(0.97, 0.05, {"le48": "+24 and +48 h", "72": "+72 h", "ge96": "+96 and +120 h"}[g], transform=ax.transAxes,
+                        fontsize=10, color=style.INK, va="bottom", ha="right")
             hi = min(1.0, hi * 1.1)
             for ax in axs:
                 ax.plot([0, hi], [0, hi], color=style.SPINE, lw=1, zorder=0)
                 ax.set_xlim(0, hi), ax.set_ylim(0, hi)
-                ax.set_xlabel("%s chance of %d kt or more" % (CHANCE_NAME, thr))
+            fig.supxlabel("%s chance of %d kt or more" % (CHANCE_NAME, thr), fontsize=10, y=0.13)
             axs[0].set_ylabel("how often it happened (%s)" % TRUTH_LABEL[tn])
             from matplotlib.lines import Line2D
             h = [Line2D([], [], color=style.BASIN_COLORS[b], lw=2, label=cases_name(b)) for b in BASINS]
             h += [Line2D([], [], color="#5f5e5a", ls="--", marker="o", mfc="white", label="raw"),
-                  Line2D([], [], color="#5f5e5a", marker="o", label="remapped")]
-            axs[2].legend(handles=h, loc="lower right")
-            s = df[(df.truth == tn) & (df.thr == thr) & (df.lead == "le48")].set_index("basin")
+                  Line2D([], [], color="#5f5e5a", marker="o", label="remapped (own basin)")]
+            if (relf.fit == "shared").any() and thr in SHARED_THR:
+                h += [Line2D([], [], color="#5f5e5a", ls=":", lw=2, marker="s", label="remapped (shared curve)")]
+            fig.legend(handles=h, loc="lower center", ncol=len(h), frameon=False, bbox_to_anchor=(0.5, -0.01))
+            fig.subplots_adjust(bottom=0.3)
+            s = df[(df.truth == tn) & (df.thr == thr) & (df.lead == "le48") & (df.fit == "basin")].set_index("basin")
             bit = ", ".join("%s %.2f to %.2f" % ({"natl": "Atl", "npac": "Pac"}[b], s.loc[b, "bss_raw"], s.loc[b, "bss_remap"])
                             for b in BASINS if b in s.index)
+            sh = df[(df.truth == tn) & (df.thr == thr) & (df.lead == "le48") & (df.fit == "shared")].set_index("basin")
+            if len(sh):
+                bit += "; shared curve Pac %.2f" % sh.loc["npac", "bss_remap"] if "npac" in sh.index else ""
             style.title(axs[0], "%d kt chance runs %s; remap moves Brier skill %s (+24/48, held-out)" % (
                 thr, "high" if _over(relf, tn, thr) else "low", bit),
                 "%s. %s truth. Winter 2025-26 cycles in the store; fit on tune weeks, shown for held-out weeks; bins of 30+ cells." % (LABEL, TRUTH_LABEL[tn]))
@@ -297,6 +339,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("stage", choices=["accumulate", "report"])
     ap.add_argument("--mode", choices=sorted(MODES), default="gefs")
+    ap.add_argument("--shared", action="store_true", help="report: also fit 48 and 64 kt on both basins' tune weeks pooled")
     a = ap.parse_args()
     configure(a.mode)
-    {"accumulate": accumulate, "report": report}[a.stage]()
+    if a.stage == "report":
+        report(shared=a.shared)
+    else:
+        accumulate()
