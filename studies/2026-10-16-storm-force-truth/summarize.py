@@ -254,46 +254,82 @@ def ci(r, d=1):
     return "%s [%s, %s]" % (fnum(r["diff"], d), fnum(r["diff_lo"], d), fnum(r["diff_hi"], d))
 
 
-def figure(df, ss):
+def figure(df, ss, cs=None):
+    """Two panels from the summary tables: same-cell pairs within 3 h (left), storm peaks per pass pair (right)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     style.use()
-    fig, ax = plt.subplots(figsize=(6.4, 6.0))
-    lim = (38, 90)
-    ax.plot(lim, lim, color=style.INK2, lw=1, label="1:1")
-    for direction, mk, col, lab in (("ascat", "o", style.METHOD_COLORS["ascat"], "storm found in ASCAT40"),
-                                    ("smap", "s", style.METHOD_COLORS["ens"], "storm found in SMAP")):
-        s = df[df.direction == direction]
-        ax.scatter(s.ascat40_peak, s.smap_peak, s=22, marker=mk, facecolors="none", edgecolors=col, alpha=0.7,
-                   label="%s (n=%d)" % (lab, len(s)))
-    # binned means by mean of the pair (ASCAT-selected pairs and all pairs pooled by direction ASCAT, the main one)
-    for direction, col in (("ascat", style.METHOD_COLORS["ascat"]), ("smap", style.METHOD_COLORS["ens"])):
-        for bname, lo_, hi_ in BANDS_PEAK[1:]:
-            r = ss[(ss.direction == direction) & (ss.stratum == "all") & (ss.band == bname)].iloc[0]
-            if r.n_pairs < 5:
-                continue
-            ax.errorbar(r.mean_ascat40, r.mean_ascat40 + r["diff"],
-                        yerr=[[r["diff"] - r.diff_lo], [r.diff_hi - r["diff"]]], color=col, marker="D", ms=7,
-                        capsize=3, lw=1.8, mec="white")
-    r48 = ss[(ss.direction == "ascat") & (ss.stratum == "all") & (ss.band == "all")].iloc[0]
+    # statistic quoted in numbers.md: ASCAT-selected pairs with mean peak >= 48 kt
     s = df[(df.direction == "ascat")]
     m48 = s[0.5 * (s.ascat40_peak + s.smap_peak) >= 48]
     d = m48.smap_peak - m48.ascat40_peak
     uw, W = week_sums(m48.week.to_numpy(), np.stack([np.ones(len(m48)), d.to_numpy()], 1))
     p, lo, hi = boot_stat(W, f_mean)
-    ax.set_xlim(lim)
-    ax.set_ylim(lim)
-    ax.set_xlabel("ASCAT40 storm peak (kt, equivalent-neutral)")
-    ax.set_ylabel("SMAP peak within 300 km (kt, equivalent-neutral)")
-    style.title(ax, "SMAP reads %.1f kt (%.1f to %.1f) %s ASCAT at storm-force peaks" % (
-        abs(p[0]), lo[0], hi[0], "above" if p[0] > 0 else "below"),
-        "ASCAT-selected pairs, mean peak 48+ kt, n=%d, %d weeks, winter 2025-26\n"
-        "diamonds: band means (by mean of the two peaks), 95%% week-block intervals" % (len(m48), len(uw)))
-    ax.set_title(ax.get_title(loc="left"), loc="left", fontsize=12, color=style.INK, pad=36)
-    ax.legend(loc="upper left", fontsize=8)
-    ax.set_aspect("equal")
-    return fig, (p[0], lo[0], hi[0], len(m48), len(uw))
+    stat = (p[0], lo[0], hi[0], len(m48), len(uw))
+    if cs is None:
+        cs = pd.read_csv(RES / "cell_summary.csv")
+    plotted = {}
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 5.4), gridspec_kw={"wspace": 0.18})
+    ymin, ymax = -7, 16
+    for ax in (a1, a2):
+        ax.axhspan(-2, 2, color="#dedde8", alpha=0.6, lw=0, zorder=0)
+        ax.axhline(0, color=style.INK2, lw=1, zorder=1)
+        ax.set_ylim(ymin, ymax)
+        ax.set_ylabel("SMAP minus ASCAT40 (kt)")
+        ax.grid(axis="x", visible=False)
+    # left: same-cell pairs within 3 h, pooled basins, both satellites, all seasons split
+    bands = ["25-34", "34-48", "48-56", "56-64", "64+"]
+    c = cs[(cs.window_min == 180) & (cs.basin == "all") & (cs.sat.astype(str) == "all") & (cs.split == "all")]
+    k = style.METHOD_COLORS["ens"]
+    for i, b in enumerate(bands):
+        r = c[c.band == b].iloc[0]
+        plotted[("cells", b)] = (int(r.n_cells), r["diff"], r.diff_lo, r.diff_hi)
+        if np.isfinite(r.diff_lo):
+            a1.errorbar(i, r["diff"], yerr=[[r["diff"] - r.diff_lo], [r.diff_hi - r["diff"]]], color=k, marker="o",
+                        ms=7, capsize=4, lw=1.8, mec="white", zorder=3)
+        else:
+            a1.plot(i, r["diff"], color=k, marker="o", ms=7, mec="white", zorder=3)
+        a1.annotate("%.1f" % r["diff"], (i, r["diff"]), xytext=(9, 4), textcoords="offset points", fontsize=8, color=style.INK2)
+        a1.text(i, ymin + 0.4, "n=%s" % format(int(r.n_cells), ","), ha="center", fontsize=8.5, color=style.INK2)
+    a1.set_xticks(range(len(bands)))
+    a1.set_xticklabels(bands)
+    a1.set_xlim(-0.6, len(bands) - 0.4)
+    a1.set_xlabel("Band of the mean of the pair (kt)")
+    a1.text(-0.55, -1.8, "decision band", ha="left", va="top", fontsize=8.5, color=style.INK2)
+    style.title(a1, "Same-cell pairs within 3 h")
+    # right: storm peaks, two selections
+    pb = ["48-56", "56-64", "64+"]
+    left = []
+    for j, (direction, col, lab, dx) in enumerate((("ascat", style.METHOD_COLORS["ascat"], "storms found in ASCAT", -0.15),
+                                                   ("smap", style.METHOD_COLORS["ens"], "storms found in SMAP", 0.15))):
+        first = True
+        for i, b in enumerate(pb):
+            r = ss[(ss.direction == direction) & (ss.stratum == "all") & (ss.band == b)].iloc[0]
+            if r.n_pairs < 5:
+                left.append("%s %s (n=%d)" % (direction.upper(), b, r.n_pairs))
+                continue
+            plotted[(direction, b)] = (int(r.n_pairs), r["diff"], r.diff_lo, r.diff_hi)
+            a2.errorbar(i + dx, r["diff"], yerr=[[r["diff"] - r.diff_lo], [r.diff_hi - r["diff"]]], color=col, marker="o",
+                        ms=7, capsize=4, lw=1.8, mec="white", zorder=3, label=lab if first else None)
+            first = False
+            a2.annotate("%.1f" % r["diff"], (i + dx, r["diff"]), xytext=(8, 4), textcoords="offset points", fontsize=8, color=style.INK2)
+            a2.text(i + dx, ymin + 0.4 + (1.2 if j else 0), "n=%d" % r.n_pairs, ha="center", fontsize=8.5, color=col)
+    a2.set_xticks(range(len(pb)))
+    a2.set_xticklabels(pb)
+    a2.set_xlim(-0.6, len(pb) - 0.4)
+    a2.set_xlabel("Band of the mean of the two peaks (kt)")
+    a2.legend(loc="upper left", fontsize=9)
+    a2.text(-0.55, -1.8, "decision band", ha="left", va="top", fontsize=8.5, color=style.INK2)
+    style.title(a2, "Storm peaks per pass pair")
+    note = "Bands with fewer than 5 storm pairs are left out: " + ("; ".join(left) if left else "none") + "."
+    a2.text(0, -0.2, note, transform=a2.transAxes, fontsize=8, color=style.INK2, va="top")
+    fig.suptitle("ASCAT and SMAP agree at the storm-force line; above 56 kt the answer depends on which instrument picks the storm",
+                 x=0.06, y=1.03, ha="left", fontsize=13, color=style.INK)
+    fig.text(0.06, 0.975, "SMAP minus ASCAT (ASCAT averaged to SMAP's ~40 km footprint), equivalent-neutral kt, winter 2025-26, "
+             "both basins; 95% intervals resampling whole weeks", ha="left", fontsize=9, color=style.INK2)
+    figure.plotted = plotted
+    return fig, stat
 
 
 def numbers_md(df, ss, cs, cq, rain, obs, fig_stat):
@@ -398,7 +434,9 @@ def main():
     obs = pd.read_csv(op) if op.exists() else None
     if obs is not None:
         obs.round(3).to_csv(RES / "obs_summary.csv", index=False)
-    fig, stat = figure(df, ss)
+    fig, stat = figure(df, ss.round(3), cs.round(3))
+    for k_, v_ in figure.plotted.items():
+        print("plotted", k_, v_)
     png, svg = style.save(fig, RES / "peaks.png")
     svg.unlink()
     (RES / "numbers.md").write_text(numbers_md(df, ss, cs, cq, rain, obs, stat))
