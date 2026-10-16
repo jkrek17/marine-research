@@ -15,6 +15,7 @@ Call `rk.style.use()` before plotting and `rk.style.save(fig, path)` to write PN
 | GFS | orange `#eb6834` | | 3-model mean | grey `#7a7974` |
 | AIFS | violet `#6250d6` | | Desk (issued) | near-black `#1f1f1d` |
 | Blend | aqua `#1baf7a` | | ASCAT / buoys | red `#e34948` / amber `#eda100` |
+| Member vote (day 5-7 lows: lows kept where enough members carry one) | sienna `#a0522d` | | | |
 
 Ensemble means take their parent's colour, dashed (GEFS = GFS, ENS = ECMWF, AIFS ENS = AIFS). A method that is not in the table gets added here before it is plotted.
 
