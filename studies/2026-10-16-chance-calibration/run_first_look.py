@@ -1,7 +1,12 @@
-"""Chance calibration, GEFS-only first look.
+"""Chance calibration, first look: GEFS only, or the page's pooled member share.
 
-    python3 run_first_look.py accumulate   # read the store + truth, write counts.json and cycle_rows.csv
-    python3 run_first_look.py report       # fit on tune weeks, score held-out, write results, curves, figures
+    python3 run_first_look.py accumulate [--mode gefs|pooled]   # read the store + truth, add to counts.json and cycle_rows.csv
+    python3 run_first_look.py report [--mode gefs|pooled]       # fit on tune weeks, score held-out, write results, curves, figures
+
+Modes: gefs (default) = GEFS member fraction, outputs in chance-calibration/gefs_first_look/. pooled = the page's
+share, sum over GEFS, ECMWF ENS and AIFS ENS of p x n over sum of n, outputs in chance-calibration/pooled/; a
+cycle and step count only when all three ensembles are in the store. accumulate is incremental: a (basin,
+cycle, step) already in cycle_rows.csv is skipped, so re-run it as the store fills.
 
 GEFS member fractions (p34/p48/p64) are exact multiples of 1/n, so the accumulate stage keeps counts per
 member count k (events and cells), per basin x truth x threshold x lead x split. Memory stays small and the
@@ -21,12 +26,33 @@ sys.path.insert(0, str(HERE.parents[1]))
 
 from rk import calibrate as C, cases, fetch, paths, store, truth  # noqa: E402
 
-OUT = Path(os.environ.get("RK_CC_OUT", paths.DATA.parent / "chance-calibration" / "gefs_first_look"))
+MODES = {"gefs": dict(ens=("gefs",), label="GEFS only, first look", name="GEFS", folder="gefs_first_look"),
+         "pooled": dict(ens=("gefs", "ens", "aifs-ens"), label="pooled GEFS+ENS+AIFS ENS", name="pooled GEFS+ENS+AIFS ENS",
+                        folder="pooled")}
+MODE = "gefs"
+ENSEMBLES, LABEL, CHANCE_NAME = MODES["gefs"]["ens"], MODES["gefs"]["label"], MODES["gefs"]["name"]
+OUT = Path(os.environ.get("RK_CC_OUT", paths.DATA.parent / "chance-calibration" / MODES["gefs"]["folder"]))
+
+
+def configure(mode):
+    global MODE, ENSEMBLES, LABEL, CHANCE_NAME, OUT
+    m = MODES[mode]
+    MODE, ENSEMBLES, LABEL, CHANCE_NAME = mode, m["ens"], m["label"], m["name"]
+    OUT = Path(os.environ.get("RK_CC_OUT", paths.DATA.parent / "chance-calibration" / m["folder"]))
+
+
+def load_chance(basin, c, step):
+    """-> (p34, p48, p64 as {thr: array}, member count) or None unless every ensemble of the mode is present.
+    p = sum(p x n) / sum(n) over the ensembles, using each file's n."""
+    es = [store.load_ens(basin, c, e, step) for e in ENSEMBLES]
+    if any(e is None for e in es):
+        return None
+    nm = sum(e["n"] for e in es)
+    return {t: sum(e["p%d" % t] * e["n"] for e in es) / nm for t in THRS}, nm
 THRS = (34, 48, 64)
 TRUTHS = ("box", "cell", "anl")
 TRUTH_LABEL = {"box": "ASCAT 3x3 box", "cell": "ASCAT single cell", "anl": "analysis"}
 BASINS = ("natl", "npac")
-LABEL = "GEFS only, first look"
 # Cycle hours (UTC) per basin. ASCAT covers the Atlantic box equally at 00 and 12 UTC; the Pacific is only
 # in the store at 00 UTC. Adding Pacific 06/18 UTC later is a one-line change: "npac": [0, 6, 18].
 HOURS = {"natl": [0, 12], "npac": [0]}
@@ -36,6 +62,14 @@ START, END = dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31)
 def accumulate():
     OUT.mkdir(parents=True, exist_ok=True)
     counts, rows, log = {}, [], []
+    done = set()
+    if (OUT / "counts.json").exists() and (OUT / "cycle_rows.csv").exists():      # incremental: add to what is there
+        counts = {k: np.array(v) for k, v in json.load(open(OUT / "counts.json")).items()}
+        old = pd.read_csv(OUT / "cycle_rows.csv", dtype={"cycle": str})
+        rows = [tuple(r) for r in old.itertuples(index=False, name=None)]
+        done = set(zip(old.basin, old.cycle, old.step))
+        print("already accumulated: %d cycle-steps" % len(done), flush=True)
+    used = {b: set() for b in BASINS}
     for basin in BASINS:
         tcache = {}
         cyc = sorted(c for h in HOURS[basin] for c in cases.cycles(basin, START, END, hour=h)
@@ -45,9 +79,12 @@ def accumulate():
             fetch.wait_for_quiet()
             split = cases.split(c)
             for step in cases.STEPS:
-                ens = store.load_ens(basin, c, "gefs", step)
-                if ens is None:
+                if (basin, c.strftime("%Y%m%d%H"), step) in done:
                     continue
+                ch = load_chance(basin, c, step)
+                if ch is None:
+                    continue
+                pp, nm = ch
                 valid = c + dt.timedelta(hours=step)
                 if valid not in tcache:
                     have = store._analysis_path(basin, valid).exists()     # never trigger an analysis download
@@ -63,9 +100,9 @@ def accumulate():
                         tcache.pop(next(iter(tcache)))
                     if ag is None or an is None:
                         log.append("%s %s: missing %s" % (basin, valid, [k for k in ("box", "anl") if k not in t]))
-                nm = ens["n"]
+                used[basin].add(c)
                 for thr in THRS:
-                    p = ens["p%d" % thr]
+                    p = pp[thr]
                     for tn, tv in tcache[valid].items():
                         m = np.isfinite(tv)
                         if not m.any():
@@ -77,10 +114,10 @@ def accumulate():
                         arr[0] += np.bincount(k, minlength=nm + 1)
                         arr[1] += np.bincount(k[e], minlength=nm + 1)
                         rows.append((basin, tn, thr, step, c.strftime("%Y%m%d%H"), split, int(m.sum()), int(e.sum())))
-        print(basin, "done", flush=True)
+        print(basin, "done; new cycles used this run:", len(used[basin]), flush=True)
     json.dump({k: v.tolist() for k, v in counts.items()}, open(OUT / "counts.json", "w"))
     pd.DataFrame(rows, columns="basin truth thr step cycle split n events".split()).to_csv(OUT / "cycle_rows.csv", index=False)
-    (OUT / "accumulate.log").write_text("\n".join(log) + "\n")
+    (OUT / "accumulate.log").write_text("\n".join(log) + "\n")   # missing-truth notes of the last run
     print("wrote", OUT, "missing-truth notes:", len(log), flush=True)
 
 
@@ -158,9 +195,9 @@ def report():
     df.to_csv(OUT / "results.csv", index=False, float_format="%.5g")
     relf = pd.DataFrame(rel)
     relf.to_csv(OUT / "reliability_bins.csv", index=False, float_format="%.5g")
-    C.to_page_json(curves, note="GEFS only, first look: GEFS member fraction vs ASCAT 3x3 box, fitted on tune weeks "
-                   "of winter 2025-26 (Nov-Dec 2025 cycles in the store). NOT for the page: the page pools "
-                   "GEFS + ECMWF ENS + AIFS ENS.", path=OUT / "curves.json")
+    C.to_page_json(curves, note="%s: member share vs ASCAT 3x3 box, fitted on tune weeks of winter 2025-26 cycles in "
+                   "the store. %s" % (LABEL, "NOT for the page: the page pools GEFS + ECMWF ENS + AIFS ENS." if MODE == "gefs"
+                                      else "Pooled as on the page; first look, not yet agreed."), path=OUT / "curves.json")
     json.dump({tn: json.loads(json.dumps(C.to_page_json(c))) for tn, c in allcurves.items()},
               open(OUT / "curves_all_truths.json", "w"), indent=1)
     # figures: one per truth x threshold, one panel per lead group, held-out weeks
@@ -187,7 +224,7 @@ def report():
             for ax in axs:
                 ax.plot([0, hi], [0, hi], color=style.SPINE, lw=1, zorder=0)
                 ax.set_xlim(0, hi), ax.set_ylim(0, hi)
-                ax.set_xlabel("GEFS chance of %d kt or more" % thr)
+                ax.set_xlabel("%s chance of %d kt or more" % (CHANCE_NAME, thr))
             axs[0].set_ylabel("how often it happened (%s)" % TRUTH_LABEL[tn])
             from matplotlib.lines import Line2D
             h = [Line2D([], [], color=style.BASIN_COLORS[b], lw=2, label=cases_name(b)) for b in BASINS]
@@ -199,7 +236,7 @@ def report():
                             for b in BASINS if b in s.index)
             style.title(axs[0], "%d kt chance runs %s; remap moves Brier skill %s (+24/48, held-out)" % (
                 thr, "high" if _over(relf, tn, thr) else "low", bit),
-                "%s. %s truth. Nov-Dec 2025 cycles in the store; fit on tune weeks, shown for held-out weeks; bins of 30+ cells." % (LABEL, TRUTH_LABEL[tn]))
+                "%s. %s truth. Winter 2025-26 cycles in the store; fit on tune weeks, shown for held-out weeks; bins of 30+ cells." % (LABEL, TRUTH_LABEL[tn]))
             style.save(fig, OUT / ("reliability_%s_%d" % (tn, thr)))
             plt.close(fig)
     print("report written to", OUT)
@@ -216,4 +253,10 @@ def cases_name(b):
 
 
 if __name__ == "__main__":
-    {"accumulate": accumulate, "report": report}[sys.argv[1]]()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("stage", choices=["accumulate", "report"])
+    ap.add_argument("--mode", choices=sorted(MODES), default="gefs")
+    a = ap.parse_args()
+    configure(a.mode)
+    {"accumulate": accumulate, "report": report}[a.stage]()
