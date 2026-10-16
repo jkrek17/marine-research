@@ -4,3 +4,4 @@ pandas
 pyarrow
 nwp @ git+https://github.com/jkrek17/awips-tools@5eea491bb66ec6e6d16ed1504c128a858413f583#subdirectory=nwp
 matplotlib
+netCDF4
