@@ -34,6 +34,7 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Caches in session folders die with the session.** Fields and truth go in the shared data folder through `rk.store`.
 - **`pkill -f pattern` and `pgrep -f pattern` match their own shell.** Wait on a PID or a log line.
 - **Don't mix runs in one case.** If a model is missing for a cycle, skip the cycle.
+- **The session container is reclaimed when idle and kills detached (nohup) jobs; keep a background watcher running while they work.**
 - **Fork plus OpenMP deadlocks** after an sklearn fit: use a spawn pool.
 - **Date line:** keep Pacific longitudes 160-245; -180..180 broke distances and lost lows once.
 - **The forecast-record grid starts at 180W, not 0E.** Crop with `(IX - 720) % 1440`, and test crops on real data shapes, not toy grids.
@@ -49,3 +50,6 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **"Lowest false alarms that still pass" picks rules that only just pass.** Pre-set the warning-rule choice with a margin (or report the most-margin passing rule too): the gale pick by lowest false area held out at 82%, while the strongest-model +1 kt rule passed the same desk test at 97%. *`studies/2026-10-16-warning-forecast/summarize.py`.*
 - **Say which desk definition a desk hit uses.** Desk HF catch is 56% counting areas whose wind range reaches 64 kt, 66% counting any low under a HURRICANE FORCE header; two thirds of the misses were HF-header lows with ranges topped at 55-60 kt.
 - **Retry reads from the shared folder.** It is a network mount; one transient I/O error killed a 40-minute scoring pool. Wrap per-case work in a short retry.
+- **A study's stored precision is part of its method.** The day 5-7 study kept MSLP as int16 in 0.1 hPa; at that step shallow minima tie or vanish, and float store fields give 3% fewer analysed lows (275 vs 284). The standing-score preset rounds the same way, which brings the GFS day-5 score to 347.6 vs 350.1 km and IFS/AIFS to the last digit. *`studies/2026-10-16-pressure-d5-7/preset.py`.*
+- **Snapshot the desk's NDFD grid about 3 h after the issuance hour, per basin.** The full Atlantic update shows in the 10Z/22Z snapshots, the Pacific one only at 13Z/01Z (its 10Z/22Z files are nearly unchanged), and winter edits keep landing later. *Global view and Desk value threads; awips-tools #122.*
+- **Score every method on the desk's own cells when the desk is a method.** NDFD oceanic covers only 37-81% of each basin box; use `rk.basins.opc_mask` (HSF areas: no water east of 35W or in the western Pacific) so harness, Desk value and verification-page numbers match.

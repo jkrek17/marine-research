@@ -5,7 +5,7 @@ in the cache, the old RK_DATA/fields or a release are not fetched again.
 
   python3 tools/fill_store.py --start 20260101 --end 20260131 [--hours 0,12] [--basin both|natl|npac]
          [--every-days N] [--steps 24,48,...] [--workers 6] [--models noaa|ecmwf|gfs,ifs,...]
-         [--no-analysis] [--dry-run]
+         [--no-analysis] [--complete] [--min-age-hours H] [--dry-run]
 
 Every cycle at --hours (default 0 and 12 UTC) is streamed once and BOTH basins are stored: the GRIB
 messages are global and decoded once, so the second basin costs no extra streaming. The analyses (GFS and
@@ -15,6 +15,12 @@ chooses which basins are written (default both; there is rarely a reason to narr
 (ensembles), default all six; the shorthands noaa (= gfs,gefs) and ecmwf (= ifs,aifs,ens,aifs-ens) expand in
 place and can be mixed with names. --no-analysis skips the analyses (they need IFS, an ECMWF fetch), which
 is what a NOAA-only fill wants. The dry-run estimate counts only the chosen models.
+--complete stores an ensemble step only when every member came back (gefs 31, ens 51, aifs-ens 51), so a
+step that is still being posted is not stored short and then treated as existing; an incomplete step is
+reported as "ens skipped" and the next run retries it. --min-age-hours H skips cycles younger than H hours
+(the scheduled job uses 8: the ensembles are complete about 8 h after the cycle). Analyses are only built for
+valid times that have already passed. Nothing marks a cycle "complete": a cycle holds whichever files have been
+stored, and a later run adds the rest, merged into the published zip by tools/publish_store.py.
 Prints one line per cycle. --dry-run lists the cycles and estimates GB streamed (per cycle, independent
 of the number of basins) and GB kept on disk (about 4 MB per basin-step for all six models, measured).
 """
@@ -62,6 +68,10 @@ def main():
                          "(ifs,aifs,ens,aifs-ens); default all six")
     ap.add_argument("--no-analysis", action="store_true",
                     help="skip caching the analyses (they need IFS, an ECMWF fetch)")
+    ap.add_argument("--complete", action="store_true",
+                    help="store an ensemble step only when all its members came back (see above)")
+    ap.add_argument("--min-age-hours", type=float, default=0.0,
+                    help="skip cycles younger than this many hours (default 0)")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     start, end = dt.datetime.strptime(a.start, "%Y%m%d"), dt.datetime.strptime(a.end, "%Y%m%d")
@@ -74,6 +84,13 @@ def main():
     while day <= end:
         order += [day + dt.timedelta(hours=h) for h in hours]
         day += dt.timedelta(days=a.every_days)
+
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    young = [c for c in order if now - c < dt.timedelta(hours=a.min_age_hours)]
+    order = [c for c in order if c not in young]
+    if young:
+        print("skipping %d cycle(s) younger than %g h: %s" % (len(young), a.min_age_hours,
+                                                               ",".join(cases.tag(c) for c in young)), flush=True)
 
     from rk import store
     chosen = parse_models(a.models, store.DET + store.ENS)
@@ -96,16 +113,19 @@ def main():
 
     for c in order:
         bs = tuple(names)
-        rep = store.fill(c, steps=steps, models=det, ens=ens, workers=a.workers, basins=bs)
+        rep = store.fill(c, steps=steps, models=det, ens=ens, workers=a.workers, basins=bs, complete=a.complete)
         done = new = miss = 0
         for b in () if a.no_analysis else bs:
             for s in steps:
                 valid = c + dt.timedelta(hours=s)
-                p = store._analysis_path(b, valid)
-                had = p.exists()
+                if valid > now:                      # not yet happened: no analysis to take
+                    miss += 1
+                    continue
+                if store.truth_exists("analysis", b, valid):   # cache, old shared folder or release
+                    done += 1
+                    continue
                 got = store.analysis(b, valid)
-                done += got is not None and had
-                new += got is not None and not had
+                new += got is not None
                 miss += got is None
         tail = "" if a.no_analysis else " | analyses new %d, cached %d, missing %d" % (new, done, miss)
         print("%s %s: fetched %d, existing %d, missing %d, ens skipped %d%s%s"

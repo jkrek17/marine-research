@@ -28,3 +28,10 @@ Chosen on tuning runs only (winter 2025-26 plus Mar-Aug 2025), comparing at equa
 - Keep threshold per lead set on tuning runs so the vote's false-low rate equals IFS's (the middle model). Reason: Jason's rule that a miss costs more than a false alarm, without over-warning. The held-out report also gives the vote at each model's own false-low rate.
 - Confidence: logistic fit on tuning lows of P(analysed low within 300 km) from support, spread, lead and depth.
 - Depth error rule kept as preregistered (nearest forecast low within 1000 km, else the field at the analysed centre); rk.score's miss_depth="field" variant differs only for lows matched 300-1000 km away.
+
+## Spread display check (fixed 2026-10-16 12:05Z, before running)
+Jason asked for a measure of spread with the best-guess lows. Same locked vote settings and keep thresholds (`results/final.json`).
+- Position ellipse per kept low: weighted covariance of the voters' own low centres (east/north km about the vote position), plus a 50 km floor in each direction. One scale factor per lead, fitted on tuning lows so the 50% ellipse holds the verifying analysed low half the time.
+- Depth range per kept low: weighted 10th-90th percentile of the voters' own central pressures, widened about the median by one factor per lead fitted on tuning lows to hold the verifying analysed pressure 80% of the time.
+- Verifying analysed low: the nearest analysed low below 1005 hPa within 1000 km of the vote low (the confidence score already covers whether the low exists). Also reported with lows that have none counted as outside.
+- Pass: on held-out lows, the 50% and 90% ellipses and the 80% (and 50%, 25th-75th) depth ranges hold their stated share within 5 points at each lead.

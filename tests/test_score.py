@@ -182,6 +182,28 @@ def test_low_scores_thresholds():
     assert score.low_scores(tr2, fc2, "natl", false_truth_below=1000)["false"] == 1
 
 
+def test_low_case():
+    tr = _field("natl", [(50, 320, 970.0)])
+    # forecast low 450 km away: not a 300 km hit, but it supplies position and depth (study rule)
+    dlon = 450 / (111.19 * np.cos(np.radians(50)))
+    fc = _field("natl", [(50, 320 + dlon, 975.0)])
+    rows, false, n_fc = score.low_case(tr, fc, "natl")
+    assert len(rows) == 1 and not rows.hit[0]
+    assert abs(rows.pos_km[0] - 450) < 15 and abs(rows.depth_err_hpa[0] - 5.0) < 0.05
+    assert false == 0 and n_fc == 1
+    # perfect forecast: hit, zero errors
+    rows, false, n_fc = score.low_case(tr, tr, "natl")
+    assert rows.hit[0] and rows.pos_km[0] < 1e-6 and rows.depth_err_hpa[0] == 0 and false == 0
+    # no forecast low at all: miss charged 1000 km, depth from the field at the analysed centre
+    rows, false, n_fc = score.low_case(tr, np.full_like(tr, 1012.0), "natl")
+    assert rows.pos_km[0] == 1000.0 and not rows.hit[0] and abs(rows.depth_err_hpa[0] - 42.0) < 1e-3
+    assert false == 0 and n_fc == 0
+    # a forecast low far from every analysed low is a false low
+    far = _field("natl", [(50, 320, 970.0), (40, 290, 985.0)])
+    rows, false, n_fc = score.low_case(tr, far, "natl")
+    assert false == 1 and n_fc == 2
+
+
 def test_warning_events():
     ob = np.zeros((40, 40)); seen = np.ones(ob.shape, bool)
     ob[5:7, 5:7] = 50            # event A (4 cells)
