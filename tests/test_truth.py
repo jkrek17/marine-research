@@ -27,6 +27,15 @@ def test_enw_to_real_array():
     assert out[0] < out[1] < out[2]
 
 
+def test_intercal():
+    spd = np.array([50.0, 50.0, 50.0, 0.0, 0.0, 70.0, 70.0])
+    sat = np.array([2, 3, 4, 2, 3, 2, 3])
+    out = truth._intercal(spd, sat)
+    assert abs(out[0] - (50 - 0.42)) < 1e-4 and abs(out[1] - (50 + 0.42)) < 1e-4
+    assert out[2] == 50.0 and out[3] == 0.0 and out[4] == 0.0
+    assert abs(out[5] - (70 - 0.625)) < 1e-4 and abs(out[6] - (70 + 0.625)) < 1e-4
+
+
 def test_charnock_factor():
     f = truth.charnock_factor(np.array([5.0, 10.0, 20.0]), 4.0)
     assert np.all(f > 1.0) and np.all(f < 1.3)
