@@ -1,0 +1,8 @@
+#!/bin/sh
+# Block the commit if the staged files fail the repo hygiene check.
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+python3 tools/check_repo.py --staged || {
+    echo "pre-commit: commit blocked by tools/check_repo.py (fix the problems above)" >&2
+    exit 1
+}

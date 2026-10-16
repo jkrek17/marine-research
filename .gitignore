@@ -1,0 +1,14 @@
+# Bulk data lives in RK_DATA (the shared data folder), never here
+*.npz
+*.npy
+*.nc
+*.grib2
+*.grb2
+*.parquet
+*.zarr/
+data_cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+*.local.json
