@@ -1,4 +1,5 @@
-"""Tests for rk.fetch. Run with pytest or `python3 tests/test_fetch.py`. Offline: nwp is monkeypatched."""
+"""Tests for rk.fetch. Run with pytest or `python3 tests/test_fetch.py`. Offline: nwp is monkeypatched.
+The record-404 case is handled inside nwp (awips-tools PR #108); rk must just report "not posted" (None)."""
 import datetime as dt
 import sys
 from pathlib import Path
@@ -28,7 +29,7 @@ def _restore(saved):
     nwp.ncep_index, nwp.ec_records, nwp.get = saved
 
 
-def test_record_404_is_missing_not_a_crash():
+def test_nwp_record_404_reports_not_posted():
     saved = _patched()
     try:
         assert fetch.det("gfs", C, 24) is None

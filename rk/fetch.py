@@ -64,10 +64,7 @@ def decode(blob):
 def _ncep(url, want):
     """want {'UGRD:10 m above ground': 'u', ...} -> {name: {basin: arr}} or None.
     'msl' falls back to MSLET inside nwp."""
-    try:
-        out = nwp.ncep(url, want)
-    except AttributeError:  # nwp.ncep: index found but a record request 404'd (get -> None); same as not posted
-        out = None
+    out = nwp.ncep(url, want)
     return None if out is None else {n: _cut(v) for n, v in out.items()}
 
 
@@ -102,11 +99,8 @@ def det(model, cycle, step):
         if out is None:
             return None
     elif model in ("ifs", "aifs"):
-        try:
-            raw = nwp.fields("ifs" if model == "ifs" else "aifs-single", cycle.strftime("%Y%m%d%H"), step,
-                             _EC_SELECT)
-        except AttributeError:  # index found but a record request 404'd; same as not posted
-            raw = None
+        raw = nwp.fields("ifs" if model == "ifs" else "aifs-single", cycle.strftime("%Y%m%d%H"), step,
+                         _EC_SELECT)
         if raw is None or len(raw) != 3:
             return None
         out = {n: _cut(v) for n, v in raw.items()}

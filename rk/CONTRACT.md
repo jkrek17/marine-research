@@ -35,7 +35,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `STEPS = (24, 48, 72, 96, 120)` default leads (h).
 
 ## rk/fetch.py (AWS open-data mirrors, byte-range GRIB)
-- Delegates to the shared `nwp` package (awips-tools/nwp) at 5eea491bb66ec6e6d16ed1504c128a858413f583, pinned in requirements.txt; bump deliberately. HTTP, retries, index parsing, URLs, decoding and the MSLET fallback live in nwp; rk keeps the build-window wait, the two-basin cut of one global decode, Pa to hPa and member assembly. The public API below is unchanged.
+- Delegates to the shared `nwp` package (awips-tools/nwp) at b38f9d437ec8acdfc48a344fbe4bc16096eaee1d, pinned in requirements.txt; bump deliberately. HTTP, retries, index parsing, URLs, decoding and the MSLET fallback live in nwp; rk keeps the build-window wait, the two-basin cut of one global decode, Pa to hPa and member assembly. The public API below is unchanged.
 - `get(url, rng=None)`: pooled session; None on 403/404; 503 SlowDown retried fast with jitter (up to 60 times); other errors exponential backoff.
 - Before any network work, `wait_for_quiet()`: if the UTC time is within the marine wind page build windows (02:15-03:15, 08:15-09:15, 14:15-15:15, 20:15-21:15 UTC), sleep until the window ends and say so on stderr. `RK_IGNORE_BUILD_WINDOWS=1` skips it.
 - Every decoder crops both basins from one GRIB message.
