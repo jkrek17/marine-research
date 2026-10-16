@@ -1,0 +1,18 @@
+# Studies
+
+One row per study, newest first. A study gets a folder under `studies/` when it starts (design card first) and its row is updated when the answer is in. Studies before 2026-10-16 ran outside this repository; their code and write-ups are in the project's shared folder (`/mnt/project-files/...`) and their caches are gone.
+
+Truth abbreviations: **anl** = GFS+IFS analysis mean, **ASCAT** = RSS ASCAT real 10 m wind, **obs** = buoys (and ships where said).
+
+| Started | Study | Question (Jason's words where we have them) | Answer in one line | Truth | Where |
+|---|---|---|---|---|---|
+| 2026-10-16 | Day 5-7 pressure forecast | Can a system beat the deterministic models on MSLP at day 5-7 and keep the lows? | Running | anl, ERA5 check | `/mnt/project-files/pressure-d5-7/` |
+| 2026-10-16 | Warning forecast experiment | Best warning forecast from the models: 80%+ detection of gale/storm/HF, no worse than the desk on false alarms and area | Running | ASCAT; hf-low HF fixes for HF | `/mnt/project-files/warning-experiment/` |
+| 2026-10-16 | High seas text from the grids | Draft the HSF text from the grid, ~80% of the way | Writer live on the wind page; scoring vs issued warnings started | issued HSF | `/mnt/project-files/hsf/` |
+| 2026-10-15 | Storm-force cores | Where is the core and is the model under or over-doing it? | Models already place cores; +5 kt where core chance >= 35% catches 49% of ASCAT storm tiles (blend 15%) at 15% false alarms; live on the page as the core-lifted blend | ASCAT, anl | `/mnt/project-files/wind-focus/core/` |
+| 2026-10-15 | Stability and 30 m winds | Should stability or 30 m winds change the wind? | No: the switch loses to the 10 m blend everywhere; storm misses are blend smoothing, not stability | obs, ASCAT, anl | `/mnt/project-files/wind-focus/stability30m/` |
+| 2026-10-15 | ASCAT as referee | Can ASCAT referee winds from a cloud session? | Yes (RSS, no login); buoy check -0.3 kt, SD 2.7; Atlantic covered at 12 UTC, Pacific at 00 UTC | buoys | `/mnt/project-files/wind-focus/ascat/` |
+| 2026-10-14 | Two basins, six directions | Does the blend hold in the Pacific; chances, zones, trends, stability? | Holds with a slightly bigger gain; P34 skilful, P48 under-states its high end, P64 no skill; lone-model storm verifies 1-2% | anl, obs | `/mnt/project-files/wind-focus/basins/` |
+| 2026-10-13 | Pressure to wind | Can a blended pressure field build a better wind? | No: MAE25 +1.1 kt, CSI34 -0.11; pressure useful only as a 48+ kt day 3-5 check | anl, obs | `/mnt/project-files/wind-focus/pressure-wind/` |
+| 2026-10-13 | Recent MSLP skill | Should recent model skill weight the blend? | No: trailing skill does not persist; picking the hot model is worse | anl | `/mnt/project-files/wind-focus/mslp-skill/` |
+| 2026-10-13 | Wind blend experiment | Best wind grid from models and ensembles | 3-model mean + min(0.25 x member spread, 5 kt); a ~60th percentile lean that restores gale area; replicated out of sample | anl, obs | `/mnt/project-files/wind-focus/experiment/` |

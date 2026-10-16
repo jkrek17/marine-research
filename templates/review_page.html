@@ -1,0 +1,171 @@
+<!doctype html>
+<!--
+HOW TO FILL THIS IN
+1. Replace every [bracketed placeholder] and the <title> (two to four words, the study's name).
+2. Keep the five sections in this order: header, The answer, The evidence, What it does not show, How it was done.
+3. The answer: two or three sentences a forecaster can act on; lead with what to do or not do.
+4. The evidence: one table (baseline row last, class "base") and at most three figures. The caption is the finding.
+   Numbers carry their sample (cases, weeks) and interval. Say which truth each number came from.
+5. Figures: embed as data: URIs (<img src="data:image/png;base64,...">) or publish the PNGs as supporting files
+   and reference them by relative path. Keep alt text meaningful.
+6. Method names use the legend chips (class "chip m-ecmwf" etc.); colours come from STYLE.md. Delete unused chips.
+7. No external scripts or stylesheets. Preview at 390 px and 1200 px, light and dark, before publishing.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>[Study Name Here]</title>
+<style>
+:root {
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --text: #1f1f1d;
+  --muted: #6b6a65;
+  --line: #dddbd3;
+  --accent-bg: #e9f3ec;
+  --accent-line: #008300;
+  --ecmwf: #2a78d6;
+  --gfs: #eb6834;
+  --aifs: #6250d6;
+  --blend: #1baf7a;
+  --corelift: #008300;
+  --desk: #1f1f1d;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614;
+    --surface: #1f1f1d;
+    --text: #ecebe6;
+    --muted: #a3a29b;
+    --line: #3a3935;
+    --accent-bg: #16301b;
+    --accent-line: #4cc24c;
+    --ecmwf: #6aa6f0;
+    --gfs: #f58f66;
+    --aifs: #9d90f2;
+    --blend: #4fd1a2;
+    --corelift: #4cc24c;
+    --desk: #d8d7d0;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161614;
+  --surface: #1f1f1d;
+  --text: #ecebe6;
+  --muted: #a3a29b;
+  --line: #3a3935;
+  --accent-bg: #16301b;
+  --accent-line: #4cc24c;
+  --ecmwf: #6aa6f0;
+  --gfs: #f58f66;
+  --aifs: #9d90f2;
+  --blend: #4fd1a2;
+  --corelift: #4cc24c;
+  --desk: #d8d7d0;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  overflow-x: hidden;
+}
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+header h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 6px; }
+.meta { color: var(--muted); font-size: 0.9rem; margin: 0; }
+h2 { font-size: 1.2rem; margin: 2.2rem 0 0.6rem; }
+p { margin: 0 0 0.9rem; }
+.answer {
+  background: var(--accent-bg);
+  border-left: 4px solid var(--accent-line);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-top: 2rem;
+}
+.answer h2 { margin: 0 0 0.4rem; }
+.answer p:last-child { margin-bottom: 0; }
+.table-wrap { overflow-x: auto; margin: 0 0 1.2rem; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+caption { text-align: left; color: var(--muted); font-size: 0.85rem; padding-bottom: 6px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+td.num { white-space: nowrap; }
+@media (max-width: 520px) { table { font-size: 0.85rem; } th, td { padding: 6px 5px; } }
+th { font-weight: 600; }
+th.num, td.num { text-align: right; }
+tr.base td { color: var(--muted); }
+figure { margin: 0 0 1.4rem; }
+figure img { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+figcaption { margin-top: 6px; font-size: 0.95rem; font-weight: 600; }
+ul { padding-left: 1.2rem; margin: 0 0 0.9rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 1rem; padding: 0; list-style: none; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.chip::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.m-ecmwf { --c: var(--ecmwf); }
+.m-gfs { --c: var(--gfs); }
+.m-aifs { --c: var(--aifs); }
+.m-blend { --c: var(--blend); }
+.m-corelift { --c: var(--corelift); }
+.m-desk { --c: var(--desk); }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>[Study name: the finding in plain words]</h1>
+  <p class="meta">[Date] · [North Atlantic / North Pacific] · [Period, e.g. Mar 2025 – Sep 2026] · [N cases] · Truth: [ASCAT / buoys / analysis]</p>
+</header>
+
+<section class="answer" aria-labelledby="answer-h">
+  <h2 id="answer-h">The answer</h2>
+  <p>[Lead with what to do or not do. For example: use the core-lifted wind when the blend shows 30 to 40 kt near a deepening low; it caught more storm-force areas.]</p>
+  <p>[One sentence on how sure we are and for what: the tested area, hour and season.]</p>
+</section>
+
+<section aria-labelledby="evidence-h">
+  <h2 id="evidence-h">The evidence</h2>
+  <ul class="legend" aria-label="Method colours">
+    <li class="chip m-ecmwf">ECMWF</li>
+    <li class="chip m-gfs">GFS</li>
+    <li class="chip m-aifs">AIFS</li>
+    <li class="chip m-blend">Blend</li>
+    <li class="chip m-corelift">Core-lifted blend</li>
+    <li class="chip m-desk">Desk</li>
+  </ul>
+  <div class="table-wrap">
+    <table>
+      <caption>[Storm-force areas at +48 h, N = 120 cases, 95% interval from resampling whole weeks in brackets]</caption>
+      <thead>
+        <tr><th>Method</th><th class="num">Caught</th><th class="num">False alarms</th><th class="num">CSI</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>[Core-lifted blend]</td><td class="num">49%</td><td class="num">31%</td><td class="num">0.42 [0.36, 0.48]</td></tr>
+        <tr><td>[Blend]</td><td class="num">38%</td><td class="num">29%</td><td class="num">0.35 [0.29, 0.41]</td></tr>
+        <tr class="base"><td>[Baseline: Blend]</td><td class="num">15%</td><td class="num">22%</td><td class="num">0.13 [0.09, 0.17]</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <figure>
+    <img src="[figure.png or data: URI]" alt="[What the figure shows, for a screen reader]" width="1200" height="700">
+    <figcaption>[The finding, e.g. The core lift catches 49% of storm tiles; the blend catches 15%.]</figcaption>
+  </figure>
+</section>
+
+<section aria-labelledby="not-h">
+  <h2 id="not-h">What it does not show</h2>
+  <ul>
+    <li>[Untested areas: anything outside the 30-67N boxes.]</li>
+    <li>[Seasons, leads or storm types not covered; thin samples.]</li>
+  </ul>
+</section>
+
+<section aria-labelledby="how-h">
+  <h2 id="how-h">How it was done</h2>
+  <p>[Truth used, baseline, held-out weeks, how cases were chosen.]</p>
+  <p>[Code path: studies/yyyy-mm-dd-name/ in the marine-research repository.]</p>
+</section>
+</main>
+</body>
+</html>
