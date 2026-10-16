@@ -30,3 +30,5 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Fork plus OpenMP deadlocks** after an sklearn fit: use a spawn pool.
 - **Date line:** keep Pacific longitudes 160-245; -180..180 broke distances and lost lows once.
 - **netCDF4/HDF5 is not thread-safe.** Reading SMAP files from 4 threads raised `NetCDF: HDF error` and hung the fill. *`rk.truth._smap_cells` holds a lock around the read.*
+- **Apply the decision rule with the method the design named.** The first storm-truth draft passed the rule on a check method (same-cell pairs) when the pre-set storm-peak test had failed; the independent check caught it. Say "not passed" and give the default.
+- **Peaks picked by one instrument flatter it.** Storm peaks selected in ASCAT put SMAP 6 kt higher at 56-64 kt; selected in SMAP, 1 kt lower. Always run both directions.

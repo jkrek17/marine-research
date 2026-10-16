@@ -6,7 +6,7 @@ Truth abbreviations: **anl** = GFS+IFS analysis mean, **ASCAT** = RSS ASCAT real
 
 | Started | Study | Question (Jason's words where we have them) | Answer in one line | Truth | Where |
 |---|---|---|---|---|---|
-| 2026-10-16 | Storm-force truth | When ASCAT says storm or hurricane force, how strong is the wind really? (research agenda avenue 2) | Running | SMAP, buoys, ships | `studies/2026-10-16-storm-force-truth/` |
+| 2026-10-16 | Storm-force truth | When ASCAT says storm or hurricane force, how strong is the wind really? (research agenda avenue 2) | Unsettled above 56 kt. At 48-56 kt SMAP is 0.4 kt (same cell) to 1.5-2.0 kt (storm peaks) above ASCAT: ASCAT stays the referee by default, no adjustment; >=16% of co-seen SMAP storm cells are ASCAT rain-flagged; no buoy/ship pair at 48+ | SMAP, buoys, ships | `studies/2026-10-16-storm-force-truth/` |
 | 2026-10-16 | Day 5-7 pressure forecast | Can a system beat the deterministic models on MSLP at day 5-7 and keep the lows? | Running | anl, ERA5 check | `/mnt/project-files/pressure-d5-7/` |
 | 2026-10-16 | Warning forecast experiment | Best warning forecast from the models: 80%+ detection of gale/storm/HF, no worse than the desk on false alarms and area | Running | ASCAT; hf-low HF fixes for HF | `/mnt/project-files/warning-experiment/` |
 | 2026-10-16 | High seas text from the grids | Draft the HSF text from the grid, ~80% of the way | Writer live on the wind page; scoring vs issued warnings started | issued HSF | `/mnt/project-files/hsf/` |
