@@ -65,6 +65,123 @@ def test_paired_bootstrap():
     assert t.loc[24, "b"].startswith("+0.5") and t.loc[24, "b"].endswith("*")
 
 
+def _field(basin, lows, base=1012.0, sigma_deg=3.0):
+    """Synthetic MSLP on the basin grid with Gaussian lows [(lat, lon, hpa)] (lon any convention)."""
+    from rk.basins import grid
+    lats, lons = grid(basin)
+    LA, LO = np.meshgrid(lats, lons, indexing="ij")
+    f = np.full(LA.shape, base)
+    for la, lo, p in lows:
+        d = score.km(LA, LO, la, lo) / 111.0
+        f = f + (p - base) * np.exp(-0.5 * (d / sigma_deg) ** 2)
+    return f
+
+
+def test_km_date_line():
+    assert abs(score.km(50, 179, 50, -179) - score.km(50, 179, 50, 181)) < 1e-6
+    assert abs(score.km(50, 179, 50, 181) - 2 * 111.19 * np.cos(np.radians(50))) < 2
+    assert score.km(10, 10, 10, 10) == 0
+
+
+def test_find_lows_two():
+    f = _field("natl", [(50, 320, 970.0), (40, 340, 985.0)])
+    L = score.find_lows(f, "natl")
+    assert len(L) == 2 and list(L.columns) == ["lat", "lon", "hpa"]
+    assert abs(L.hpa[0] - 970) < 0.5 and abs(L.hpa[1] - 985) < 0.5
+    assert abs(L.lat[0] - 50) <= 0.25 and abs(L.lon[0] - 320) <= 0.25
+    assert len(score.find_lows(f, "natl", below=980)) == 1
+    assert len(score.find_lows(f, "natl", inset_deg=40)) == 0
+    assert len(score.find_lows(np.full_like(f, 1010.0), "natl")) == 0
+
+
+def test_match_shifted_100km():
+    t = score.find_lows(_field("natl", [(50, 320, 970.0)]), "natl")
+    dlon = 100 / (111.19 * np.cos(np.radians(50)))
+    fcl = score.find_lows(_field("natl", [(50, 320 + dlon, 975.0)]), "natl")
+    m = score.match_lows(t, fcl)
+    assert len(m) == 1 and m.matched[0] and abs(m.pos_err_km[0] - 100) < 25
+    assert abs(m.depth_err_hpa[0] - 5) < 0.5
+    assert score.false_lows(t, fcl) == 0
+
+
+def test_far_low_is_miss_and_false():
+    t = score.find_lows(_field("natl", [(50, 320, 970.0)]), "natl")
+    dlon = 500 / (111.19 * np.cos(np.radians(50)))
+    fcl = score.find_lows(_field("natl", [(50, 320 + dlon, 970.0)]), "natl")
+    m = score.match_lows(t, fcl)
+    assert not m.matched[0] and np.isnan(m.pos_err_km[0])
+    assert score.false_lows(t, fcl) == 1
+    s = score.low_scores(_field("natl", [(50, 320, 970.0)]), _field("natl", [(50, 320 + dlon, 970.0)]), "natl")
+    assert (s["hits"], s["misses"], s["false"], s["n_truth"]) == (0, 1, 1, 1)
+    s0 = score.low_scores(_field("natl", [(50, 320, 970.0)]), _field("natl", [(50, 320, 970.0)]), "natl")
+    assert (s0["hits"], s0["misses"], s0["false"]) == (1, 0, 0) and s0["pos_err_km_median"] == 0
+
+
+def test_lows_across_date_line():
+    # truth low west of 180, forecast low east of it, 120 km apart; npac covers lon 160-245
+    dlon = 60 / (111.19 * np.cos(np.radians(50)))
+    ft = _field("npac", [(50, 180 - dlon, 965.0)])
+    ff = _field("npac", [(50, 180 + dlon, 970.0)])
+    t, fcl = score.find_lows(ft, "npac"), score.find_lows(ff, "npac")
+    assert len(t) == 1 and len(fcl) == 1
+    m = score.match_lows(t, fcl)
+    assert m.matched[0] and abs(m.pos_err_km[0] - 120) < 30
+    # the same pair given in -180..180 longitudes
+    t2 = t.assign(lon=(t.lon + 180) % 360 - 180)
+    assert abs(score.match_lows(t2, fcl).pos_err_km[0] - m.pos_err_km[0]) < 1e-6
+    s = score.low_scores(ft, ff, "npac")
+    assert (s["hits"], s["misses"], s["false"]) == (1, 0, 0)
+
+
+def test_miss_penalty_and_field_depth():
+    tr = _field("natl", [(50, 320, 970.0)])
+    dlon = 500 / (111.19 * np.cos(np.radians(50)))
+    fc = _field("natl", [(50, 320 + dlon, 975.0)])
+    t, fcl = score.find_lows(tr, "natl"), score.find_lows(fc, "natl")
+    m = score.match_lows(t, fcl)                      # defaults unchanged
+    assert np.isnan(m.pos_err_km[0]) and np.isnan(m.depth_err_hpa[0])
+    m = score.match_lows(t, fcl, miss_penalty_km=1000)
+    assert m.pos_err_km[0] == 1000 and np.isnan(m.depth_err_hpa[0])
+    m = score.match_lows(t, fcl, miss_penalty_km=1000, miss_depth="field", fc_msl=fc, basin="natl")
+    from rk.basins import sample
+    assert abs(m.depth_err_hpa[0] - (sample(fc, "natl", 50, 320) - m.hpa[0])) < 1e-9
+    assert m.depth_err_hpa[0] > 20                    # forecast is nearly flat at the analysed centre
+    try:
+        score.match_lows(t, fcl, miss_depth="field")
+        assert False
+    except ValueError:
+        pass
+    # no forecast lows at all: a miss costs the penalty
+    m = score.match_lows(t, None, miss_penalty_km=1000)
+    assert m.pos_err_km[0] == 1000
+    # matched rows are untouched by the penalty
+    m = score.match_lows(t, score.find_lows(tr, "natl"), miss_penalty_km=1000)
+    assert m.pos_err_km[0] == 0
+
+
+def test_low_scores_thresholds():
+    tr = _field("natl", [(50, 320, 970.0)])
+    # forecast low is shallow (1005) and 400 km away: needs fc_below 1010 and a 500 km radius
+    dlon = 400 / (111.19 * np.cos(np.radians(50)))
+    fc = _field("natl", [(50, 320 + dlon, 1005.0)])
+    s = score.low_scores(tr, fc, "natl")
+    assert (s["hits"], s["misses"], s["false"]) == (0, 1, 0) and np.isnan(s["pos_err_km_median"])
+    s = score.low_scores(tr, fc, "natl", fc_below=1010, radius_km=500)
+    assert s["hits"] == 1 and 390 < s["pos_err_km_median"] < 410
+    # study call: miss filled with 1000 km and the field depth; the 1005 low is not "deeper than 1000"
+    s = score.low_scores(tr, fc, "natl", fc_below=1010, false_radius_km=500, false_truth_below=1005,
+                         miss_penalty_km=1000, miss_depth="field")
+    assert (s["hits"], s["misses"], s["false"]) == (0, 1, 0)
+    assert s["pos_err_km_median"] == 1000 and s["depth_err_hpa_mean"] > 20
+    # false-low radius and truth threshold
+    fc2 = _field("natl", [(50, 320, 970.0), (50, 320 + 2 * dlon, 990.0)], sigma_deg=1.5)      # second low 800 km away
+    assert score.low_scores(tr, fc2, "natl")["false"] == 1
+    assert score.low_scores(tr, fc2, "natl", false_radius_km=900)["false"] == 0
+    tr2 = _field("natl", [(50, 320, 970.0), (50, 320 + 2 * dlon, 1003.0)], sigma_deg=1.5)
+    assert score.low_scores(tr2, fc2, "natl")["false"] == 0                    # 1003 < below + 5
+    assert score.low_scores(tr2, fc2, "natl", false_truth_below=1000)["false"] == 1
+
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):

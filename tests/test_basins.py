@@ -55,6 +55,27 @@ def test_sample_linear_field():
     assert np.isclose(basins.sample(f, "npac", 67, 160), f[0, 0])
 
 
+def test_to_quarter():
+    for b in basins.BASINS:
+        lats, lons = basins.grid(b)
+        LA, LO = np.meshgrid(lats, lons, indexing="ij")
+        lin = lambda la, lo: 3.0 + 0.7 * la - 0.2 * lo
+        half = lin(LA, LO)[::2, ::2]
+        q = basins.to_quarter(half, b)
+        assert q.shape == LA.shape
+        assert np.array_equal(q[::2, ::2], half)                         # shared points unchanged
+        inner = (np.arange(len(lats)) < 2 * (half.shape[0] - 1))[:, None] & (np.arange(len(lons)) < 2 * (half.shape[1] - 1))[None, :]
+        assert np.allclose(q[inner], lin(LA, LO)[inner])                 # linear field exact
+        # an even-length axis repeats the last half-grid value past it
+        if len(lons) % 2 == 0:
+            assert np.array_equal(q[:, -1], q[:, -2])
+    try:
+        basins.to_quarter(np.zeros((3, 3)), "natl")
+        assert False
+    except ValueError:
+        pass
+
+
 if __name__ == "__main__":
     for k, f in list(globals().items()):
         if k.startswith("test_"):

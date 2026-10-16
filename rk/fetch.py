@@ -1,33 +1,26 @@
 """Byte-range fetch of 10 m wind and MSLP from the AWS open-data mirrors.
 
-Each GRIB message is decoded once and cropped for both basins. Only the needed records are
-downloaded (from the .idx / .index files). Sources (public, no account):
-    GFS / GDAS  noaa-gfs-bdp-pds   gfs.YYYYMMDD/HH/atmos/gfs.tHHz.pgrb2.0p25.fFFF
-    GEFS        noaa-gefs-pds      gefs.YYYYMMDD/HH/atmos/pgrb2sp25/geMMM.tHHz.pgrb2s.0p25.fFFF
-    ECMWF       ecmwf-forecasts    YYYYMMDD/HHz/{ifs,aifs-single,aifs-ens}/0p25/{oper,enfo}/
+A thin wrapper over the shared download package `nwp` (awips-tools/nwp, pinned in requirements.txt):
+HTTP, retries, 503 handling, index parsing, URLs and GRIB decoding all live there. What stays here is
+rk-specific: the build-window wait, decoding each message once (whole globe) and cutting both basins
+from it, Pa -> hPa, and assembling members into {basin: {...}}.
+Sources (public, no account): GFS / GDAS, GEFS, ECMWF IFS / AIFS / AIFS ENS (see nwp.sources).
 """
 import datetime as dt
-import json
 import os
-import random
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-import eccodes
+import nwp
 import numpy as np
-import requests
+from nwp import sources
 
 from .basins import BASINS, crop
 
-GFS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
-GEFS = "https://noaa-gefs-pds.s3.amazonaws.com"
-EC = "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com"
-GEFS_MEMBERS = ["c00"] + ["p%02d" % i for i in range(1, 31)]
-
-_session = requests.Session()
-_session.mount("https://", requests.adapters.HTTPAdapter(pool_connections=64, pool_maxsize=64))
+GFS, GEFS, EC = sources.GFS, sources.GEFS, sources.EC
+GEFS_MEMBERS = sources.GEFS_MEMBERS
 _CROP = {k: crop(k) for k in BASINS}
 
 # the marine wind page builds at these UTC start times and runs for an hour; stay off the buckets then
@@ -52,74 +45,27 @@ def wait_for_quiet():
 
 
 def get(url, rng=None, tries=8):
-    """GET (optionally a byte range); None on 403/404. S3 answers 503 SlowDown when a freshly
-    posted file gets many range requests, so 503 is retried quickly with jitter (up to 60 times);
-    other errors back off exponentially."""
+    """nwp.get (None on 403/404, 503 SlowDown retried fast, other errors backed off), after the
+    build-window wait."""
     wait_for_quiet()
-    headers = {"Range": "bytes=%d-%s" % (rng[0], "" if rng[1] is None else rng[1])} if rng else None
-    fails = slow = 0
-    while fails < tries and slow < 60:
-        try:
-            r = _session.get(url, headers=headers, timeout=180)
-            if r.status_code in (200, 206):
-                return r
-            if r.status_code in (403, 404):
-                return None
-            if r.status_code == 503:
-                slow += 1
-                time.sleep(0.5 + 1.5 * random.random())
-                continue
-        except requests.RequestException:
-            pass
-        fails += 1
-        time.sleep(min(2 ** fails, 60) * (0.5 + random.random()))
-    raise RuntimeError("failed: " + url)
+    return nwp.get(url, rng, tries)
+
+
+def _cut(v):
+    """One decoded global grid -> {basin: 2-D float32 crop}."""
+    return {k: v[iy, ix].copy() for k, (iy, ix) in _CROP.items()}
 
 
 def decode(blob):
     """One GRIB2 message -> {basin: 2-D float32 crop}, north-up, lon 0..360 order."""
-    h = eccodes.codes_new_from_message(blob)
-    try:
-        ni, nj = eccodes.codes_get(h, "Ni"), eccodes.codes_get(h, "Nj")
-        v = eccodes.codes_get_values(h).reshape(nj, ni).astype(np.float32)
-        lat0 = eccodes.codes_get(h, "latitudeOfFirstGridPointInDegrees")
-        lon0 = eccodes.codes_get(h, "longitudeOfFirstGridPointInDegrees")
-    finally:
-        eccodes.codes_release(h)
-    if lat0 < 0:
-        v = v[::-1]
-    if lon0 > 100:  # ECMWF open data starts at -180 (stored as 180)
-        v = np.roll(v, ni // 2, axis=1)
-    return {k: v[iy, ix].copy() for k, (iy, ix) in _CROP.items()}
-
-
-def _ncep_index(url):
-    r = get(url + ".idx")
-    if r is None:
-        return None
-    lines = [l.split(":") for l in r.text.splitlines() if l.strip()]
-    idx = {}
-    for i, f in enumerate(lines):
-        end = int(lines[i + 1][1]) - 1 if i + 1 < len(lines) else None
-        idx.setdefault(f[3] + ":" + f[4], (int(f[1]), end))
-    return idx
+    return _cut(nwp.decode(blob))
 
 
 def _ncep(url, want):
-    """want {'UGRD:10 m above ground': 'u', ...} (alternatives joined by '|') -> {name: {basin: arr}} or None."""
-    idx = _ncep_index(url)
-    if idx is None:
-        return None
-    out = {}
-    for key, name in want.items():
-        k = next((a for a in key.split("|") if a in idx), None)
-        if k is None:
-            return None
-        r = get(url, idx[k])
-        if r is None:
-            return None
-        out[name] = decode(r.content)
-    return out
+    """want {'UGRD:10 m above ground': 'u', ...} -> {name: {basin: arr}} or None.
+    'msl' falls back to MSLET inside nwp."""
+    out = nwp.ncep(url, want)
+    return None if out is None else {n: _cut(v) for n, v in out.items()}
 
 
 def _by_basin(out, names):
@@ -128,55 +74,36 @@ def _by_basin(out, names):
 
 
 UV = {"UGRD:10 m above ground": "u", "VGRD:10 m above ground": "v"}
-UVP = dict(UV, **{"PRMSL:mean sea level|MSLET:mean sea level": "msl"})
+UVP = dict(UV, **{"PRMSL:mean sea level": "msl"})
+_EC_PARAMS = {"10u": "u", "10v": "v", "msl": "msl"}
+_EC_SELECT = {("sfc", p, None): n for p, n in _EC_PARAMS.items()}
 
 
 def gfs_url(d, fh, prefix="gfs"):
-    ymd, hh = d.strftime("%Y%m%d"), d.strftime("%H")
-    return "%s/%s.%s/%s/atmos/%s.t%sz.pgrb2.0p25.f%03d" % (GFS, prefix, ymd, hh, prefix, hh, fh)
+    build = sources.gdas if prefix == "gdas" else sources.gfs
+    return build(d.strftime("%Y%m%d"), d.strftime("%H"), fh)
 
 
-def _ec_base(model, stream, typ, d, step):
-    ymd, hh = d.strftime("%Y%m%d"), d.strftime("%H")
-    return "%s/%s/%sz/%s/0p25/%s/%s%s0000-%dh-%s-%s" % (EC, ymd, hh, model, stream, ymd, hh, step, stream, typ)
-
-
-def _ec_records(base):
-    r = get(base + ".index")
-    if r is None:
-        return None
-    return [json.loads(l) for l in r.text.splitlines() if l.strip().startswith("{")]
-
-
-_EC_PARAMS = {"10u": "u", "10v": "v", "msl": "msl"}
-
-
-def _ec_get(base, r):
-    blob = get(base + ".grib2", (r["_offset"], r["_offset"] + r["_length"] - 1))
-    return None if blob is None else decode(blob.content)
+def _ec_member(job):
+    base, typ, r = job
+    blob = nwp.get(base + ".grib2", nwp.span(r))
+    return typ, int(r.get("number", 0)), _EC_PARAMS[r["param"]], None if blob is None else _cut(nwp.decode(blob.content))
 
 
 def det(model, cycle, step):
     """Deterministic run -> {basin: {'u','v','msl'}} (u, v m/s; msl hPa) or None if not posted.
     model: gfs, ifs or aifs. Step 0 of gfs and ifs is the analysis."""
+    wait_for_quiet()
     if model == "gfs":
         out = _ncep(gfs_url(cycle, step), UVP)
         if out is None:
             return None
     elif model in ("ifs", "aifs"):
-        base = _ec_base("ifs" if model == "ifs" else "aifs-single", "oper", "fc", cycle, step)
-        recs = _ec_records(base)
-        if recs is None:
+        raw = nwp.fields("ifs" if model == "ifs" else "aifs-single", cycle.strftime("%Y%m%d%H"), step,
+                         _EC_SELECT)
+        if raw is None or len(raw) != 3:
             return None
-        out = {}
-        for r in recs:
-            if r.get("levtype") == "sfc" and r["param"] in _EC_PARAMS:
-                f = _ec_get(base, r)
-                if f is None:
-                    return None
-                out[_EC_PARAMS[r["param"]]] = f
-        if len(out) != 3:
-            return None
+        out = {n: _cut(v) for n, v in raw.items()}
     else:
         raise ValueError("unknown deterministic model %r" % model)
     res = _by_basin(out, ("u", "v", "msl"))
@@ -189,15 +116,15 @@ def members(ens, cycle, step, msl=True, workers=6):
     """Ensemble members -> {basin: {'u': [n,y,x], 'v': [n,y,x], 'msl': [n,y,x]}} or None.
     ens: gefs (c00 + p01..p30), ens (IFS ENS, -ef), aifs-ens (-cf + -pf). Members missing a field are dropped;
     msl is left out of the result when msl=False."""
+    wait_for_quiet()
     want = ("u", "v", "msl") if msl else ("u", "v")
     mem = {}
     if ens == "gefs":
         keys = dict(UVP if msl else UV)
+        ymd, hh = cycle.strftime("%Y%m%d"), cycle.strftime("%H")
 
         def one(m):
-            url = "%s/gefs.%s/%s/atmos/pgrb2sp25/ge%s.t%sz.pgrb2s.0p25.f%03d" % (
-                GEFS, cycle.strftime("%Y%m%d"), cycle.strftime("%H"), m, cycle.strftime("%H"), step)
-            return m, _ncep(url, keys)
+            return m, _ncep(sources.gefs(ymd, hh, step, m), keys)
 
         with ThreadPoolExecutor(workers) as ex:
             for i, (m, o) in enumerate(ex.map(one, GEFS_MEMBERS)):
@@ -206,20 +133,17 @@ def members(ens, cycle, step, msl=True, workers=6):
     elif ens in ("ens", "aifs-ens"):
         model, typs = ("ifs", ("ef",)) if ens == "ens" else ("aifs-ens", ("cf", "pf"))
         wanted = ("10u", "10v", "msl") if msl else ("10u", "10v")
+        ymd, hh = cycle.strftime("%Y%m%d"), cycle.strftime("%H")
         jobs = []
         for typ in typs:
-            base = _ec_base(model, "enfo", typ, cycle, step)
-            recs = _ec_records(base)
+            base = sources.ecmwf(model, "enfo", typ, ymd, hh, step)
+            recs = nwp.ec_records(base)
             if recs is None:
                 return None
             jobs += [(base, typ, r) for r in recs if r.get("levtype") == "sfc" and r["param"] in wanted]
 
-        def one(job):
-            base, typ, r = job
-            return typ, int(r.get("number", 0)), _EC_PARAMS[r["param"]], _ec_get(base, r)
-
         with ThreadPoolExecutor(workers) as ex:
-            for typ, m, name, f in ex.map(one, jobs):
+            for typ, m, name, f in ex.map(_ec_member, jobs):
                 if f is not None:
                     mem.setdefault((typ == "pf", m), {})[name] = f   # control and perturbed files number separately
     else:

@@ -13,11 +13,14 @@ If something can be made reusable and efficient, that comes first. Downloads, tr
 ## Where things go
 - Code and small results (CSV, markdown, PNG under 1 MB): `studies/<yyyy-mm-dd>-<name>/`.
 - Shared library: `rk/` (interface in `rk/CONTRACT.md`; change the contract first).
-- Fields, truth tables, ASCAT: the shared data store, `RK_DATA` (default `/mnt/project-files/research-data`), through `rk.store` and `rk.truth`. Never in git.
+- Model fields: through `rk.store` (local cache `RK_CACHE`, releases of jkrek17/marine-research-data; add files with `rk.store.put`, send them with `tools/publish_store.py`). Truth tables, ASCAT and small results: the shared folder `RK_DATA` (default `/mnt/project-files/research-data`), through `rk.truth`. Never in git.
 
 ## Wait for Jason
 - Any change to awips-tools, hf-low or a public page that comes out of a study.
 - Pulls expected to stream more than ~50 GB: give the estimate and what the store already has.
+
+## Merging (Jason, 2026-10-16)
+Pull requests here merge themselves once the tests and `tools/check_repo.py` pass; tell Jason in one line what landed.
 
 ## Never
 - Commit data, caches, tokens or files over 10 MB, or use `git add -A` / `git add .`.

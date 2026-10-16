@@ -54,6 +54,52 @@ def test_platform():
     assert truth._platform(sid, lat, lon).tolist() == ["buoy", "buoy", "ship", "ship", "fixed", "fixed"]
 
 
+def _smap_blob():
+    """A tiny synthetic SMAP-layout netCDF (full 720 x 1440 x 2 grid, mostly missing) built in memory."""
+    import netCDF4
+    w = np.full((720, 1440, 2), -9999, np.int16)
+    m = np.full((720, 1440, 2), -9999, np.int16)
+    lat = -89.875 + 0.25 * np.arange(720)
+    for la, lo, nd, wind, minute in ((50.125, 200.125, 0, 2500, 1100), (50.125, 200.125, 1, 1000, 370),
+                                     (14.875, 10.125, 0, 500, 60), (70.125, 10.125, 1, 500, 60),
+                                     (30.125, 359.875, 1, 0, 1439)):
+        w[np.argmin(abs(lat - la)), int(round((lo - 0.125) / 0.25)), nd] = wind
+        m[np.argmin(abs(lat - la)), int(round((lo - 0.125) / 0.25)), nd] = minute
+    w[np.argmin(abs(lat - 40.125)), 5, 0] = 1500          # wind present, minute missing: dropped
+    ds = netCDF4.Dataset("s.nc", "w", memory=1 << 20)
+    for n, k in (("lat", 720), ("lon", 1440), ("node", 2)):
+        ds.createDimension(n, k)
+    ds.createVariable("lat", "f4", ("lat",))[:] = lat
+    ds.createVariable("lon", "f4", ("lon",))[:] = 0.125 + 0.25 * np.arange(1440)
+    for n, a in (("wind", w), ("minute", m)):
+        v = ds.createVariable(n, "i2", ("lat", "lon", "node"))
+        v.set_auto_maskandscale(False)
+        v[:] = a
+    blob = ds.close()
+    return bytes(blob)
+
+
+def test_smap_cells():
+    c = truth._smap_cells(_smap_blob())
+    assert len(c["lat"]) == 3, len(c["lat"])             # 14.875 and 70.125 cut, missing minute dropped
+    o = np.argsort(c["node"].astype(int) * 10000 + c["t_min"])
+    assert c["node"][o].tolist() == [0, 1, 1] and c["t_min"][o].tolist() == [1100, 370, 1439]
+    assert np.allclose(c["spd_enw_kt"][o], np.array([25.0, 10.0, 0.0]) * KT)   # 0.01 m/s scale, 0 kept
+    assert np.allclose(c["lat"][o][:2], 50.125) and np.allclose(c["lon"][o][:2], 200.125) and c["lon"].max() > 359
+    assert c["spd_enw_kt"].dtype == np.float32 and c["t_min"].dtype == np.int16 and c["node"].dtype == np.uint8
+
+
+def test_smap_not_posted_guard():
+    class R:
+        content = b"<html>404</html>"
+    real = truth.fetch.get
+    truth.fetch.get = lambda url, rng=None: R()
+    try:
+        assert truth._smap_get(__import__("datetime").date(2026, 1, 1), "FINAL") is None
+    finally:
+        truth.fetch.get = real
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -2,10 +2,12 @@
 
 obs()    ship and buoy 10 m wind rebuilt from the GDAS first guess plus the O-B departure
 ascat()  RSS ASCAT v2.1 cells near the valid time, equivalent-neutral or real 10 m wind
+smap_day()  RSS SMAP v1.0 L3 daily winds (L-band radiometer), a second equivalent-neutral instrument
 Everything here is cached under DATA/truth. A loader returns None when its source is not posted.
 """
 import datetime as dt
 import io
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -301,6 +303,69 @@ def ascat_day(day):
     age = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - dt.datetime.combine(day, dt.time())
     if len(sats) == 2 or age > dt.timedelta(days=7):
         _save(p, sats=np.array(sats), **c)
+    return c
+
+
+# ---- SMAP ----
+
+SMAP_URL = "https://data.remss.com/smap/wind/L3/v01.0/daily/{kind}/{y}/RSS_smap_wind_daily_{y}_{m}_{d}{nrt}_v01.0.nc"
+_SMAP_LAT = -89.875 + 0.25 * np.arange(720)
+_NC_LOCK = threading.Lock()  # the netCDF/HDF5 library is not thread-safe
+_SMAP_MAGIC = (b"\x89HDF\r\n\x1a\n", b"CDF\x01", b"CDF\x02")
+
+
+def _smap_get(day, kind):
+    """One RSS SMAP daily netCDF (kind "FINAL" or "NRT") as bytes, or None if not posted. RSS answers a
+    missing file with an HTML page, so the bytes must start with the netCDF/HDF5 signature."""
+    ymd = day.strftime("%Y %m %d").split()
+    r = fetch.get(SMAP_URL.format(kind=kind, y=ymd[0], m=ymd[1], d=ymd[2], nrt="_NRT" if kind == "NRT" else ""))
+    if r is None or not r.content.startswith(_SMAP_MAGIC):
+        return None
+    return r.content
+
+
+def _smap_cells(blob):
+    """Valid ocean cells of one SMAP daily file, latitudes 15-70N, both nodes. wind int16 x 0.01 m/s
+    (equivalent-neutral 10 m), minute int16 of the UTC day, -9999 missing; node 0 ascending (~18 h local),
+    1 descending (~06 h local). Layout [lat 720, lon 1440, node 2]-agnostic: axes are read by dimension name."""
+    import netCDF4
+    with _NC_LOCK, netCDF4.Dataset("smap.nc", memory=blob) as ds:
+        out = {}
+        for name in ("wind", "minute"):
+            v = ds.variables[name]
+            v.set_auto_maskandscale(False)
+            a = np.asarray(v[:])
+            out[name] = np.moveaxis(a, [v.dimensions.index(d) for d in ("lat", "lon", "node")], [0, 1, 2])
+        lat = np.asarray(ds.variables["lat"][:], float)
+        lon = np.asarray(ds.variables["lon"][:], float) % 360
+    w, m = out["wind"], out["minute"]
+    ok = (w != -9999) & (w >= 0) & (m != -9999) & (m >= 0)
+    ok &= ((lat >= _LAT_RANGE[0]) & (lat <= _LAT_RANGE[1]))[:, None, None]
+    iy, ix, node = np.nonzero(ok)
+    return dict(lat=lat[iy].astype(np.float32), lon=lon[ix].astype(np.float32),
+                t_min=m[iy, ix, node].astype(np.int16),
+                spd_enw_kt=(w[iy, ix, node].astype(np.float32) * 0.01 * KT).astype(np.float32),
+                node=node.astype(np.uint8))
+
+
+def smap_day(day):
+    """All valid ocean cells of a UTC day of RSS SMAP v1.0 L3 daily winds (15-70N, all longitudes, both
+    nodes) -> dict or None if neither FINAL nor NRT is posted. Fields: lat, lon (0-360), t_min (minute of the
+    UTC day), spd_enw_kt (equivalent-neutral 10 m wind, kt), node (0 ascending ~18 h local, 1 descending ~06 h
+    local). FINAL is tried first, then NRT. Cached under truth/smap/{YYYYMMDD}.npz with final = 1 for FINAL,
+    0 for NRT (a cached NRT day is not re-fetched when FINAL appears; delete the file to refresh)."""
+    ymd = day.strftime("%Y%m%d")
+    p = data("truth", "smap", ymd + ".npz")
+    if p.exists():
+        with np.load(p) as z:
+            return {k: z[k] for k in z.files if k != "final"}
+    blob, final = _smap_get(day, "FINAL"), 1
+    if blob is None:
+        blob, final = _smap_get(day, "NRT"), 0
+    if blob is None:
+        return None
+    c = _smap_cells(blob)
+    _save(p, final=np.array(final, np.uint8), **c)
     return c
 
 

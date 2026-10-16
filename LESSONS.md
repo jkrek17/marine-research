@@ -19,6 +19,10 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Hold out weeks before you look.** The fixed held-out weeks are in `rk.cases.held_out`; tune on the rest, score the held-out weeks once.
 - **Name a method for what it does.** "A 60th-percentile lean" not "bias correction"; Jason catches oversold labels.
 - **A recipe can win on averages and lose the peaks.** Score storm force on tile peaks as well as cell scores (`rk.score.tile_peaks`).
+- **A peak miss is usually smoothing, not stability.** The 30 m/10 m switch and x1.10 catch storm peaks only by adding wind everywhere (gale false alarms 12% to 30%, buoys +3.9 kt); +5 kt only where core likelihood >= 35% caught the same 49% with 15% false alarms. Fix the core, not the field.
+- **Models already place the core.** 60 synoptic and conceptual clues (fronts, jets, quadrant, storm type, pressure gradient) added ~0.01 BSS beyond the models' and members' own winds; test a new clue against that baseline before building on it.
+- **Set each hazard line from its own hit-versus-area curve, and show real cases.** Reusing the storm-core score for the HF line made a huge HF area; Jason wants lines that follow the probabilities, unpadded.
+- **Check a live port against the research table at matched cells.** The storm-core model's live features matched the study within r >= 0.994 before it shipped; do this for any exported model.
 - **Don't overstate one score.** "AIFS for track" was claimed from one metric and walked back; check position, depth and misses together.
 
 - **Count the chances' sample in weeks, and check the cycles with an event.** Hundreds of thousands of cells came from 14 held-out cycles per basin; 64 kt had 1-4 cycles with an event. State it before any curve. *Counts in `studies/2026-10-16-chance-calibration/` results.csv.*
@@ -32,3 +36,8 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Don't mix runs in one case.** If a model is missing for a cycle, skip the cycle.
 - **Fork plus OpenMP deadlocks** after an sklearn fit: use a spawn pool.
 - **Date line:** keep Pacific longitudes 160-245; -180..180 broke distances and lost lows once.
+- **netCDF4/HDF5 is not thread-safe.** Reading SMAP files from 4 threads raised `NetCDF: HDF error` and hung the fill. *`rk.truth._smap_cells` holds a lock around the read.*
+- **Apply the decision rule with the method the design named.** The first storm-truth draft passed the rule on a check method (same-cell pairs) when the pre-set storm-peak test had failed; the independent check caught it. Say "not passed" and give the default.
+- **Peaks picked by one instrument flatter it.** Storm peaks selected in ASCAT put SMAP 6 kt higher at 56-64 kt; selected in SMAP, 1 kt lower. Always run both directions.
+- **A missing remote file can come back as an HTML page, not an error.** SMAP FINAL files have no `_FINAL` suffix; the guessed name returned an HTML 404 page that looked like a download. Check the file's magic bytes before caching. *`rk.truth._smap_get`.*
+- **Check a proposed avenue against the dead ends before ranking it.** The research agenda's first draft ranked aligned-member wind #1; `core/lift.md` had already tested it (CSI .30 vs .45). Search the findings before calling anything new.
