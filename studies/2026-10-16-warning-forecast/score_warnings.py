@@ -6,8 +6,8 @@ Truth (all from rk):
                (event = >= 2 connected cells at or above the level; hit = warned cell within 4 cells ~60 nm).
   HF           rk.truth.hf_fixes: archive fixes with Category HF at the valid time; rk.score.warning_points
                (hit = warned cell within HF_KM of the low centre).
-Scored only inside the OPC high seas area (hsf_parse_wx.AREAS; the Atlantic area is 31-67N west of 35W,
-cut at 75W by the basin box) over open, ice-free water (analysis mask).
+Scored only inside the OPC high seas areas (Atlantic 31-67N west of 35W, cut at 75W by the basin box;
+Pacific east of the Bering Strait-53N172E-50N180W-30N180W line) over open, ice-free water (analysis mask).
 
 Forecasts: the full-member cases in DATA/extra/warning-experiment/cases (build_cases.py). Rules, each swept:
   model_<m>, max3, blend   wind + d >= L (blend = the live page blend: member-support weights + spread lean)
@@ -25,6 +25,7 @@ import datetime as dt
 import glob
 import os
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -40,6 +41,10 @@ from rk.basins import grid  # noqa: E402
 from rk.paths import data  # noqa: E402
 from hsf_parse_wx import AREAS  # noqa: E402
 
+# HSFEP1 area per its header ("E OF A LINE FROM THE BERING STRAIT TO 53N172E TO 50N180W TO 30N180W"),
+# as in awips-tools marine_wind/hsf/areas.py; the parser's own Pacific outline starts at 160E and is too big
+PAC = shapely.Polygon([(180, 30), (180, 50), (172, 53), (191.2, 65.7), (191.2, 67), (250, 67), (250, 30)])
+
 EXTRA = data("extra", "warning-experiment", "x").parent
 HF_KM = float(os.environ.get("HF_KM", "500"))
 DELTAS = list(range(-4, 13))
@@ -54,7 +59,7 @@ def opc_area(basin):
         lats, lons = grid(basin)
         lon2, lat2 = np.meshgrid(lons, lats)
         _AREA[basin] = (shapely.contains_xy(AREAS["atl"], lon2 - 360, lat2) if basin == "natl"
-                        else shapely.contains_xy(AREAS["pac"], lon2, lat2))
+                        else shapely.contains_xy(PAC, lon2, lat2))
     return _AREA[basin]
 
 
@@ -87,6 +92,17 @@ def desk_masks(basin, valid, hour):
 
 
 def run_case(args):
+    """Score one case; the shared folder is a network mount, so a read error is retried a few times."""
+    for i in range(4):
+        try:
+            return _run_case(args)
+        except OSError:
+            if i == 3:
+                raise
+            time.sleep(10 * (i + 1))
+
+
+def _run_case(args):
     basin, f = args
     run, step = os.path.basename(f)[:-4].split("_")
     run, step = dt.datetime.strptime(run, "%Y%m%d%H"), int(step)

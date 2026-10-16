@@ -34,6 +34,13 @@ Held-out winter weeks, both basins, analysed lows below 1000 hPa. Position error
 
 **Confidence score.** Chance that an analysed low is within 300 km, from the share of members carrying the low, how tightly they cluster, lead and depth. On 3,055 held-out lows from all held-out weeks (not only winter): stated 14% → 14% verified; 28% → 29%; 50% → 50%; 68% → 69%; 84% → 90% (21 lows).
 
+## Spread for the map (check added 2026-10-16, Jason asked for a measure of spread)
+Rules fixed before running (`preregistration.md`); results in `results/spread_check.md`. Held-out lows from all held-out weeks Mar 2025-Mar 2026, about 880 per lead with an analysed low within 1000 km.
+
+- **Depth range works.** Widen the members' own 10th-90th percentile central pressures by about 1.4 and the range holds the analysed pressure 81-82% of the time. It is 16-20 hPa wide in the middle, and a wide range really does mean a less certain depth: the median error is 2.7-3.5 hPa for the tightest third of lows and 4.6-7.4 hPa for the widest third. Label: "L 978 (970-990) 62%".
+- **Position spread does not.** The members' centres cluster 2-4 times too tightly, so an ellipse has to be scaled up. Once scaled, the 50% ellipse holds half the analysed lows, but its size says little about which low is uncertain: the median error is 320/301/349 km for the tightest/middle/widest third at +120 h, and much the same at +144 and +168 h (correlation about 0.1). The 90% ellipse failed its preregistered mark (74-77%) because the errors are heavy-tailed; refitting it on its own holds 89-92% but makes it about 1000 km across, the size of the miss cap. A per-low ellipse would look informative without being so.
+- **What to draw instead:** one ring per lead for where the centre will be half the time (about 320 / 370 / 410 km at +120 / +144 / +168 h), plus member centres on request so a split shows. Whether the low is real stays with the confidence score.
+
 ## What it does not show
 - Summer and autumn: the ECMWF download for Apr-Oct 2025-26 is still running. The "all weeks" numbers in `results/final.md` and `results/comparisons.csv` cover the 10 held-out weeks downloaded so far (Mar-Aug 2025 plus winter) and point the same way.
 - Only 6 held-out winter weeks, so the week-resampled intervals are rough and probably a little narrow. They are wide at +120 h against ECMWF, and for deep lows.

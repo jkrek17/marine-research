@@ -390,6 +390,31 @@ def low_scores(truth_msl, fc_msl, basin, below=1000.0, radius_km=300.0, fc_below
             "n_truth": int(len(truth))}
 
 
+def low_case(truth_msl, fc_msl, basin, below=1000.0, fc_below=1010.0, radius_km=1000.0, hit_km=300.0,
+             false_radius_km=500.0, false_truth_below=1005.0, miss_penalty_km=1000.0):
+    """One case scored in the day 5-7 study's headline form (its `lib.score` and `lib.false_lows`).
+
+    Per analysed low (find_lows(truth_msl, below, inset_deg=3.0)): position error to the nearest forecast low
+    (found at fc_below) within radius_km, a miss charged miss_penalty_km; depth error forecast minus analysed
+    from that nearest low, or, for a miss, the forecast field at the analysed centre minus the analysed value;
+    hit = nearest forecast low within hit_km. This differs from low_scores in one way: the match radius is
+    1000 km, so a low 300-1000 km away still supplies its position and depth error (the preregistered rule),
+    and `hit` is the separate 300 km test.
+    Returns (rows, false, n_fc): rows is a DataFrame [lat, lon, an_hpa, pos_km, depth_err_hpa, hit]; false is
+    the number of forecast lows below `below` with no analysed low under false_truth_below within
+    false_radius_km; n_fc is the number of forecast lows below `below`.
+    """
+    truth = find_lows(truth_msl, basin, below, inset_deg=3.0)
+    truth_all = find_lows(truth_msl, basin, false_truth_below)
+    fc = find_lows(fc_msl, basin, fc_below)
+    m = match_lows(truth, fc, radius_km, miss_penalty_km=miss_penalty_km, miss_depth="field",
+                   fc_msl=fc_msl, basin=basin)
+    rows = pd.DataFrame({"lat": m.lat, "lon": m.lon, "an_hpa": m.hpa, "pos_km": m.pos_err_km,
+                         "depth_err_hpa": m.depth_err_hpa, "hit": m.matched & (m.pos_err_km <= hit_km)})
+    deep = fc[fc.hpa < below]
+    return rows, false_lows(truth_all, deep, false_radius_km), int(len(deep))
+
+
 # ---- warnings: areas of wind at or above a level, scored as events ----
 
 def _label(m):

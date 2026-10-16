@@ -8,6 +8,8 @@ fields/{basin}/{YYYYMMDDHH}/{name}.npz     name = {model}_f{step:03d}, or any na
             above the threshold in kt), msl_mean, msl_std (hPa), n (members)
 Remote: release fields-{basin}-{YYYYMM} on jkrek17/marine-research-data, asset {basin}_{YYYYMMDDHH}.zip
 (ZIP_STORED zip of the cycle's npz files). Local: rk.paths.CACHE. Legacy: DATA/fields (read only).
+Truth (analysis, obs, airsea, ascat, smap) follows the same pattern, one plain npz asset per valid time or
+day in release truth-{kind}[-{basin}]-{YYYYMM}; see the "truth files" section.
 See rk/CONTRACT.md.
 """
 import datetime as dt
@@ -29,11 +31,11 @@ from urllib3.util.retry import Retry
 from . import KT, fetch, paths
 from .basins import BASINS
 from .cases import STEPS, available, tag
-from .paths import data
 
 DET = ("gfs", "ifs", "aifs")
 ENS = ("gefs", "ens", "aifs-ens")
 MIN_MEMBERS = 20
+FULL_MEMBERS = {"gefs": 31, "ens": 51, "aifs-ens": 51}   # control + perturbed; fill(complete=True) needs all of them
 
 RELEASES = os.environ.get("RK_RELEASES", "https://github.com/jkrek17/marine-research-data/releases/download")
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
@@ -358,10 +360,12 @@ def ens_stats(m):
     return out
 
 
-def fill(cycle, steps=STEPS, models=DET, ens=ENS, workers=6, basins=tuple(BASINS)):
+def fill(cycle, steps=STEPS, models=DET, ens=ENS, workers=6, basins=tuple(BASINS), complete=False):
     """Fetch what is missing (in no cache, legacy dir or release) for the basins (both by default) from one
     cycle and store it in the local cache, marked unpublished.
-    Skips an ensemble step when fewer than 20 members came back; each file comes from one run.
+    Skips an ensemble step when fewer than 20 members came back (complete=True: when fewer than FULL_MEMBERS,
+    so a step still being posted is not stored short and then treated as existing; the next run retries it);
+    each file comes from one run.
     Returns {'cycle', 'fetched', 'existing', 'missing', 'skipped_ens'} (lists of 'model_fSSS')."""
     rep = {"cycle": tag(cycle), "fetched": [], "existing": [], "missing": [], "skipped_ens": []}
     jobs = []
@@ -387,7 +391,7 @@ def fill(cycle, steps=STEPS, models=DET, ens=ENS, workers=6, basins=tuple(BASINS
         res = fetch.members(name, cycle, step, msl=True, workers=inner)
         if res is None:
             return label, "missing"
-        if len(next(iter(res.values()))["u"]) < MIN_MEMBERS:
+        if len(next(iter(res.values()))["u"]) < (FULL_MEMBERS[name] if complete else MIN_MEMBERS):
             return label, "skipped_ens"
         for b in basins:
             put(b, cycle, "%s_f%03d" % (name, step), **ens_stats(res[b]))
@@ -399,11 +403,181 @@ def fill(cycle, steps=STEPS, models=DET, ens=ENS, workers=6, basins=tuple(BASINS
     return rep
 
 
+# ---- truth files: cache, legacy DATA/truth, release (plain npz assets, one per valid time or day) ----
+#
+# truth/{kind}/[{basin}/]{stem}.npz, stem = YYYYMMDDHH (analysis, obs, airsea) or YYYYMMDD (ascat, smap).
+# Release truth-{kind}[-{basin}]-{YYYYMM} (month of the stem), asset {stem}.npz. Kinds that differ by basin
+# (analysis, obs, airsea) get one release per basin. Read order: CACHE/truth, legacy DATA/truth, release.
+
+TRUTH_KINDS = {"analysis": (True, 10), "obs": (True, 10), "airsea": (True, 10),
+               "ascat": (False, 8), "smap": (False, 8)}   # kind: (per basin, stem length)
+
+
+def truth_key(kind, basin, stem):
+    """Validate and normalise -> (kind, basin or None, stem). stem may be a datetime/date or a string
+    (with or without .npz); a basin is required for per-basin kinds and ignored for the others."""
+    if kind not in TRUTH_KINDS:
+        raise ValueError("unknown truth kind %r (%s)" % (kind, ", ".join(TRUTH_KINDS)))
+    per_basin, n = TRUTH_KINDS[kind]
+    if not isinstance(stem, str):
+        stem = stem.strftime("%Y%m%d%H" if n == 10 else "%Y%m%d")
+    elif stem.endswith(".npz"):
+        stem = stem[:-4]
+    if len(stem) != n or not stem.isdigit():
+        raise ValueError("bad %s stem %r (expected %d digits)" % (kind, stem, n))
+    if per_basin and basin not in BASINS:
+        raise ValueError("%s needs a basin (natl or npac), got %r" % (kind, basin))
+    return kind, (basin if per_basin else None), stem
+
+
+def _truth_rel(kind, basin, stem):
+    return Path("truth", kind, *([basin] if basin else []), stem + ".npz")
+
+
+def truth_tag(kind, basin, stem):
+    """Release tag: truth-{kind}[-{basin}]-{YYYYMM}, e.g. truth-ascat-202511, truth-analysis-natl-202511."""
+    kind, basin, stem = truth_key(kind, basin, stem)
+    return "truth-%s-%s%s" % (kind, basin + "-" if basin else "", stem[:6])
+
+
+def truth_asset(kind, basin, stem):
+    return truth_key(kind, basin, stem)[2] + ".npz"
+
+
+def truth_url(kind, basin, stem):
+    return "%s/%s/%s" % (RELEASES.rstrip("/"), truth_tag(kind, basin, stem), truth_asset(kind, basin, stem))
+
+
+def truth_cache_path(kind, basin, stem):
+    return paths.CACHE / _truth_rel(*truth_key(kind, basin, stem))
+
+
+def truth_legacy_path(kind, basin, stem):
+    return paths.DATA / _truth_rel(*truth_key(kind, basin, stem))
+
+
+def truth_local(kind, basin, stem):
+    """Existing cache or legacy file (no network), else None."""
+    for p in (truth_cache_path(kind, basin, stem), truth_legacy_path(kind, basin, stem)):
+        if p.exists():
+            return p
+    return None
+
+
+_truth_absent = set()    # release URLs that answered 403/404 in this process
+_truth_lock = threading.Lock()
+
+
+def _http_exists(url):
+    """True when the URL answers 200 (the body is not read); False on 403/404; other failures raise."""
+    r = _get_session().get(url, timeout=(10, 60), stream=True)
+    try:
+        if r.status_code in (403, 404):
+            return False
+        r.raise_for_status()
+        return True
+    finally:
+        r.close()
+
+
+def truth_locate(kind, basin, stem, download=True):
+    """Path of a truth file: cache, then legacy DATA/truth, then the release (download=True; the asset is
+    saved into the cache, not marked dirty). None if nowhere. A 404 is remembered for the process.
+    RK_OFFLINE=1 skips the release."""
+    p = truth_local(kind, basin, stem)
+    if p is not None or not download or os.environ.get("RK_OFFLINE") == "1":
+        return p
+    url = truth_url(kind, basin, stem)
+    with _truth_lock:
+        if url in _truth_absent:
+            return None
+    blob = _http_get(url)
+    if blob is None:
+        with _truth_lock:
+            _truth_absent.add(url)
+        return None
+    p = truth_cache_path(kind, basin, stem)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    _write_bytes(p, blob)
+    return p
+
+
+def truth_exists(kind, basin, stem):
+    """Is the truth file in the cache, the legacy dir or the release? Asks the release with a request that
+    does not download the file. Offline: cache and legacy only."""
+    if truth_local(kind, basin, stem) is not None:
+        return True
+    if os.environ.get("RK_OFFLINE") == "1":
+        return False
+    url = truth_url(kind, basin, stem)
+    with _truth_lock:
+        if url in _truth_absent:
+            return False
+    if _http_exists(url):
+        return True
+    with _truth_lock:
+        _truth_absent.add(url)
+    return False
+
+
+def truth_save(kind, basin, stem, **arrays):
+    """Write a truth file into the local cache atomically and mark it unpublished (truth_dirty). Returns the path."""
+    k, b, s = truth_key(kind, basin, stem)
+    p = truth_cache_path(k, b, s)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    d = p.parent / ".dirty"
+    d.mkdir(exist_ok=True)
+    (d / p.name).touch()          # marked first, as in put()
+    _save(p, **arrays)
+    return p
+
+
+def truth_dirty():
+    """Cache truth files not yet published -> {(kind, basin or None): sorted file names ('YYYYMMDDHH.npz')}."""
+    out = {}
+    for kind, (per_basin, _) in TRUTH_KINDS.items():
+        for b in (sorted(BASINS) if per_basin else [None]):
+            d = paths.CACHE / "truth" / kind / (b or "") / ".dirty"
+            if d.is_dir():
+                names = sorted(m.name for m in d.iterdir() if (d.parent / m.name).is_file())
+                if names:
+                    out[(kind, b)] = names
+    return out
+
+
+def truth_mark_clean(kind, basin, names):
+    """Clear the unpublished marks of truth file names (with or without .npz)."""
+    kind, basin, _ = truth_key(kind, basin, "0" * TRUTH_KINDS[kind][1])
+    d = paths.CACHE / "truth" / kind / (basin or "") / ".dirty"
+    for n in names:
+        try:
+            (d / (n if n.endswith(".npz") else n + ".npz")).unlink()
+        except FileNotFoundError:
+            pass
+    try:
+        d.rmdir()
+    except OSError:
+        pass
+
+
+def truth_merge(kind, local, remote):
+    """Compare a local truth file (Path) with the published asset (bytes or None) ->
+    'new' (nothing published), 'same' (identical arrays), 'kept' (publish nothing: the published smap day is
+    FINAL and the local one is NRT) or 'replaced' (local differs; local wins, as for field files).
+    Arrays are compared, not bytes: npz bytes carry a timestamp."""
+    if remote is None:
+        return "new"
+    with np.load(local) as a, np.load(io.BytesIO(remote)) as b:
+        if kind == "smap" and "final" in a.files and "final" in b.files and int(b["final"]) > int(a["final"]):
+            return "kept"
+        if sorted(a.files) == sorted(b.files) and all(
+                a[k].dtype == b[k].dtype and np.array_equal(a[k], b[k], equal_nan=a[k].dtype.kind == "f")
+                for k in a.files):
+            return "same"
+    return "replaced"
+
+
 # ---- analysis: GFS and IFS step 0 at the valid time, plus the open-water mask ----
-
-def _analysis_path(basin, valid):
-    return data("truth", "analysis", basin, tag(valid) + ".npz")
-
 
 def _load_analysis(z):
     g = {k: z["gfs_" + k] for k in ("u", "v", "msl")}
@@ -432,9 +606,9 @@ def analysis_arrays(g, i, land, ice):
 def analysis(basin, valid):
     """Analysis at the valid time -> {'gfs','ifs' (det dicts), 'mean_speed' (kt), 'msl' (hPa, mean of the
     two), 'mask' (open, ice-free water)} or None if either analysis or the mask is not posted.
-    Cached under truth/analysis/{basin}/{YYYYMMDDHH}.npz; both basins are cached at once."""
-    p = _analysis_path(basin, valid)
-    if p.exists():
+    Cached as truth file kind 'analysis' (see truth_locate); both basins are cached at once."""
+    p = truth_locate("analysis", basin, valid)
+    if p is not None:
         with np.load(p) as z:
             return _load_analysis(z)
     if not (available("gfs", valid) and available("ifs", valid)):
@@ -443,6 +617,7 @@ def analysis(basin, valid):
     if g is None or i is None or m is None:
         return None
     for b in BASINS:
-        _save(_analysis_path(b, valid), **analysis_arrays(g[b], i[b], m[b]["land"], m[b]["ice"]))
+        p = truth_save("analysis", b, valid, **analysis_arrays(g[b], i[b], m[b]["land"], m[b]["ice"]))
+    p = truth_cache_path("analysis", basin, valid)
     with np.load(p) as z:
         return _load_analysis(z)
