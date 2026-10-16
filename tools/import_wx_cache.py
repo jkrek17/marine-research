@@ -8,7 +8,8 @@ ifs_msl (float16). The grids must be exactly rk.basins' (natl 149x300, npac 149x
 shape is refused and counted. u/v must be m/s and msl hPa: units are checked on the first file of each
 basin (max speed, mean msl) and a kt or Pa cache is converted, unless forced with --units/--msl-units.
 Files are written with rk.store.analysis_arrays (the same code store.analysis uses) to
-DATA/truth/analysis/<basin>/<tag>.npz; existing targets are skipped. SRC is only read.
+CACHE/truth/analysis/<basin>/<tag>.npz (marked unpublished; tools/publish_store.py sends it); existing
+targets (cache or old shared folder) are skipped. SRC is only read.
 """
 import argparse
 import sys
@@ -64,8 +65,7 @@ def main():
             except ValueError:
                 n["bad"] += 1
                 continue
-            target = store._analysis_path(b, valid)
-            if target.exists():
+            if store.truth_local("analysis", b, valid) is not None:
                 n["existing"] += 1
                 continue
             if a.dry_run:
@@ -92,8 +92,7 @@ def main():
                 n["bad"] += 1
                 print("bad %s: %s" % (f, e), file=sys.stderr)
                 continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            store._save(target, **arrays)
+            store.truth_save("analysis", b, valid, **arrays)
             n["new"] += 1
         print("%s: %d files, %s%s" % (b, len(files), ", ".join("%s %d" % kv for kv in n.items()),
                                       " (dry run: 'new' would be written)" if a.dry_run else ""))

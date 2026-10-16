@@ -15,21 +15,25 @@ Shared code, rules and templates for the forecast research behind the marine win
 | `studies/` | One folder per study from now on |
 
 ## Data
-Bulk data is not in git, and the shared folder is too small for the model fields, so there are three places:
+Bulk data is not in git, and the shared folder is too small for the model fields and the truth, so there are three places:
 
 ```
-GitHub Releases (jkrek17/marine-research-data, public)   model fields, one release per basin and month
+GitHub Releases (jkrek17/marine-research-data, public)   model fields and truth
   fields-{natl,npac}-{YYYYMM} / {basin}_{YYYYMMDDHH}.zip   zip of that cycle's npz files (below)
+  truth-{analysis,obs,airsea}-{natl,npac}-{YYYYMM} / {YYYYMMDDHH}.npz   one asset per valid time
+  truth-{ascat,smap}-{YYYYMM} / {YYYYMMDD}.npz             one asset per day (both basins)
 RK_CACHE (default ~/.cache/marine-research)              local copy, same layout, filled on demand
   fields/{natl,npac}/{YYYYMMDDHH}/{gfs,ifs,aifs}_fFFF.npz    10 m u, v and MSLP
   fields/{natl,npac}/{YYYYMMDDHH}/{gefs,ens,aifs-ens}_fFFF.npz  member statistics: mean, spread, chance of 34/48/64 kt, MSLP mean and spread
-RK_DATA (default /mnt/project-files/research-data/)      truth tables and small results
   truth/analysis/{natl,npac}/{YYYYMMDDHH}.npz                GFS and IFS analyses, open-water mask
-  truth/ascat/{YYYYMMDD}.npz                                 RSS ASCAT cells for the day
-  truth/obs/...                                              buoys and ships rebuilt from GDAS
+  truth/ascat/{YYYYMMDD}.npz, truth/smap/{YYYYMMDD}.npz      RSS ASCAT and SMAP cells for the day
+  truth/obs/{natl,npac}/..., truth/airsea/{natl,npac}/...    buoys and ships rebuilt from GDAS; air minus sea temperature
+RK_DATA (default /mnt/project-files/research-data/)      small results, and the old copy of fields and truth (read only)
 ```
 
 `rk.store.load_det / load_ens / load` look in the cache, then the old `RK_DATA/fields` (kept while the move happens), then download the cycle's zip from the release and unpack it into the cache. `fill` and `rk.store.put(basin, cycle, name, **arrays)` write to the cache and mark the file unpublished; `python3 tools/publish_store.py --repo <clone of marine-research-data>` (or `RK_DATA_REPO`) sends unpublished files to the data repo, whose workflow turns them into release assets. Merging with the published asset means an extension never drops another thread's files. `RK_OFFLINE=1` stops downloads.
+
+Truth works the same way (`rk.truth` and `rk.store.truth_*`): cache, then the old `RK_DATA/truth`, then the release asset; a new analysis, obs, air-sea, ASCAT or SMAP file is written to the cache, marked unpublished, and sent by `publish_store.py` (plain assets; a file already published with the same arrays is skipped). The hf-low fixes are not in releases: `rk.truth.hf_archive` reads the CSVs from the hf-low repo over HTTPS and caches them. The scheduled jobs in marine-research-data (`fill.yml`, `truth.yml`) run `tools/fill_store.py` and `tools/fill_truth.py` and upload straight to the releases.
 
 Boxes are the tested areas: North Atlantic 30-67N 75W-0 (12 UTC cycles) and North Pacific 30-67N 160E-115W (00 UTC cycles). Model archives on AWS start March 2025 (AIFS ENS August 2025).
 
