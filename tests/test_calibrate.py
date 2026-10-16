@@ -127,17 +127,6 @@ def test_lead_group():
 
 # ---- ASCAT grid helpers (rk.truth) ----
 
-def test_bc_bias_and_halfway():
-    assert truth.ascat_bc_bias(20) == 0 and truth.ascat_bc_bias(25) == 0
-    assert abs(truth.ascat_bc_bias(30) - 0.297) < 1e-9 and abs(truth.ascat_bc_bias(45) - 0.7015) < 1e-9
-    assert abs(truth.ascat_bc_bias(80) - 1.251) < 1e-9
-    out = truth.ascat_meet_halfway(np.array([30.0, 30.0, 20.0, 50.0]), np.array([2, 3, 2, 3]))
-    assert np.allclose(out, [30 - 0.1485, 30 + 0.1485, 20, 50 + 0.418])
-    # the corrected B-C gap vanishes
-    b, c = truth.ascat_meet_halfway(np.array([40.0, 40.0]), np.array([2, 3]))
-    assert abs(c - b - truth.ascat_bc_bias(40)) < 1e-9
-
-
 def test_snap_floor_not_rint():
     # RSS centres at .125: every other row/column must not be dropped. 160.125 .. 160.875 -> 4 distinct columns
     lon = 160.125 + 0.25 * np.arange(4)

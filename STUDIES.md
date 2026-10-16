@@ -6,6 +6,7 @@ Truth abbreviations: **anl** = GFS+IFS analysis mean, **ASCAT** = RSS ASCAT real
 
 | Started | Study | Question (Jason's words where we have them) | Answer in one line | Truth | Where |
 |---|---|---|---|---|---|
+| 2026-10-16 | Chance calibration (GEFS first look) | Are the page's gale/storm/HF chances honest, and what remap fixes them? | GEFS only, Nov-Dec 2025: Atlantic gale chance runs high vs ASCAT (raw 30% = 17.5% at +24/48), storm runs low (raw 30% = 43%); remap lifts held-out Brier skill 0.59 to 0.61 (gale), 0.44 to 0.47 (storm); Pacific near honest; 64 kt too thin. Not for the page (no ECMWF/AIFS ensembles yet) | ASCAT 3x3 box, ASCAT cell, anl | `studies/2026-10-16-chance-calibration/`, `/mnt/project-files/chance-calibration/gefs_first_look/` |
 | 2026-10-16 | Day 5-7 pressure forecast | Can a system beat the deterministic models on MSLP at day 5-7 and keep the lows? | Running | anl, ERA5 check | `/mnt/project-files/pressure-d5-7/` |
 | 2026-10-16 | Warning forecast experiment | Best warning forecast from the models: 80%+ detection of gale/storm/HF, no worse than the desk on false alarms and area | Running | ASCAT; hf-low HF fixes for HF | `/mnt/project-files/warning-experiment/` |
 | 2026-10-16 | High seas text from the grids | Draft the HSF text from the grid, ~80% of the way | Writer live on the wind page; scoring vs issued warnings started | issued HSF | `/mnt/project-files/hsf/` |

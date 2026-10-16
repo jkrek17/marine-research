@@ -353,28 +353,7 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     return out
 
 
-# ---- ASCAT on the model grid: Metop offset, single cells and 3 x 3 boxes ----
-
-# Metop-B reads higher than Metop-C at high winds. Mean B minus C difference of collocated cells by mean
-# speed band (chance-calibration study, ascat_noise/results.csv, table "pairs", set "both"): 25-35 kt +0.297,
-# 35-45 +0.567, 45-55 +0.836, 55+ +1.251. Knots sit at the band centres; 0 below 25 kt, flat above 60.
-BC_BIAS_SPEED = (25.0, 30.0, 40.0, 50.0, 60.0)
-BC_BIAS_KT = (0.0, 0.297, 0.567, 0.836, 1.251)
-
-
-def ascat_bc_bias(spd_kt):
-    """Metop-B minus Metop-C bias (kt) at a wind speed (kt): interpolated, 0 below 25 kt."""
-    return np.interp(np.asarray(spd_kt, float), BC_BIAS_SPEED, BC_BIAS_KT)
-
-
-def ascat_meet_halfway(spd_kt, sat):
-    """Remove the Metop offset by meeting the two satellites halfway: half the B-C bias off Metop-B (sat 2),
-    half added to Metop-C (sat 3). Returns a new array in kt."""
-    spd = np.asarray(spd_kt, float)
-    half = 0.5 * ascat_bc_bias(spd)
-    sat = np.asarray(sat)
-    return spd - np.where(sat == 2, half, 0.0) + np.where(sat == 3, half, 0.0)
-
+# ---- ASCAT on the model grid: single cells and 3 x 3 boxes ----
 
 def ascat_to_grid(basin, lat, lon, spd_kt):
     """Snap ASCAT cells to the basin's 0.25 deg model grid with floor(x + 0.5) (RSS centres sit 0.125 deg off
@@ -418,16 +397,16 @@ def box_mean(grid_kt, min_valid=6, size=3):
     return m, n
 
 
-def ascat_grid(basin, valid, correct=True, max_dt_min=90, real=True, min_valid=6):
+def ascat_grid(basin, valid, intercal=True, max_dt_min=90, real=True, min_valid=6):
     """ASCAT truth on the basin's model grid at a valid time -> dict or None (as ascat()).
-    cells: Metop-offset-corrected (correct=True) real 10 m wind snapped to the grid and averaged where cells
+    cells: real 10 m wind, Metop-B/C offset met halfway by ascat(intercal=) snapped to the grid and averaged where cells
     coincide, NaN without a cell. box: mean of the valid cells in the 3 x 3 box, NaN where fewer than
     min_valid of 9 are valid. n_box: valid cells in the box. Events: box >= threshold (the main truth) or
     cells >= threshold (the single-cell version, for comparison)."""
-    a = ascat(basin, valid, max_dt_min=max_dt_min, real=real)
+    a = ascat(basin, valid, max_dt_min=max_dt_min, real=real, intercal=intercal)
     if a is None:
         return None
-    spd = ascat_meet_halfway(a["spd_kt"], a["sat"]) if correct else np.asarray(a["spd_kt"], float)
+    spd = np.asarray(a["spd_kt"], float)
     cells, _ = ascat_to_grid(basin, a["lat"], a["lon"], spd)
     box, nb = box_mean(cells, min_valid=min_valid)
     return {"cells": cells.astype(np.float32), "box": box.astype(np.float32), "n_box": nb.astype(np.int8)}
