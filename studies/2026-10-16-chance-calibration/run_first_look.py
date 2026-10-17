@@ -2,6 +2,8 @@
 
     python3 run_first_look.py accumulate [--mode gefs|pooled]   # read the store + truth, add to counts.json and cycle_rows.csv
     python3 run_first_look.py report [--mode gefs|pooled]       # fit on tune weeks, score held-out, write results, curves, figures
+    python3 run_first_look.py accumulate --mode pooled --hours 6,18 --basins npac --folder pooled_npac0618
+    python3 run_first_look.py report     --mode pooled --hours 6,18 --basins npac --folder pooled_npac0618
 
 Modes: gefs (default) = GEFS member fraction, outputs in chance-calibration/gefs_first_look/. pooled = the page's
 share, sum over GEFS, ECMWF ENS and AIFS ENS of p x n over sum of n, outputs in chance-calibration/pooled/; a
@@ -35,11 +37,11 @@ ENSEMBLES, LABEL, CHANCE_NAME = MODES["gefs"]["ens"], MODES["gefs"]["label"], MO
 OUT = Path(os.environ.get("RK_CC_OUT", paths.DATA.parent / "chance-calibration" / MODES["gefs"]["folder"]))
 
 
-def configure(mode):
+def configure(mode, folder=None):
     global MODE, ENSEMBLES, LABEL, CHANCE_NAME, OUT
     m = MODES[mode]
     MODE, ENSEMBLES, LABEL, CHANCE_NAME = mode, m["ens"], m["label"], m["name"]
-    OUT = Path(os.environ.get("RK_CC_OUT", paths.DATA.parent / "chance-calibration" / m["folder"]))
+    OUT = Path(os.environ.get("RK_CC_OUT", paths.DATA.parent / "chance-calibration" / (folder or m["folder"])))
 
 
 def load_chance(basin, c, step):
@@ -55,8 +57,32 @@ TRUTHS = ("box", "cell", "anl")
 TRUTH_LABEL = {"box": "ASCAT 3x3 box", "cell": "ASCAT single cell", "anl": "analysis"}
 BASINS = ("natl", "npac")
 # Cycle hours (UTC) per basin. ASCAT covers the Atlantic box equally at 00 and 12 UTC; the Pacific is only
-# in the store at 00 UTC. Adding Pacific 06/18 UTC later is a one-line change: "npac": [0, 6, 18].
+# in the store at 00 UTC.
 HOURS = {"natl": [0, 12], "npac": [0]}
+STEPS = cases.STEPS
+EXTRA = False       # True with --hours: valid 06/18 UTC cases from +6 h steps (see configure_hours)
+
+# Valid hours 06 and 18 UTC come from +6 h steps. For a valid hour h the cycle is the one 6 h earlier on the
+# clock (valid 06Z -> 00Z cycle, valid 18Z -> 12Z cycle), steps are the usual leads plus 6 h:
+#   valid 06Z = 00Z cycle + (30, 54, 78, 102, 126) h      valid 18Z = 12Z cycle + the same steps
+# and each step joins the page's lead group of the usual lead it sits 6 h after:
+#   le48 = 30, 54 (stand-ins for +24, +48);  72 = 78;  ge96 = 102, 126 (stand-ins for +96, +120)
+# so group means "about 1 day, 2 days / 3 days / 4-5 days", with leads 6 h longer than the 00/12 UTC cases.
+# The split (tune / held_out) is judged on the cycle date as always (cases.split(cycle)).
+STEPS_0618 = (30, 54, 78, 102, 126)
+GROUP_0618 = {30: "le48", 54: "le48", 78: "72", 102: "ge96", 126: "ge96"}
+
+
+def lead_group(step):
+    return GROUP_0618[step] if EXTRA else C.lead_group(step)
+
+
+def configure_hours(hours, basins):
+    """hours: valid hours (06 and/or 18 UTC) to add as the only hours; basins: the basins to run."""
+    global EXTRA, STEPS, HOURS, BASINS
+    EXTRA, STEPS = True, STEPS_0618
+    BASINS = tuple(basins)
+    HOURS = {b: sorted((h - 6) % 24 for h in hours) for b in BASINS}
 START, END = dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31)
 
 
@@ -99,7 +125,7 @@ def accumulate():
     for basin in BASINS:
         tcache = {}
         cyc = sorted(c for h in HOURS[basin] for c in cases.cycles(basin, START, END, hour=h)
-                     if retry(store.load_ens, basin, c, "gefs", 24, what="gefs index %s" % c) is not None)
+                     if retry(store.load_ens, basin, c, "gefs", STEPS[0], what="gefs index %s" % c) is not None)
         print(basin, "cycles with GEFS in the store:", len(cyc), flush=True)
         for ci, c in enumerate(cyc):
             if ci and ci % 10 == 0:
@@ -107,7 +133,7 @@ def accumulate():
                 print("checkpoint", basin, ci, "/", len(cyc), flush=True)
             fetch.wait_for_quiet()
             split = cases.split(c)
-            for step in cases.STEPS:
+            for step in STEPS:
                 if (basin, c.strftime("%Y%m%d%H"), step) in done:
                     continue
                 try:
@@ -123,6 +149,12 @@ def accumulate():
                 if valid not in tcache:
                     def _truth():
                         have = store.truth_locate("analysis", basin, valid) is not None     # cache or release; never rebuild an analysis from GRIB
+                        if EXTRA:
+                            # 06/18 UTC: no analysis at the valid time (IFS posts none), so anl is skipped. The ASCAT
+                            # box needs only the open-water mask from the nearest 00/12 UTC analysis (rk.truth.mask_time).
+                            near = [valid - dt.timedelta(hours=valid.hour % 12), valid + dt.timedelta(hours=12 - valid.hour % 12)]
+                            ok = any(store.truth_locate("analysis", basin, x) is not None for x in near)
+                            return (truth.ascat_box(basin, valid) if ok else None, None)
                         return (truth.ascat_box(basin, valid) if have else None,
                                 truth.analysis(basin, valid) if have else None)
                     try:
@@ -139,7 +171,7 @@ def accumulate():
                     tcache[valid] = t
                     if len(tcache) > 12:
                         tcache.pop(next(iter(tcache)))
-                    if ag is None or an is None:
+                    if ag is None or (an is None and not EXTRA):
                         log.append("%s %s: missing %s" % (basin, valid, [k for k in ("box", "anl") if k not in t]))
                 used[basin].add(c)
                 for thr in THRS:
@@ -172,7 +204,7 @@ def _pool(counts, basin, tn, thr, group, split):
     ps, es, ws = [], [], []
     for key, v in counts.items():
         b, t, th, st, sp, nm = key.split("|")
-        if (b, t, int(th), sp) == (basin, tn, thr, split) and C.lead_group(int(st)) == group:
+        if (b, t, int(th), sp) == (basin, tn, thr, split) and lead_group(int(st)) == group:
             p, e, w = _expand(np.array(v), int(nm))
             ps.append(p), es.append(e), ws.append(w)
     if not ps:
@@ -196,7 +228,7 @@ def report(shared=False):
     style.use()
     counts = {k: np.array(v) for k, v in json.load(open(OUT / "counts.json")).items()}
     rows = pd.read_csv(OUT / "cycle_rows.csv")
-    rows["group"] = rows.step.map(C.lead_group)
+    rows["group"] = rows.step.map(lead_group)
     res, curves, allcurves, rel, shcurves = [], {}, {}, [], {}
     SHARED_THR = (48, 64) if shared else ()
 
@@ -294,7 +326,8 @@ def report(shared=False):
                     if len(d):
                         hi = max(hi, d.mean_fc.max(), d.obs_freq.max())
                         ax.plot(d.mean_fc, d.obs_freq, ":", marker="s", color=style.BASIN_COLORS[basin], lw=2, ms=5)
-                ax.text(0.97, 0.05, {"le48": "+24 and +48 h", "72": "+72 h", "ge96": "+96 and +120 h"}[g], transform=ax.transAxes,
+                ax.text(0.97, 0.05, ({"le48": "+30 and +54 h", "72": "+78 h", "ge96": "+102 and +126 h"} if EXTRA else
+                                  {"le48": "+24 and +48 h", "72": "+72 h", "ge96": "+96 and +120 h"})[g], transform=ax.transAxes,
                         fontsize=10, color=style.INK, va="bottom", ha="right")
             hi = min(1.0, hi * 1.1)
             for ax in axs:
@@ -339,9 +372,16 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("stage", choices=["accumulate", "report"])
     ap.add_argument("--mode", choices=sorted(MODES), default="gefs")
+    ap.add_argument("--hours", default="", help="valid hours from +6 h steps, e.g. 6,18 (see STEPS_0618)")
+    ap.add_argument("--basins", default="natl,npac")
+    ap.add_argument("--folder", default=None, help="output folder name under chance-calibration/")
     ap.add_argument("--shared", action="store_true", help="report: also fit 48 and 64 kt on both basins' tune weeks pooled")
     a = ap.parse_args()
-    configure(a.mode)
+    configure(a.mode, a.folder)
+    if a.hours:
+        configure_hours([int(h) for h in a.hours.split(",")], a.basins.split(","))
+    else:
+        BASINS = tuple(a.basins.split(","))
     if a.stage == "report":
         report(shared=a.shared)
     else:
