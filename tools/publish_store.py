@@ -7,7 +7,7 @@
 
 --repo defaults to the RK_DATA_REPO environment variable.
 
-Truth files (analysis, obs, airsea, ascat, smap; rk.store.truth_*) travel the same way as plain assets, one
+Truth files (analysis, obs, airsea, ascat, smap, gridsat; rk.store.truth_*) travel the same way as plain assets, one
 file per valid time or day: incoming/truth/{kind}[/{basin}]/{stem}.npz becomes asset {stem}.npz of release
 truth-{kind}[-{basin}]-{YYYYMM}. Merge semantics: the published asset is downloaded and compared with the
 local file by array content; a file already published with the same content is skipped (its mark is cleared),
