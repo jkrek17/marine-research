@@ -63,7 +63,8 @@ def test_cand_rules():
 
 def test_calib():
     cur = calib.load_curves(CURVES)
-    assert [calib.lead_group(s) for s in (24, 48, 72, 96, 120)] == ["le48", "le48", "72", "ge96", "ge96"]
+    assert [calib.lead_group(s) for s in (24, 30, 48, 54, 72, 78, 96, 102, 120, 126)] == [
+        "le48", "le48", "le48", "72", "72", "72", "ge96", "ge96", "ge96", "ge96"]   # as the page's build.py
     k = cur["winter"]["ascat"]["natl"]["le48"]
     p = calib.p34_remap(np.array([0.0, 0.145, 1.0, 0.5]), "natl", 24, cur)
     assert abs(p[0]) < 1e-6 and abs(p[2] - 1) < 1e-6

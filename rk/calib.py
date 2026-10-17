@@ -1,8 +1,8 @@
 """Chance remaps: the calibrated gale chance (P34) curves of the Chance calibration thread.
 
 A curves file is JSON {season: {truth: {basin: {lead_group: {"raw": [...], "cal": [...]}}}}}, knots in percent,
-lead groups "le48" (steps <= 48), "72" (step 72) and "ge96" (steps >= 96), as the marine wind page's
-calibration.json. `p34_remap` interpolates linearly between the knots (flat beyond the ends)."""
+lead groups "le48" (steps <= 48), "72" (steps 49-84) and "ge96" (later), as the marine wind page's
+calibration.json and its build.py. `p34_remap` interpolates linearly between the knots (flat beyond the ends)."""
 import json
 
 import numpy as np
@@ -15,8 +15,8 @@ def load_curves(path):
 
 
 def lead_group(step):
-    """Lead group name of a forecast step in hours."""
-    return "le48" if step <= 48 else ("72" if step == 72 else "ge96")
+    """Lead group name of a forecast step in hours (awips-tools marine_wind/pipeline/build.py)."""
+    return "le48" if step <= 48 else ("72" if step <= 84 else "ge96")
 
 
 def p34_remap(p, basin, step, curves, season="winter", truth="ascat"):

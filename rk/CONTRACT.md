@@ -120,7 +120,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 
 ## rk/calib.py (chance remaps)
 - `load_curves(path) -> dict`: a curves JSON {season: {truth: {basin: {lead group: {"raw": [...], "cal": [...]}}}}}, knots in percent (the Chance calibration thread's `p34_curves.json`).
-- `lead_group(step) -> "le48" | "72" | "ge96"`.
+- `lead_group(step) -> "le48" | "72" | "ge96"`: <= 48, 49-84, later (as the page's build.py, so 6-hourly steps map too).
 - `p34_remap(p, basin, step, curves, season="winter", truth="ascat") -> float32 array`: calibrated gale chance (0..1) from the raw member share (0..1); linear between knots, flat beyond.
 
 ## rk/style.py (light figures; see STYLE.md)
