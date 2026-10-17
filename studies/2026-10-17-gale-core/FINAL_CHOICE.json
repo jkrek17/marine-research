@@ -1,0 +1,1 @@
+{"t": 0.6, "set": "live28+basin", "chosen_by": "preset rule on tune weeks: highest catch gain with area <= 1.3x ASCAT and gale-tile CSI not lower, both basins", "note": "held-out scored once, beside the retrain's held-out score"}

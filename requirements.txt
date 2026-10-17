@@ -6,3 +6,5 @@ nwp @ git+https://github.com/jkrek17/awips-tools@b38f9d437ec8acdfc48a344fbe4bc16
 matplotlib
 shapely
 netCDF4
+scikit-learn
+joblib

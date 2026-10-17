@@ -87,3 +87,70 @@ def table(df, methods, baseline, value, by="step", digits=1, **kw):
         cols[m] = [fmt(x.mean, x.lo, x.hi, x.significant, digits) for x in keyed.itertuples()]
         idx = keyed.index
     return pd.DataFrame(cols, index=idx)
+
+
+def boot_sums(week_ids, stats, n_boot=2000, seed=0):
+    """Whole-week bootstrap of additive statistics. stats [n_rows, k] (counts or sums per row, e.g. per case)
+    with week_ids [n_rows]; returns (total [k], draws [n_boot, k]): the column sums over all rows and over
+    n_boot resamples of whole weeks (with replacement). Ratio metrics are then computed from the sums, so the
+    interval is for the pooled ratio, not for a mean of per-case ratios."""
+    stats = np.asarray(stats, float)
+    if stats.ndim == 1:
+        stats = stats[:, None]
+    uw, inv = np.unique(np.asarray(week_ids), return_inverse=True)
+    wk = np.zeros((len(uw), stats.shape[1]))
+    np.add.at(wk, inv, stats)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(uw), size=(n_boot, len(uw)))
+    mult = (idx[:, :, None] == np.arange(len(uw))[None, None, :]).sum(1).astype(float)   # [n_boot, n_weeks]
+    return stats.sum(0), mult @ wk
+
+
+def paired_counts(df, method, baseline, metric, counts, by=None, n_boot=2000, seed=0, time_col="cycle",
+                  method_col="method", case_cols=None):
+    """Pooled-ratio version of `paired`: metric(method) minus metric(baseline) from summed counts, with 95%
+    intervals from resampling whole ISO weeks, the same weeks for both methods.
+
+    df is long format: one row per case x method with the count columns `counts` (list of names) and
+    `method_col`. Cases are matched on `case_cols` (default: every other non-count column except the method
+    and any float column) plus `by` and `time_col`; unmatched cases are dropped. `metric(c)` takes a dict
+    {count name: array} (sums, any leading shape) and returns the metric as an array, e.g.
+    `lambda c: c["h"] / (c["h"] + c["m"])`.
+    Returns a DataFrame: [by...], method, baseline (the metric from pooled counts), diff, lo, hi, n_cases,
+    n_weeks, significant (interval excludes zero)."""
+    by = [by] if isinstance(by, str) else list(by or [])
+    counts = list(counts)
+    if case_cols is None:
+        case_cols = [c for c in df.columns if c not in counts and c != method_col and df[c].dtype != float]
+    case_cols = list(dict.fromkeys(list(case_cols) + by + [time_col]))
+    a = df[df[method_col] == method].set_index(case_cols)[counts]
+    b = df[df[method_col] == baseline].set_index(case_cols)[counts]
+    j = a.join(b, how="inner", lsuffix="_m", rsuffix="_b").reset_index()
+    out = []
+    groups = j.groupby(by) if by else [((), j)]
+    for key, g in groups:
+        key = key if isinstance(key, tuple) else (key,)
+        row = dict(zip(by, key))
+        if len(g) == 0:
+            row.update(method=np.nan, baseline=np.nan, diff=np.nan, lo=np.nan, hi=np.nan, n_cases=0,
+                       n_weeks=0, significant=False)
+        else:
+            k = len(counts)
+            st = np.hstack([g[[c + "_m" for c in counts]].to_numpy(float),
+                            g[[c + "_b" for c in counts]].to_numpy(float)])
+            tot, dr = boot_sums(_week_ids(_time(g, time_col)), st, n_boot=n_boot, seed=seed)
+
+            def both(x):
+                mm = metric({c: x[..., i] for i, c in enumerate(counts)})
+                bb = metric({c: x[..., k + i] for i, c in enumerate(counts)})
+                return mm, bb
+            m0, b0 = both(tot)
+            md, bd = both(dr)
+            d = md - bd
+            d = d[np.isfinite(d)]
+            lo, hi = np.percentile(d, [2.5, 97.5]) if len(d) else (np.nan, np.nan)
+            row.update(method=float(m0), baseline=float(b0), diff=float(m0 - b0), lo=float(lo), hi=float(hi),
+                       n_cases=len(g), n_weeks=len(np.unique(_week_ids(_time(g, time_col)))),
+                       significant=bool(lo > 0 or hi < 0))
+        out.append(row)
+    return pd.DataFrame(out)
