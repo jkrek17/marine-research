@@ -9,7 +9,8 @@ Scope "ndfd": the HSF water where the desk grid has a value, 13 Jan to 31 Mar 20
 update (the text, complete or not, is shown where it exists). Scope "all": the whole winter, desk text hours
 complete vs all (the lower bound from partly parsed hours).
 
-usage: python3 ndfd_summary.py ROWS_NDFD.csv [OUT.md]
+usage: python3 ndfd_summary.py OUT.md TRUTH ROWS.csv [ROWS.csv ...]
+       TRUTH = ascat | anl_gfs | anl_ifs (gale and storm; HF is always the archive). Rows files are concatenated.
 """
 import sys
 from pathlib import Path
@@ -23,7 +24,9 @@ import pandas as pd  # noqa: E402
 from rk import cases  # noqa: E402
 
 NAMES = {34: "Gale", 48: "Storm", 64: "Hurricane force"}
-LABEL = {"desk": "HSF text", "ndfd": "Desk grids (NDFD)", "mean2": "GFS/ECMWF average", "max3": "Strongest model"}
+LABEL = {"desk": "HSF text", "ndfd": "Desk grids (NDFD)", "mean2": "GFS/ECMWF average", "max3": "Strongest model",
+         "blend": "Page blend", "corelift": "Core Lifted"}
+ORDER = ("desk", "ndfd", "mean2", "blend", "corelift", "max3")
 
 
 def agg(g):
@@ -60,8 +63,10 @@ def line(r, L):
                                                     f"{r.area:,.0f}", f"{r.reach:,.0f}")
 
 
-def main(src, out=None):
-    d = pd.read_csv(src)
+def main(out, tname, *srcs):
+    d = pd.concat([pd.read_csv(x) for x in srcs], ignore_index=True)
+    if "truth" in d:
+        d = d[(d["truth"] == tname) | (d["L"] == 64)]
     d["split"] = pd.to_datetime(d["run"].astype(str), format="%Y%m%d%H").map(cases.split)
     lines = []
     nd = d[d.scope == "ndfd"]
@@ -76,7 +81,7 @@ def main(src, out=None):
         lines += ["### %s (%d events held-out, %d all)" % (NAMES[L], ev_h, ev_w), "", head,
                   "|" + "---|" * (head.count("|") - 1)]
         picks = []
-        for rule in ("desk", "ndfd", "mean2", "max3"):
+        for rule in [r for r in ORDER if r in set(tune.rule)]:
             if rule == "desk":
                 picks.append((rule, 0, ""))
                 continue
@@ -115,8 +120,7 @@ def main(src, out=None):
                                                                  100 * r["caught"], 100 * r["on"]))
     text = "\n".join(lines)
     print(text)
-    if out:
-        Path(out).write_text(text + "\n")
+    Path(out).write_text("Gale and storm truth: %s.\n\n" % tname + text + "\n")
 
 
 if __name__ == "__main__":
