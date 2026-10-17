@@ -169,6 +169,8 @@ def test_selection():
 def test_final_gate():
     import subprocess
     script = str(ROOT / "studies" / "2026-10-17-gale-core" / "score_gale.py")
+    real = ROOT / "studies" / "2026-10-17-gale-core" / "FINAL_CHOICE.json"
+    before = real.read_bytes() if real.exists() else None
     with tempfile.TemporaryDirectory() as td:
         r = subprocess.run([sys.executable, script, "--final", "--choice-dir", td, "--results", td],
                            capture_output=True, text=True)
@@ -178,7 +180,7 @@ def test_final_gate():
         r = subprocess.run([sys.executable, script, "--final", "--choice-dir", td, "--results", td],
                            capture_output=True, text=True)
         assert r.returncode != 0 and "already" in (r.stdout + r.stderr)
-    assert not (ROOT / "studies" / "2026-10-17-gale-core" / "FINAL_CHOICE.json").exists()
+    assert (real.read_bytes() if real.exists() else None) == before    # the test never touches the real choice
 
 
 if __name__ == "__main__":
