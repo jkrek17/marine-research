@@ -98,6 +98,20 @@ def _case(args):
         seen_a, spd_a = np.zeros(sea.shape, bool), np.zeros(sea.shape, np.float32)
     # gale and storm truth: ASCAT where it passed, and each analysis (model step 0) over all the water
     truths = {"ascat": (seen_a, spd_a), "anl_gfs": (sea, an["gfs"]["speed"]), "anl_ifs": (sea, an["ifs"]["speed"])}
+    lats = grid(basin)[0]
+    with np.load(f) as z:
+        s = {m: z["s10_" + m].astype(np.float32) for m in ("gfs", "ifs", "aifs")}
+        fields = {"max3": np.maximum(np.maximum(s["gfs"], s["ifs"]), s["aifs"]), "mean2": 0.5 * (s["gfs"] + s["ifs"])}
+        if {"blend", "corelift"} & set(rules):
+            fields.update(page_fields(z, step, lats, an["mask"].astype(bool)))
+    fields = {k: v for k, v in fields.items() if k in rules}
+    return score_rows(basin, run, step, valid, sea, fields, truths, tm, complete, nd, rules)
+
+
+def score_rows(basin, run, step, valid, sea, fields, truths, tm, complete, nd, rules):
+    """Rows for one case: every rule and offset, each truth, scopes "all" and (with an NDFD grid) "ndfd".
+    fields = {rule: wind kt}; truths = {name: (seen, speed kt)}, "ascat" also scoring HF against the archive;
+    tm, complete = text_masks(); nd = ndfd_at() or None."""
     hf = truth.hf_fixes(basin, valid)
     lats, lons = grid(basin)
     if hf is None or not len(hf):
@@ -105,12 +119,6 @@ def _case(args):
     else:
         iy = np.clip(np.rint((lats[0] - hf["lat"].values) / 0.25).astype(int), 0, lats.size - 1)
         ix = np.clip(np.rint((hf["lon"].values - lons[0]) / 0.25).astype(int), 0, lons.size - 1)
-    with np.load(f) as z:
-        s = {m: z["s10_" + m].astype(np.float32) for m in ("gfs", "ifs", "aifs")}
-        fields = {"max3": np.maximum(np.maximum(s["gfs"], s["ifs"]), s["aifs"]), "mean2": 0.5 * (s["gfs"] + s["ifs"])}
-        if {"blend", "corelift"} & set(rules):
-            fields.update(page_fields(z, step, lats, an["mask"].astype(bool)))
-    fields = {k: v for k, v in fields.items() if k in rules}
     cosl = 225 * np.cos(np.radians(lats))[:, None]
     rows = []
 
