@@ -7,6 +7,8 @@
 
 The first version read: with +1 kt it catches 96% of gale events, with +7 kt 97% of storm events, and with +12 kt 91% of hurricane-force lows (desk 97%, 83%, 56%) at a sixth to a quarter of the desk's area. Those numbers are right for that test, but the test let a line count an event it only came within 60 nm of without counting that ring as area, so it favoured small lines.
 
+Against the desk's own gridded wind and a plain GFS/ECMWF average, scored against ASCAT's area so the text format does not count, the strongest model gives no real edge for gale, and the clearest edge for storm and hurricane force (see "Against references the text format does not shape").
+
 Two further limits apply. Hurricane force rests on 86 lows, only 15 of them in held-out weeks. And the model areas are grid outlines, not the boxes and quadrants the High Seas text must use, which would make them larger.
 
 ## The evidence
@@ -110,6 +112,22 @@ To reach 80% within 150 km on the tune weeks the HF line would have to drop to 4
 With only the runs the desk had (24 h): gale >= 30 kt is unchanged (whole winter covered 98% vs desk 97%); storm needs >= 39 kt to cover as much as the desk (95% vs 93%, reach 198k vs 236k nm2); with >= 41 kt it covered 88%. HF >= 52 kt caught 60% within 150 km (desk 55%) and 91% within 500 km (desk 66%), on 45 lows.
 
 **What changes.** The lines must be drawn 3 kt (gale) and 1 kt (storm) lower to cover as much water as the desk, and the area saving is about a half (gale) and a quarter (storm), not five sixths and three quarters. False area is still a third (gale) to under half (storm) of the desk's. The page-line comparison above was not re-scored this way. **What stands.** Against the desk on its own terms, the strongest-model lines cover as much gale and storm water with less area and far less false warning, and catch more HF lows. Jason's call (a miss costs more than a false alarm) is what moved the offsets to the desk's coverage rather than the smallest area.
+
+## Against references the text format does not shape (Jason, 2026-10-17 04:54Z)
+The HSF text has to draw boxes and quadrants, so its area is not a fair bar. Each line was also scored against the desk's own gridded wind (NDFD oceanic, the full update made from the same 00/12Z runs), a plain GFS/ECMWF average, and ASCAT itself: area is given as a multiple of the area ASCAT saw at the level (warned cells ASCAT saw / ASCAT cells at the level). All four are scored on the same water, the HSF areas where the NDFD grid has a value, 13 Jan to 31 Mar 2026 (616 case-hours; before mid-January the NDFD oceanic grid covers only 11-38% of the HSF water). Lines are compared where each covers about 90% of the ASCAT wind at the level. Code `ndfd_lines.py`, `ndfd_summary.py`; tables `results_ndfd.md`.
+
+| Line at ~90% coverage | Gale: drawn at, area x ASCAT, false | Storm: drawn at, area x ASCAT, false |
+|---|---|---|
+| HSF text (as issued) | 97% covered, 5.1x, 81% | 88% covered, 5.4x, 84% |
+| Desk grids (NDFD) | 33 kt, 1.6x, 44% | 40 kt (89%), 3.6x, 75% |
+| GFS/ECMWF average | 31 kt, 1.4x, 34% | 37 kt, 2.8x, 68% |
+| **Strongest model** | **32-33 kt, 1.3-1.5x, 32-39%** | **40 kt, 2.3x, 61%** |
+
+Hurricane force, lows with a warned cell within 150 km, at about the same area (~2,000 nm2): strongest model at 52 kt 63%, GFS/ECMWF average at 48 kt 55%, desk grids at 56 kt 43%. The HSF text caught 48% with 6,700 nm2. Drawn at the level with no offset, the desk grids cover 87% of the gale wind, 53% of the storm wind and catch 15% of HF lows within 150 km; the average 69%, 11% and none of note.
+
+**Reading.** For gale the three gridded references are close once each is drawn 1-3 kt low; the strongest model has no real edge there. For storm and HF it does: at the same coverage it warns about 20% less area than the GFS/ECMWF average and about 35% less than the desk's grids, and it catches more HF lows at the same area. Against ASCAT the strongest-model storm line is 2.3 times the observed storm area, so it is not a tight line, but it is the tightest of the four at that coverage. The gale threshold is a choice on the curve: 32 kt covers 93% at 1.5x the ASCAT area; 30 kt covers 98% at 2.0x. The spec keeps 30 kt because a miss costs more.
+
+**Desk hours that parsed only partly** (audit item 4). Counting every hour with a text, using the blocks that parsed, the desk caught 95% of gale (3,155 events), 81% of storm (795) and 61% of HF lows within 500 km, 51% within 150 km (140 lows), against 97%, 83%, 54% and 42% on complete hours only. Dropping those hours did not flatter the desk on storm, and understated it on HF.
 
 ## Page spec: strongest-model warning areas (for the page owner; nothing changed yet; revised 2026-10-17)
 1. **New layer**, beside today's "possible" hazard lines, with a toggle. It is called "Warning areas (strongest model)" and has three bits: gale where max(GFS, ECMWF, AIFS 10 m) >= 30 kt, storm where it is >= 40 kt, HF where it is >= 52 kt. (Was 33/41/52 before the audit re-check; 33 and 41 covered only 88% and 85% of the gale and storm water against the desk's 97% and 88%.) It covers ocean cells only, with no smoothing and no padding.
