@@ -30,6 +30,11 @@ Anything that made us change a result we had treated as finished, or cost a stud
 
 - **Count the chances' sample in weeks, and check the cycles with an event.** Hundreds of thousands of cells came from 14 held-out cycles per basin; 64 kt had 1-4 cycles with an event. State it before any curve. *Counts in `studies/2026-10-16-chance-calibration/` results.csv.*
 - **A chance calibrated on one ensemble does not carry to the pool.** GEFS alone over-forecasts gale against ASCAT in the Atlantic while the pooled page chance under-forecasts it.
+- **Count the reach in the area.** `rk.score.warning_events` lets a warned cell catch an event 60 nm away without billing that ring as warned area; around small blobs the ring is 2-6x the drawn area. Report cell coverage and area including the reach beside events caught (audit 2026-10-17: strongest-model storm line 1/4 of the desk's area as published, about 0.6 counted fairly).
+- **Shrink thin calibration bins toward a neighbouring curve, not toward the raw chance, and pool bins instead of a running maximum.** `rk.calibrate.fit` shrinks toward the raw share, which is what is wrong, and the running maximum leaves shelves: the page shows 66-76% Atlantic day 3-5 storm chance where held-out cells verified 85-100%, and Pacific storm chance stays near the raw share. Check the high bins on held-out weeks; the overall reliability error hides them.
+- **Pair a forecast with the desk product issued after the forecast was available.** The 0430 UTC HSF could not see the 00 UTC ECMWF, AIFS or their ensembles; giving the models those runs flatters them (the warning study's gale win does not survive a full day's staleness; storm and HF do).
+- **Say what a filter dropped.** The HSF hours that failed to parse were busier: a third of the storm events and two fifths of the HF lows.
+- **Re-test claims made against analyses once ASCAT is the referee.** "A lone storm-force model verifies 1-3%" (analysis) is about 80% within 50 km of ASCAT 48+ (Atlantic winter; `/mnt/project-files/audit/`).
 
 ## Running
 - **Don't run heavy downloads during the marine wind build** (~02:30, 08:30, 14:30, 20:30 UTC) or alongside a verification backfill: ECMWF pulls fail. *`rk.fetch.wait_for_quiet`.*
@@ -63,3 +68,4 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Name columns for the cells they count.** `toward`/`away` in the desk-value rows counted every ASCAT cell, `toward_ed`/`away_ed` only edited cells; a draft quoted the wrong pair until the independent check caught it.
 - **Test that a spread display sorts cases before drawing it.** Day 5-7 member low centres, scaled to the right average size, barely sort good lows from bad (error 320 km tight vs 349 km wide, r ~0.1); member central-pressure ranges do (3 vs 5-7 hPa). Check coverage and whether wider means worse, per display.
 - **Long downloads die with the session container.** nohup/setsid jobs were killed twice when the container idled; run them as a tracked background task (≤2 h, re-armed) and make them resumable by date.
+- **Version-stamp caches written by a reader that later changed.** A desk grid decoded before `rk.desk.unscan` (research-data/desk/natl/2026011510.npz) stayed in the shared cache and differs from a fresh read by 4.6 kt on average, up to 47 kt; `rk.desk.load` would have returned it.
