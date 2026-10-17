@@ -26,8 +26,9 @@ a new step or a gfs_low file never drops what another thread published. Zips are
 incoming/{basin}/{YYYYMMDDHH}.zip on a branch upload/<utc-timestamp>-<n> (batches of at most --max-mb)
 and pushed; the data repo's workflow turns them into release assets and deletes the branch. The
 unpublished marks are cleared only after a batch's push succeeded; then the local upload branch and its
-remote-tracking ref are deleted, and at the end of a run that pushed anything the clone's reflogs are
-expired and it is gc'd with --prune=now, so the uploaded zips are not kept locally (they once filled the disk). A cycle whose local files are all
+remote-tracking ref are deleted, the clone's reflogs are expired and its loose objects pruned, and the built
+zips of the batch are deleted, so a long run holds about one batch on disk (they once filled the disk); a run
+that pushed anything ends with gc --prune=now. A cycle whose local files are all
 identical to the published ones is not re-uploaded (its marks are just cleared).
 
 --include-legacy also treats every file under RK_DATA/fields (the old shared layout) as local, for the
@@ -164,6 +165,7 @@ def main(argv=None):
     limit = float("inf") if outdir else a.max_mb * 1e6
     batch, size, n, branches = [], 0, 0, []
     total = built = 0
+    tmp_dir = None
 
     def flush():
         nonlocal batch, size, n
@@ -179,6 +181,13 @@ def main(argv=None):
         if repo is not None:                      # pushed: the marks can go
             for _, _, _, clear in batch:
                 clear()
+            # free the batch now, not at the end: the pushed zips in the object store and the built zips in
+            # the temporary folder once filled the disk on a 500-cycle run
+            git(repo, "reflog", "expire", "--expire=now", "--all", check=False)
+            git(repo, "prune", "--expire=now", check=False)
+        for _, src, _, _ in batch:
+            if tmp_dir and Path(src).parent == Path(tmp_dir):   # built zips only, never cache files
+                Path(src).unlink(missing_ok=True)
         batch, size = [], 0
 
     def add(rel, src, nbytes, clear):
@@ -193,6 +202,7 @@ def main(argv=None):
     keep_marks = a.dry_run or outdir is not None
     try:
         with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = tmp
             for basin, cycle, files, clear in fjobs:
                 z, st, published = build(basin, cycle, files, tmp)
                 desc = "%s %s: %d local (%d new, %d replaced, %d identical), %d kept from published asset%s" % (
