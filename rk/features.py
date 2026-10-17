@@ -59,6 +59,7 @@ NB_WIDE = (21, 31)           # storm.py core_features r10_nbmax
 SUPPORT_KT = 5.0             # build.py
 CAP_KT = 5.0                 # build.py
 CAND_R10, CAND_MOD = 28.0, 34.0   # storm.py core_grid
+CAND_GALE_R10, CAND_GALE_MOD = 24.0, 30.0   # gale-core candidates (studies/2026-10-17-gale-core): the near-gale band
 Z90 = 1.2815515655446004     # standard normal 90th percentile
 MODELS = ("gfs", "ifs", "aifs")
 ENSEMBLES = ("gefs", "ens")
@@ -195,12 +196,22 @@ def blend(basin, cycle, step, models=MODELS, ens=ENSEMBLES, det_weights=None):
             "base": np.asarray(base, np.float32)}
 
 
+def cand_mask(f, rule="storm"):
+    """Candidate-cell mask of a core() result by rule name: "storm" (the live rule, f["cand"]) or "gale"
+    (ocean & (r10 >= 24 | mod_max >= 30), f["cand_gale"])."""
+    if rule == "storm":
+        return f["cand"]
+    if rule == "gale":
+        return f["cand_gale"]
+    raise ValueError("candidate rule must be 'storm' or 'gale', not %r" % (rule,))
+
+
 def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=True, low_models=MODELS,
          det_weights=None):
     """Storm-core features for one basin, cycle and lead from the store -> dict or None.
 
     Keys: the 28 FEATURES (float32 [y, x] on the basin grid), "ocean" (bool), "cand" (ocean & (r10 >= 28 |
-    mod_max >= 34), the cells the live model scores), "basin_pac" (0 natl, 1 npac), "no_low" (True when
+    mod_max >= 34), the cells the live model scores), "cand_gale" (ocean & (r10 >= 24 | mod_max >= 30)), "basin_pac" (0 natl, 1 npac), "no_low" (True when
     low=False). Returns None if any required input is missing: a deterministic model in `models`, an
     ensemble in `ens` (aifs-ens is optional: pa48 is NaN without it), or, with low=True, a model's lower-level
     file (rk.store.load_low, from low_root or the shared store) or the GFS land/ice for the ocean mask.
@@ -251,6 +262,7 @@ def core(basin, cycle, step, low_root=None, models=MODELS, ens=ENSEMBLES, low=Tr
         return None
     f["ocean"] = ocean
     f["cand"] = ocean & ((f["r10"] >= CAND_R10) | (f["mod_max"] >= CAND_MOD))
+    f["cand_gale"] = ocean & ((f["r10"] >= CAND_GALE_R10) | (f["mod_max"] >= CAND_GALE_MOD))
     f["basin_pac"] = int(basin == "npac")
     f["no_low"] = not low
     f["low_models"] = low_models if low else ()

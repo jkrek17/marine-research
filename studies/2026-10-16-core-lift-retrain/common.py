@@ -33,6 +33,32 @@ HGB_PARAMS = dict(max_iter=300, max_depth=4, learning_rate=0.08, min_samples_lea
                   max_bins=64, early_stopping=False, random_state=0)
 
 
+# ---- target threshold and candidate rule (default: the storm-core target, 48 kt) ----
+
+THR_DEFAULT = 48
+CAND_RULES = ("storm", "gale")
+
+
+def target_name(base, thr=THR_DEFAULT):
+    """Model / grid set name for a feature set and target threshold: the plain set name at 48 kt (as before),
+    'live28+basin@34' at 34 kt. Keeps models and P grids of different targets in separate directories."""
+    return base if int(thr) == THR_DEFAULT else "%s@%d" % (base, int(thr))
+
+
+def split_target(name):
+    """Inverse of target_name -> (feature set name, thr)."""
+    if "@" in name:
+        base, t = name.rsplit("@", 1)
+        return base, int(t)
+    return name, THR_DEFAULT
+
+
+def r10_keep(thr):
+    """Rows with r10 at or above this are always kept when the table is thinned (40 kt for the storm target,
+    30 kt for the gale target)."""
+    return 40.0 if int(thr) == THR_DEFAULT else 30.0
+
+
 def default_root():
     return paths.data("extra", "core-lift-retrain")
 
@@ -54,6 +80,9 @@ def load_table(table_dir):
     if not files:
         raise SystemExit("no parquet files under %s" % table_dir)
     d = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    for col, default in (("thr", THR_DEFAULT), ("cand_rule", "storm")):   # tables built before these columns
+        if col not in d:
+            d[col] = default
     if "low_models" not in d:    # tables built before the column existed: the live three, or none
         d["low_models"] = np.where(d["no_low"] == 1, "", low_tag(features.MODELS))
     return d
@@ -64,6 +93,14 @@ def table_low_models(d):
     if len(u) != 1:
         raise SystemExit("table mixes low-level feature definitions: %s" % u)
     return u[0]
+
+
+def table_target(d):
+    """(thr, cand rule) of a loaded table; refuses a table that mixes targets."""
+    u = sorted(set(zip(d["thr"].astype(int), d["cand_rule"])))
+    if len(u) != 1:
+        raise SystemExit("table mixes targets or candidate rules: %s" % u)
+    return int(u[0][0]), u[0][1]
 
 
 def cycle_dt(tag):

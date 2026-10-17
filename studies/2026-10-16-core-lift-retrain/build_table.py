@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Build the core-lift training table: one parquet per (basin, cycle, step).
 
-  python3 build_table.py [--out DIR] [--low-root DIR | --no-low] [--workers 4]
+  python3 build_table.py [--thr 48] [--cand storm|gale] [--out DIR] [--low-root DIR | --no-low] [--workers 4]
          [--low-models gfs,ifs,aifs] [--start 2025-11-01] [--end 2026-03-31] [--basins natl,npac] [--steps 24,48,72,96,120]
          [--max-cycles N]   (first N cycles per basin that have every model, for a small run)
 
 For each basin, each 00Z and 12Z cycle in the window, each step: the 28 live core features
-(rk.features.core) and the ASCAT 48+ kt target (rk.truth.ascat_target) at valid = cycle + step.
-Rows: candidate cells (ocean & (blend >= 28 kt | a model >= 34 kt)) that ASCAT saw, thinned to every 2nd
-row and column; of those, every cell with r10 >= 40 or y == 1 is kept (weight 1) and a random 15% of the
-rest (weight 1/0.15). The random draw is seeded from (seed, basin, cycle, step), so a rerun reproduces it.
+(rk.features.core) and the ASCAT --thr kt target (rk.truth.ascat_target, default 48) at valid = cycle + step.
+Rows: candidate cells that ASCAT saw (--cand storm, default: ocean & (blend >= 28 kt | a model >= 34 kt);
+--cand gale: ocean & (blend >= 24 | a model >= 30), rk.features.cand_mask), thinned to every 2nd
+row and column; of those, every cell with r10 >= 40 (30 for --thr other than 48) or y == 1 is kept (weight 1)
+and a random 15% of the rest (weight 1/0.15). The columns thr and cand_rule record the target; the default
+48 / storm table is the one built before the options existed (same rows, same draw). The random draw is seeded from (seed, basin, cycle, step), so a rerun reproduces it.
 Columns: basin, cycle, step, valid (YYYYMMDDHH), row, col, split (rk.cases.split on the CYCLE date), y, w,
 asc (ASCAT cell speed kt), asc_nb (max in the 5x7 box), basin_pac, no_low, low_models ("gfs+ifs+aifs", "gfs", ...; "" with --no-low: which
 models' lower-level fields formed the low-level means), then the 28 features.
@@ -30,15 +32,16 @@ from pathlib import Path
 
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np  # noqa: E402
 
+import common as C  # noqa: E402
 from rk import cases, features, paths, store  # noqa: E402
 from rk.basins import BASINS  # noqa: E402
 
 SEED = 20261016
 KEEP_FRAC = 0.15
-R10_KEEP = 40.0
 THIN = 2
 
 
@@ -49,7 +52,7 @@ def case_path(out, basin, cycle, step):
 def build_case(job):
     """One (basin, cycle, step) -> (job, status, nrows, npos); status in done, existing, missing_inputs,
     missing_ascat."""
-    basin, cycle, step, out, low_root, no_low, low_models = job
+    basin, cycle, step, out, low_root, no_low, low_models, thr, cand_rule = job
     p = case_path(out, basin, cycle, step)
     if p.exists():
         return job, "existing", 0, 0
@@ -60,7 +63,7 @@ def build_case(job):
         return job, "missing_inputs", 0, 0
     valid = cycle + dt.timedelta(hours=step)
     try:
-        t = truth.ascat_target(basin, valid)
+        t = truth.ascat_target(basin, valid, thr=float(thr))
     except Exception as e:  # network or decode trouble: leave the case for a rerun
         print("ascat error %s %s +%d: %s" % (basin, cases.tag(cycle), step, e), flush=True)
         return job, "missing_ascat", 0, 0
@@ -68,11 +71,12 @@ def build_case(job):
         return job, "missing_ascat", 0, 0
     ny, nx = f["r10"].shape
     rr, cc = np.meshgrid(np.arange(ny), np.arange(nx), indexing="ij")
-    sel = f["cand"] & t["seen"] & (rr % THIN == 0) & (cc % THIN == 0)
+    sel = features.cand_mask(f, cand_rule) & t["seen"] & (rr % THIN == 0) & (cc % THIN == 0)
     y = t["y"]
-    must = sel & ((f["r10"] >= R10_KEEP) | y)
+    must = sel & ((f["r10"] >= C.r10_keep(thr)) | y)
     rest = sel & ~must
-    rng = np.random.default_rng([SEED, int(cases.tag(cycle)), step, list(BASINS).index(basin)])
+    key = [SEED, int(cases.tag(cycle)), step, list(BASINS).index(basin)] + ([] if thr == C.THR_DEFAULT else [int(thr)])
+    rng = np.random.default_rng(key)
     draw = rng.random((ny, nx)) < KEEP_FRAC
     keep = must | (rest & draw)
     w = np.where(rest, 1.0 / KEEP_FRAC, 1.0)
@@ -83,7 +87,7 @@ def build_case(job):
                        "split": cases.split(cycle), "y": y[r, c].astype(np.int8), "w": w[r, c].astype(np.float32),
                        "asc": t["spd"][r, c], "asc_nb": t["max_nb"][r, c],
                        "basin_pac": np.int8(f["basin_pac"]), "no_low": np.int8(f["no_low"]),
-                       "low_models": "+".join(f["low_models"])})
+                       "low_models": "+".join(f["low_models"]), "thr": np.int16(thr), "cand_rule": cand_rule})
     for k in features.FEATURES:
         df[k] = f[k][r, c].astype(np.float32)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -113,6 +117,9 @@ def main():
     ap.add_argument("--low-models", default="gfs,ifs,aifs",
                     help="models whose lower-level fields are averaged (gfs while only GFS low fields exist; "
                          "a GFS-only mean is not the live feature and is labelled in the low_models column)")
+    ap.add_argument("--thr", type=int, default=C.THR_DEFAULT, help="ASCAT target threshold, kt (default 48)")
+    ap.add_argument("--cand", default="storm", choices=C.CAND_RULES,
+                    help="candidate cells: storm (live rule) or gale (ocean & (r10 >= 24 | a model >= 30))")
     ap.add_argument("--no-low", action="store_true", help="build without lower-level features (labelled)")
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--start", default="2025-11-01")
@@ -138,7 +145,7 @@ def main():
         cyc = window_cycles(b, start, end)
         if a.max_cycles:
             cyc = [c for c in cyc if complete(b, c, steps)][:a.max_cycles]
-        jobs += [(b, c, s, str(out), a.low_root, a.no_low, low_models) for c in cyc for s in steps]
+        jobs += [(b, c, s, str(out), a.low_root, a.no_low, low_models, a.thr, a.cand) for c in cyc for s in steps]
     print("cases: %d (%s) -> %s" % (len(jobs), a.basins, out), flush=True)
     tally = {"done": 0, "existing": 0, "missing_inputs": 0, "missing_ascat": 0}
     rows = pos = 0

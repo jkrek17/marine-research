@@ -80,6 +80,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 ## rk/features.py (storm-core features from the store)
 - `FEATURES`: the 28 feature names in `core_model.json` order of the marine wind page (awips-tools `storm.core_features`). `LOW_FEATURES`: the eight that need lower-level fields.
 - `core(basin, cycle, step, low_root=None, models=("gfs","ifs","aifs"), ens=("gefs","ens"), low=True, low_models=("gfs","ifs","aifs"), det_weights=None) -> dict | None`: the 28 feature grids (float32, basin grid) plus `ocean` (GFS land < 0.5 and ice < 0.5), `cand` (ocean & (r10 >= 28 | mod_max >= 34), the cells the live model scores), `basin_pac` (0 natl, 1 npac), `no_low` (True when `low=False`) and `low_models` (tuple of the models whose low-level fields formed the mean of the eight low-level features; `()` when `low=False`). `low_models` must be a subset of `models` that includes `gfs` (land/ice come from GFS), e.g. `("gfs",)` while only GFS low fields are in the store; a GFS-only mean is not the live feature. None when any required input is missing (a model, an ensemble, a low-level file, GFS land/ice); never fills. `aifs-ens` is optional (`pa48` is NaN without it).
+- `cand_gale` (key of `core`): ocean & (r10 >= 24 | mod_max >= 30), the near-gale candidate cells of the gale-core study (constants `CAND_GALE_R10`, `CAND_GALE_MOD`). `cand_mask(f, rule="storm") -> bool grid`: `f["cand"]` for "storm", `f["cand_gale"]` for "gale".
 - `det_weights` (dict model -> multiplier, default all 1) scales each deterministic model's support weight in the support-weighted base (`r10`, and so `r10_nbmax`, `s925_minus_r10`); weight 0 removes the model exactly, `{"aifs": 0.5}` halves its pull. Other features (`s10_*`, `mod_*`) still see every model in `models`.
 - `blend(basin, cycle, step, models=("gfs","ifs","aifs"), ens=("gefs","ens"), det_weights=None) -> {"r10","boost","base"} | None`: just the blend wind (support-weighted base, + min(k x member SD, 5 kt)) without the other features; the member SD does not depend on `models`. None when any input is missing.
 - The store keeps ensemble statistics, so the live member operations are replaced: GEFS + ENS pooled n-weighted (`p34/p48/p64` exact, `mmean` and `sigma` exact), `m90` = pooled mean + 1.2816 x SD (live: 90th percentile of members), `r10`'s support weighting uses the closed form for normal members. `low=False` sets the eight low-level features to NaN and takes the ocean mask from `truth.analysis`. Every approximation is in the module docstring; `studies/2026-10-16-core-lift-retrain/check_live.py` compares against the live code on full members.
@@ -116,6 +117,11 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `boot_sums(week_ids, stats, n_boot=2000, seed=0) -> (total [k], draws [n_boot, k])`: whole-week bootstrap of additive statistics (stats [n_rows, k]); ratios are computed from the sums.
 - `paired_counts(df, method, baseline, metric, counts, by=None, n_boot=2000, seed=0, time_col="cycle", method_col="method", case_cols=None) -> DataFrame`: like `paired` but for pooled ratios (POD, FAR, CSI from summed hits/misses/false alarms): `metric` takes a dict of summed counts and returns the metric; columns `[by...], method, baseline, diff, lo, hi, n_cases, n_weeks, significant`.
 - `table(df, methods, baseline, value, by="step") -> DataFrame` formatted for a findings file.
+
+## rk/calib.py (chance remaps)
+- `load_curves(path) -> dict`: a curves JSON {season: {truth: {basin: {lead group: {"raw": [...], "cal": [...]}}}}}, knots in percent (the Chance calibration thread's `p34_curves.json`).
+- `lead_group(step) -> "le48" | "72" | "ge96"`.
+- `p34_remap(p, basin, step, curves, season="winter", truth="ascat") -> float32 array`: calibrated gale chance (0..1) from the raw member share (0..1); linear between knots, flat beyond.
 
 ## rk/style.py (light figures; see STYLE.md)
 - `use()`: apply the house matplotlib style.
