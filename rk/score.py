@@ -434,7 +434,13 @@ def warning_events(warned, truth_kt, seen, thr, mask=None, slack=4, min_cells=2,
              (>= judge_min seen cells and >= judge_frac of the area); `false` = judged areas with no
              observed >= thr within `slack` cells
     cells    warned cells that were seen; `bad_cells` = those with no observed >= thr within `slack`
-    Returns dict(events, hits, areas, judged, false, cells, bad_cells, warned_cells)."""
+    Fair-reach scores (the slack is a free catching ring around every warned cell, so also report):
+    hits_on    events with a warned cell on the event itself (no slack)
+    obs_cells  observed >= thr cells; `obs_in` = those inside the warned area (share of the water covered)
+    bad_on     seen warned cells with no observed >= thr in that same cell
+    reach_cells  warned cells plus the slack ring (inside mask): the area that can catch an event
+    Returns dict(events, hits, areas, judged, false, cells, bad_cells, warned_cells,
+                 hits_on, obs_cells, obs_in, bad_on, reach_cells)."""
     from scipy import ndimage
     warned = np.asarray(warned, bool)
     seen = np.asarray(seen, bool)
@@ -460,8 +466,12 @@ def warning_events(warned, truth_kt, seen, thr, mask=None, slack=4, min_cells=2,
                 judged += 1
                 false += int(nnear[j] == 0)
     ws = warned & seen
+    on_lab = set(np.unique(elab[warned & obs]))
+    reach = near_warn if mask is None else near_warn & mask
     return dict(events=len(ev), hits=hits, areas=len(areas), judged=judged, false=false,
-                cells=int(ws.sum()), bad_cells=int((ws & ~near_obs).sum()), warned_cells=int(warned.sum()))
+                cells=int(ws.sum()), bad_cells=int((ws & ~near_obs).sum()), warned_cells=int(warned.sum()),
+                hits_on=sum(1 for i in ev if i in on_lab), obs_cells=int(obs.sum()), obs_in=int((obs & warned).sum()),
+                bad_on=int((ws & ~obs).sum()), reach_cells=int(reach.sum()))
 
 
 def warning_points(warned, basin, lat, lon, radius_km, mask=None, min_area_cells=3):

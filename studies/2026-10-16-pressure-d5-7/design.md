@@ -14,7 +14,7 @@
 
 **Cases:** 12 UTC runs, 1 Mar 2025 to 8 Oct 2026, both basins (30-67N; Pacific also at 12 UTC here), leads +120/+144/+168 h; held-out weeks per `rk.cases.held_out`, tuning also drops runs whose valid date is held out.
 
-**Data:** every GEFS/ENS/AIFS ENS member's MSLP plus the three deterministic runs (~10 MB per run, ~6 GB total), fetched with `download.py` (byte ranges, quick 503 retries, waits out build windows). Local cache `RK_CACHE/extra/mslp-d5-7`; to be published as a store extension.
+**Data:** every GEFS/ENS/AIFS ENS member's MSLP plus the three deterministic runs (~10 MB per run, ~6 GB total), fetched with `download.py` (byte ranges, quick 503 retries, waits out build windows). Local cache `RK_CACHE/extra/mslp-d5-7`, published to the field store as `mslpd57_*` files (`store_io.py`).
 
 **Reused / new:** reused `rk.score` (low finding, distances, false lows), `rk.cases` (held-out weeks), `rk.style`, the member-own-low idea from the live ensemble low track (storm-relative-tracking). New: member-vote lows (`method.py`), the aligned-average best-guess map (`bestguess.py`), the capped position/depth headline (`lib.py`), equal-false-low comparison (`tune.py`).
 

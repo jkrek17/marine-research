@@ -20,7 +20,7 @@ def test_wind_cmap():
 def test_colors():
     assert style.METHOD_COLORS["gefs"] == style.METHOD_COLORS["gfs"]
     assert style.METHOD_COLORS["ens"] == style.METHOD_COLORS["ecmwf"]
-    assert set(style.HAZARD_COLORS) == {"gale", "storm", "hf"}
+    assert set(style.HAZARD_COLORS) == {"gale", "storm", "hf"} and set(style.BASIN_COLORS) == {"natl", "npac"}
     d = style.diverging_cmap()
     assert matplotlib.colors.to_hex(d(0.0)) == "#2b5fa8" and matplotlib.colors.to_hex(d(1.0)) == "#a8301f"
 

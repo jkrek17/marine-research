@@ -1,4 +1,4 @@
-"""Offline tests of the gale-core study: the --thr / --cand options of the retrain code, rk.calib, rk.features
+"""Offline tests of the gale-core study: the --thr / --cand options of the retrain code, rk.calibrate, rk.features
 candidate rules and the gale scorer. Run: python3 tests/test_gale_core_study.py"""
 import json
 import sys
@@ -16,7 +16,7 @@ import pandas as pd  # noqa: E402
 import common as C  # noqa: E402
 import score_gale as G  # noqa: E402
 import train as T  # noqa: E402
-from rk import calib, features  # noqa: E402
+from rk import calibrate as calib, features  # noqa: E402
 
 CURVES = ROOT / "studies" / "2026-10-17-gale-core" / "p34_curves.json"
 

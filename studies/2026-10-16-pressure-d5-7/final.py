@@ -60,7 +60,9 @@ def paired(a, b, deep=False, n=2000):
 def main(P):
     cyc = E.cycles()
     P = dict(E.DEFAULT, **P, T=0.08)
-    tag = "final_dry" if os.environ.get("DRY") else "final"
+    # LOCKED=1: full-year re-score with the keep thresholds and confidence fit frozen in results/final.json
+    locked = json.load(open(os.path.join(lib.RESULTS, "final.json"))) if os.environ.get("LOCKED") else None
+    tag = "final_dry" if os.environ.get("DRY") else ("final_fullyear" if locked else "final")
     if os.environ.get("REUSE"):
         recs = S.load(tag)
     else:
@@ -78,7 +80,7 @@ def main(P):
         fa_models = {m: S.stats([r for r in recs if r["sys"] == m and r["step"] == step and r["tune"]])["fa"] for m in ("gfs", "ifs", "aifs")}
         c = tune.curve(recs, step)
         o = np.argsort(c[:, 4])
-        Ts[step] = float(np.interp(fa_models["ifs"], c[o, 4], c[o, 0]))
+        Ts[step] = float(locked["T"][str(step)]) if locked else float(np.interp(fa_models["ifs"], c[o, 4], c[o, 0]))
         for m, f in fa_models.items():
             Tm[(step, m)] = float(np.interp(f, c[o, 4], c[o, 0]))
     lines.append("Keep threshold (share of weighted members), set on tuning weeks to match IFS's false-low rate: " + ", ".join("+%dh %.2f" % (s, t) for s, t in Ts.items()))
@@ -128,6 +130,8 @@ def main(P):
     Xt, yt = feats(tune_sel)
     Xh, yh = feats(held_sel)
     lr = LogisticRegression(C=1.0).fit(Xt, yt)
+    if locked:
+        lr.coef_ = np.array([locked["conf"]["coef"]]); lr.intercept_ = np.array([locked["conf"]["intercept"]])
     ph = lr.predict_proba(Xh)[:, 1]
     lines += ["## Confidence score: chance an analysed low is within 300 km", "",
               "Logistic fit on tuning lows (%d) from member support, spread, lead and depth; coefficients %s, intercept %.2f." % (len(yt), np.round(lr.coef_[0], 2).tolist(), lr.intercept_[0]),
@@ -138,9 +142,9 @@ def main(P):
             lines.append("| %d-%d%% | %d | %.0f%% |" % (100 * a, min(100, 100 * b), m.sum(), 100 * yh[m].mean()))
     bs = np.mean((ph - yh) ** 2); bs0 = np.mean((yt.mean() - yh) ** 2)
     lines += ["", "Brier skill vs the overall hit rate: %.2f" % (1 - bs / bs0), ""]
-    open(os.path.join(lib.RESULTS, "final%s.md" % ("_dry" if os.environ.get("DRY") else "")), "w").write("\n".join(lines))
+    open(os.path.join(lib.RESULTS, "%s.md" % tag), "w").write("\n".join(lines))
     json.dump({"T": Ts, "P": {k: v for k, v in P.items()}, "conf": {"coef": lr.coef_[0].tolist(), "intercept": float(lr.intercept_[0])},
-               "res": {"|".join(map(str, k)): v for k, v in res.items()}}, open(os.path.join(lib.RESULTS, "final%s.json" % ("_dry" if os.environ.get("DRY") else "")), "w"), indent=1)
+               "res": {"|".join(map(str, k)): v for k, v in res.items()}}, open(os.path.join(lib.RESULTS, "%s.json" % tag), "w"), indent=1)
     print("\n".join(lines))
 
 

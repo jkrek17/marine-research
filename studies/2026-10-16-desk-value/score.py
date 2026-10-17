@@ -1,0 +1,328 @@
+"""Desk added value: score the desk's issued wind grids against their alternatives.
+
+For each model cycle c (00/12Z), basin and valid time V
+(00/06/12/18Z the desk grid has), every method is scored on the same water: the cells inside the OPC High Seas Forecast area (rk.basins.opc_mask) where the desk and the
+previous shift's grid (I-12h) are both present and the analysis mask is open ice-free water.
+
+Methods (kt, basin 0.25 grid): desk; prev12 and prev24 (desk grids of I-12h and I-24h at V); auto24 =
+prev24 + (M_c(V) - M_{c-24}(V)) and auto12 = prev12 + (M_c(V) - M_{c-12}(V)), M the mean of the deterministic models
+present for both cycles (auto12 needs the store's 12-h-offset steps f036, f060, ...); gfs, ifs, aifs; mean3; blend (page recipe, no member-support
+weighting) = mean3 + min(k * spd_std, 5 kt), k = 0.15 at lead 24 else 0.25, spd_std the mean over the ensembles
+present among gefs, ens, aifs-ens. A model that is missing is skipped, so a rerun after the ECMWF half of the
+store fills adds those columns with no code change.
+
+Outputs (RK data folder extra/desk-value/): scores.csv.gz, edits.csv.gz, built from per-issuance parts in parts/.
+Resumable: a cycle whose part files exist is skipped.  Usage: score.py START END [--workers N] [--rebuild]
+(dates YYYY-MM-DD, inclusive, of model cycles 00/12Z; only cycles whose desk snapshots are cached are scored).
+Per cycle c and basin: desk = snapshot desk.issue_for(basin, c), prev12/prev24 = snapshots for cycles c-12h/c-24h.
+Valid 06/18Z: ASCAT only, open-water mask from the analysis 6 h earlier. `issue` = snapshot used, `cycle` = model cycle.
+"""
+import argparse
+import datetime as dt
+import gzip
+import math
+import os
+import sys
+import time
+from functools import lru_cache
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from rk import basins, cases, classes, desk, paths, score, store, truth  # noqa: E402
+
+OUT = paths.data("extra", "desk-value", "x").parent
+PARTS = OUT / "parts"
+BASINS = ("natl", "npac")
+DET = ("gfs", "ifs", "aifs")
+ENS = ("gefs", "ens", "aifs-ens")
+THR = (34, 48, 64)
+CLASS_NAMES = ("all",) + tuple(classes.NAMES)
+MIN_ASCAT = 500
+
+
+def tag(t):
+    return cases.tag(t)
+
+
+def cached(issue):
+    """Both basins' files of a snapshot exist (desk.load needs both)."""
+    return all(desk._path(b, issue).exists() for b in BASINS)
+
+
+@lru_cache(maxsize=64)
+def _desk(issue):
+    if not cached(issue):
+        return None
+    d = desk.load(issue)
+    return d
+
+
+@lru_cache(maxsize=512)
+def _det(basin, c, model, step):
+    r = store.load_det(basin, c, model, step)
+    return None if r is None else r["speed"]
+
+
+@lru_cache(maxsize=256)
+def _ens_std(basin, c, ens, step):
+    r = store.load_ens(basin, c, ens, step)
+    return None if r is None else r["spd_std"].astype(np.float32)
+
+
+def desk_at(issue, basin, valid):
+    d = _desk(issue)
+    if d is None or d.get(basin) is None:
+        return None
+    v = d[basin]["valid"]
+    if valid not in v:
+        return None
+    return d[basin]["speed"][v.index(valid)].astype(np.float32)
+
+
+def snap_ascat(basin, valid):
+    """ASCAT cells snapped to the basin grid, floor(x/0.25 + 0.5); mean where several land in one box.
+    Returns (spd with NaN where unseen) or None."""
+    a = truth.ascat(basin, valid)
+    if a is None or len(a["spd_kt"]) == 0:
+        return None
+    b = basins.BASINS[basin]
+    lats, lons = basins.grid(basin)
+    ny, nx = len(lats), len(lons)
+    lon = np.mod(a["lon"], 360.0)
+    iy = np.floor((b["north"] - a["lat"]) / 0.25 + 0.5).astype(int)
+    ix = np.floor((lon - b["west"]) / 0.25 + 0.5).astype(int)
+    ok = (iy >= 0) & (iy < ny) & (ix >= 0) & (ix < nx) & np.isfinite(a["spd_kt"])
+    flat = iy[ok] * nx + ix[ok]
+    s = np.bincount(flat, weights=a["spd_kt"][ok], minlength=ny * nx)
+    n = np.bincount(flat, minlength=ny * nx)
+    out = np.full(ny * nx, np.nan, np.float32)
+    out[n > 0] = (s[n > 0] / n[n > 0]).astype(np.float32)
+    return out.reshape(ny, nx)
+
+
+def model_fields(basin, c, lead):
+    """{method: kt grid} for the models present for cycle c at step lead (lead in hours)."""
+    out = {}
+    for m in DET:
+        g = _det(basin, c, m, lead)
+        if g is not None:
+            out[m] = g
+    if all(m in out for m in DET):
+        out["mean3"] = np.mean([out[m] for m in DET], axis=0)
+        sd = [s for s in (_ens_std(basin, c, e, lead) for e in ENS) if s is not None]
+        if sd:
+            k = 0.15 if lead == 24 else 0.25
+            out["blend"] = out["mean3"] + np.minimum(k * np.mean(sd, axis=0), 5.0)
+    return out
+
+
+def auto_field(basin, c, lead, base, dh):
+    """base + (M_c(V) - M_{c-dh}(V)): the previous grid plus the change in the deterministic-model mean between the
+    cycle c and the cycle dh hours earlier (auto24: base = prev24, dh = 24; auto12: base = prev12, dh = 12).
+    M is the mean of the models present for both cycles; None when the older cycle's step lead+dh is not stored."""
+    if base is None:
+        return None
+    c0 = c - dt.timedelta(hours=dh)
+    pairs = []
+    for m in DET:
+        a, b = _det(basin, c, m, lead), _det(basin, c0, m, lead + dh)
+        if a is not None and b is not None:
+            pairs.append((a, b))
+    if not pairs:
+        return None
+    return base + (np.mean([p[0] for p in pairs], axis=0) - np.mean([p[1] for p in pairs], axis=0))
+
+
+def stats(fc, ob):
+    """Counts on 1-D arrays: n, error at cells where either >= 25 kt, contingency at 34/48/64."""
+    e = score.error(fc, ob, 25)
+    r = dict(n=int(len(fc)), n25=e["n"],
+             sum_abs=e["mae"] * e["n"] if e["n"] else 0.0, sum_err=e["bias"] * e["n"] if e["n"] else 0.0)
+    # truth-defined sample: the cells where the truth is >= 25 kt, the same cells for every method
+    d = fc[ob >= 25] - ob[ob >= 25]
+    r.update(n25t=int(len(d)), sum_abs_t=float(np.abs(d).sum()), sum_err_t=float(d.sum()))
+    for t in THR:
+        h, fa, mi = score.contingency(fc, ob, t)
+        r.update({f"hits{t}": h, f"fa{t}": fa, f"miss{t}": mi, f"fc_cells{t}": h + fa, f"ob_cells{t}": h + mi})
+    return r
+
+
+def score_cycle(c):
+    """-> (scores rows, edits rows) for model cycle c (00 or 12Z). Per basin, the desk grid is the snapshot
+    desk.issue_for(basin, c); prev12 and prev24 are the snapshots for the cycles 12 and 24 h earlier."""
+    srows, erows = [], []
+    wk = c.isocalendar()
+    base = dict(cycle=c.strftime("%Y-%m-%d %H:%M"), iso_week=f"{wk[0]}-W{wk[1]:02d}", held_out=bool(cases.held_out(c)))
+    for basin in BASINS:
+        I = desk.issue_for(basin, c)
+        I12 = desk.issue_for(basin, c - dt.timedelta(hours=12))
+        I24 = desk.issue_for(basin, c - dt.timedelta(hours=24))
+        d = _desk(I)
+        if d is None or d.get(basin) is None or not cached(I12):
+            continue
+        for V in d[basin]["valid"]:
+            lead = int((V - c).total_seconds() // 3600)
+            if lead <= 0:
+                continue
+            dk = desk_at(I, basin, V)
+            p12 = desk_at(I12, basin, V)
+            if dk is None or p12 is None:
+                continue
+            # 00/12Z valid: the analysis (mask and anl truth). 06/18Z valid: ASCAT only, with the open-water mask
+            # of the analysis 6 h earlier (the mask barely changes).
+            has_anl = V.hour in (0, 12)
+            an = truth.analysis(basin, V if has_anl else V - dt.timedelta(hours=6))
+            if an is None:
+                continue
+            p24 = desk_at(I24, basin, V) if cached(I24) else None
+            grids = {"desk": dk, "prev12": p12}
+            if p24 is not None:
+                grids["prev24"] = p24
+            grids.update(model_fields(basin, c, lead))
+            a24 = auto_field(basin, c, lead, p24, 24)
+            if a24 is not None:
+                grids["auto24"] = a24
+            a12 = auto_field(basin, c, lead, p12, 12)
+            if a12 is not None:
+                grids["auto12"] = a12
+            cls_grid = None
+            if all(m in grids for m in DET):
+                cls_grid = classes.classes(np.stack([grids[m] for m in DET]))
+            asc = snap_ascat(basin, V)
+            common = (np.isfinite(dk) & np.isfinite(p12) & np.asarray(an["mask"], bool)
+                      & basins.opc_mask(basin))  # the OPC High Seas Forecast area only
+            key = dict(base, issue=I.strftime("%Y-%m-%d %H:%M"), basin=basin, valid=V.strftime("%Y-%m-%d %H:%M"), lead=lead)
+            ob_anl = an["mean_speed"].astype(np.float32)
+            for cname in CLASS_NAMES:
+                if cname == "all":
+                    sel = common
+                elif cls_grid is None:
+                    continue
+                else:
+                    sel = common & (cls_grid == classes.NAMES.index(cname))
+                if not sel.any():
+                    continue
+                meths = {m: g for m, g in grids.items() if np.isfinite(g[sel]).all()}
+                if "desk" not in meths:
+                    continue
+                truths = [("anl", sel & np.isfinite(ob_anl), ob_anl)] if has_anl else []
+                asc_sel = None
+                if asc is not None:
+                    asc_sel = sel & np.isfinite(asc)
+                    # the 500-cell rule is on the whole basin's matched cells, not the class's
+                    if int((common & np.isfinite(asc)).sum()) >= MIN_ASCAT and asc_sel.any():
+                        truths.append(("ascat", asc_sel, asc))
+                for tname, tsel, ob in truths:
+                    mm = {m: g for m, g in meths.items() if np.isfinite(g[tsel]).all()}
+                    for m, g in mm.items():
+                        srows.append(dict(key, **{"method": m, "class": cname, "truth": tname},
+                                          **stats(g[tsel], ob[tsel])))
+                # edits (desk vs previous grid), and at ASCAT cells whether they moved toward the observation
+                diff = dk[sel] - p12[sel]
+                er = dict(key, **{"class": cname}, cells=int(sel.sum()),
+                          edited=int((np.abs(diff) > 2).sum()), sum_abs_edit=float(np.abs(diff).sum()),
+                          raised=int((diff > 2).sum()), lowered=int((diff < -2).sum()),
+                          n_ascat=0, edited_ascat=0, toward=0, away=0, toward_ed=0, away_ed=0,
+                          n_ascat_a=0, toward_a=0, away_a=0, n_ascat_a12=0, toward_a12=0, away_a12=0)
+                if asc_sel is not None and asc_sel.any() and int((common & np.isfinite(asc)).sum()) >= MIN_ASCAT:
+                    ob_a = asc[asc_sel]
+                    dd, pp = np.abs(dk[asc_sel] - ob_a), np.abs(p12[asc_sel] - ob_a)
+                    ed = np.abs(dk[asc_sel] - p12[asc_sel]) > 2
+                    tw, aw = dd < pp - 0.5, dd > pp + 0.5
+                    er.update(n_ascat=int(len(ob_a)), edited_ascat=int(ed.sum()), toward=int(tw.sum()),
+                              away=int(aw.sum()), toward_ed=int((tw & ed).sum()), away_ed=int((aw & ed).sum()))
+                    if "auto24" in meths:
+                        da = np.abs(a24[asc_sel] - ob_a)
+                        er.update(n_ascat_a=int(len(ob_a)), toward_a=int((dd < da - 0.5).sum()),
+                                  away_a=int((dd > da + 0.5).sum()))
+                    if "auto12" in meths:
+                        da = np.abs(a12[asc_sel] - ob_a)
+                        er.update(n_ascat_a12=int(len(ob_a)), toward_a12=int((dd < da - 0.5).sum()),
+                                  away_a12=int((dd > da + 0.5).sum()))
+                erows.append(er)
+    return srows, erows
+
+
+
+
+def part_paths(c):
+    t = tag(c)
+    return PARTS / f"{t}_scores.csv.gz", PARTS / f"{t}_edits.csv.gz"
+
+
+def run_one(c):
+    t0 = time.time()
+    sp, ep = part_paths(c)
+    for attempt in range(4):  # a dropped connection while a missing analysis is fetched should not end the run
+        try:
+            s, e = score_cycle(c)
+            break
+        except Exception as ex:  # noqa: BLE001
+            print(f"{tag(c)} attempt {attempt + 1} failed: {ex!r}", flush=True)
+            if attempt == 3:
+                return tag(c), -1, -1, False, time.time() - t0
+            time.sleep(10 * (attempt + 1))
+    ecm = any(r["method"] in ("ifs", "aifs") for r in s)
+    # (returned above without writing parts when all attempts failed, so a rerun retries it)
+    for p, rows in ((sp, s), (ep, e)):
+        tmp = p.with_name(p.name + ".tmp")
+        pd.DataFrame(rows).to_csv(tmp, index=False, compression="gzip")
+        os.replace(tmp, p)
+    return tag(c), len(s), len(e), ecm, time.time() - t0
+
+
+def combine():
+    for kind in ("scores", "edits"):
+        fs = sorted(PARTS.glob(f"*_{kind}.csv.gz"))
+        dfs = []
+        for f in fs:
+            try:
+                dfs.append(pd.read_csv(f))
+            except pd.errors.EmptyDataError:  # an issuance with no scorable rows
+                pass
+        df = pd.concat(dfs, ignore_index=True)
+        tmp = OUT / f"{kind}.csv.gz.tmp"
+        df.to_csv(tmp, index=False, compression="gzip")
+        os.replace(tmp, OUT / f"{kind}.csv.gz")
+        print(f"{kind}.csv.gz: {len(df)} rows from {len(fs)} issuances", flush=True)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("start")
+    ap.add_argument("end")
+    ap.add_argument("--workers", type=int, default=1)
+    ap.add_argument("--rebuild", action="store_true", help="rescore issuances that already have parts")
+    a = ap.parse_args()
+    PARTS.mkdir(parents=True, exist_ok=True)
+    d0, d1 = (dt.datetime.strptime(x, "%Y-%m-%d") for x in (a.start, a.end))
+    issues = []  # model cycles 00/12Z whose desk snapshot is cached for at least one basin
+    d = d0
+    while d <= d1:
+        for h in (0, 12):
+            c = d.replace(hour=h)
+            if any(desk._path(b, desk.issue_for(b, c)).exists() for b in BASINS):
+                issues.append(c)
+        d += dt.timedelta(days=1)
+    todo = [i for i in issues if a.rebuild or not all(p.exists() for p in part_paths(i))]
+    print(f"{len(issues)} cycles in range with cached desk snapshots, {len(todo)} to score", flush=True)
+    t0 = time.time()
+    if a.workers > 1:
+        import multiprocessing as mp
+        with mp.get_context("spawn").Pool(a.workers) as pool:
+            it = pool.imap_unordered(run_one, todo)
+            for k, r in enumerate(it, 1):
+                print(f"[{k}/{len(todo)}] {r[0]} scores={r[1]} edits={r[2]} ecmwf={r[3]} {r[4]:.0f}s", flush=True)
+    else:
+        for k, i in enumerate(todo, 1):
+            r = run_one(i)
+            print(f"[{k}/{len(todo)}] {r[0]} scores={r[1]} edits={r[2]} ecmwf={r[3]} {r[4]:.0f}s", flush=True)
+    combine()
+    print(f"done in {time.time() - t0:.0f}s", flush=True)
+
+
+if __name__ == "__main__":
+    main()

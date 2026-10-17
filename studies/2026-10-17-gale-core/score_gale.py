@@ -11,7 +11,7 @@ Products per case (forecast speed on the basin grid, kt; r10 = the live blend):
                   the gale candidate cells: ocean & (r10 >= 24 | a model >= 30))
   ref@t           max(baseline, 34) where the CALIBRATED member gale chance >= t on ocean cells: the pooled
                   GEFS+ENS share p34 (cell), remapped by the Chance calibration thread's winter / ASCAT curves
-                  (rk.calib) - the no-model reference
+                  (rk.calibrate) - the no-model reference
   refnb@t         the same with the neighbourhood-maximum share p34_nb (information only; not in the win line)
 Truth: rk.truth.ascat_target(basin, valid, thr=34): ASCAT real 10 m wind, intercalibrated; `seen` = cells ASCAT
 landed in. Counts per case and product (case_scores.csv; counts, not ratios):
@@ -50,7 +50,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 import common as C  # noqa: E402
-from rk import calib, cases, compare, score, truth  # noqa: E402
+from rk import calibrate as calib, cases, compare, score, truth  # noqa: E402
 from rk.basins import grid  # noqa: E402
 
 THR = 34

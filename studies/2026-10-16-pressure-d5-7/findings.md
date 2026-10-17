@@ -1,11 +1,30 @@
 # Day 5-7 lows: a member vote places and deepens lows better than GFS, ECMWF and AIFS at day 6-7
 
-*2026-10-16 · N Atlantic and N Pacific 30-67N, 12 UTC runs · winter result (held-out Oct-Mar weeks: 1 in Mar 2025, 5 in Nov 2025-Mar 2026); summer/autumn ECMWF still downloading · held-out: 6 weeks, 42 runs, ~340 analysed lows per lead · truth: anl (GFS+IFS analysis mean)*
+*2026-10-16 · N Atlantic and N Pacific 30-67N, 12 UTC runs · full year added 2026-10-16 22Z: 17 held-out weeks Mar 2025-Oct 2026, ~640 analysed lows per lead (winter alone: 6 weeks, ~350 lows) · truth: anl (GFS+IFS analysis mean)*
 
 ## The answer
 For days 5-7, let every ensemble member and model vote for the lows it has, and keep a low where enough of them agree. Place it at the average of the members' own low positions, and give it the median of their own central pressures. On held-out winter weeks at day 6-7 this puts lows **46-63 km closer than ECMWF**, with central pressure **2.5-2.8 hPa closer**. It also beats GFS on central pressure (2.6-4.0 hPa), but on position only at day 7 (39 km); at day 6 the 33 km gain is within the noise. It draws 0.2-0.3 more false lows per map than ECMWF, and about one more than AIFS, which draws the fewest. Held to AIFS's false-low count, the vote still places lows 23-39 km closer than AIFS, and its central pressure is 0.5-1.5 hPa closer at day 5 and day 7 (no clear difference at day 6). At day 5 it ties ECMWF on position and finds slightly fewer lows within 300 km (51% against 58%), but wins on central pressure (1.8 hPa). Each low carries a confidence that means what it says: lows stated at 50% verified 50% of the time.
 
 The averaged ensemble map is not the answer. It fills lows (10 hPa too shallow by day 7) and has a low within 300 km of only 22-32% of analysed lows.
+
+## Full year (added 2026-10-16 22Z, same locked settings)
+With every held-out week from Mar 2025 to Oct 2026 scored (17 weeks, 630-645 analysed lows per lead), keep thresholds and confidence fit frozen from `results/final.json`, the vote beats all three models at every lead, day 5 included. Vote minus model, 95% interval from resampling whole weeks (`results/final_fullyear.md`):
+
+| Lead | Model | Position km: model, vote minus model | Central pressure error hPa: model, vote minus model | Found within 300 km: model / vote | False lows per map: model / vote |
+|---|---|---|---|---|---|
+| +120 | ECMWF | 316, −26 [−59, −1] | 6.0, −1.5 [−2.0, −1.0] | 57% / 56% | 0.79 / 0.86 |
+| +120 | GFS | 339, −49 [−75, −28] | 6.6, −2.2 [−2.5, −1.8] | 50% / 56% | 1.11 / 0.86 |
+| +120 | AIFS | 359, −69 [−105, −38] | 5.2, −0.7 [−1.1, −0.4] | 52% / 56% | 0.33 / 0.86 |
+| +144 | ECMWF | 364, −58 [−83, −36] | 7.3, −1.9 [−2.5, −1.2] | 48% / 52% | 1.18 / 1.20 |
+| +144 | GFS | 382, −76 [−123, −39] | 8.2, −2.8 [−3.5, −2.3] | 45% / 52% | 1.40 / 1.20 |
+| +144 | AIFS | 391, −85 [−115, −55] | 6.2, −0.9 [−1.3, −0.4] | 43% / 52% | 0.62 / 1.20 |
+| +168 | ECMWF | 413, −54 [−83, −28] | 9.2, −2.6 [−3.1, −2.1] | 42% / 41% | 1.44 / 1.50 |
+| +168 | GFS | 436, −77 [−126, −43] | 10.0, −3.5 [−4.4, −2.4] | 38% / 41% | 1.63 / 1.50 |
+| +168 | AIFS | 459, −100 [−122, −80] | 8.0, −1.5 [−2.1, −1.0] | 34% / 41% | 0.76 / 1.50 |
+
+Over the full year the vote draws about as many false lows as ECMWF (0.02-0.07 more per map), fewer than GFS, and two to two and a half times as many as AIFS. Held to each model's own false-low count, it is still closer on position (ECMWF by 26-51 km, GFS by 56-89 km, AIFS by 20-55 km; against AIFS the interval excludes zero at day 7 only) and on central pressure (0.5-3.5 hPa, all intervals exclude zero). Deep lows (below 980 hPa, 84-94 per lead): 59-117 km closer than ECMWF at day 6-7 and 2.9-3.5 hPa closer in central pressure; at day 5 the gain over ECMWF is within the noise. Confidence on 4,810 held-out lows: stated 0-20% verified 13%, 20-40% 29%, 40-60% 51%, 60-80% 72%, 80-100% 93% (29 lows).
+
+The winter-only section below is the first result and stands; the full year says the same, with day 5 now a clear (smaller) win over ECMWF.
 
 ## The evidence
 Held-out winter weeks, both basins, analysed lows below 1000 hPa. Position error counts a missed low (nothing within 1000 km) as 1000 km. Difference = vote minus model, with a 95% interval from resampling whole weeks; * = interval excludes zero.
@@ -42,7 +61,7 @@ Rules fixed before running (`preregistration.md`); results in `results/spread_ch
 - **What to draw instead:** one ring per lead for where the centre will be half the time (about 320 / 370 / 410 km at +120 / +144 / +168 h), plus member centres on request so a split shows. Whether the low is real stays with the confidence score.
 
 ## What it does not show
-- Summer and autumn: the ECMWF download for Apr-Oct 2025-26 is still running. The "all weeks" numbers in `results/final.md` and `results/comparisons.csv` cover the 10 held-out weeks downloaded so far (Mar-Aug 2025 plus winter) and point the same way.
+- The full-year table re-scores with the winter-locked thresholds; `results/comparisons.csv` and the figures are still the winter run (`final.md`).
 - Only 6 held-out winter weeks, so the week-resampled intervals are rough and probably a little narrow. They are wide at +120 h against ECMWF, and for deep lows.
 - Position error counts a miss as 1000 km, so it mixes finding a low with placing it. The "found within 300 km" column shows the finding part on its own.
 - 12 UTC runs only, +120/+144/+168 h, 30-67N. Not the field as a whole: Jason asked for lows, so overall pressure error was not scored.
@@ -54,5 +73,5 @@ Rules fixed before running (`preregistration.md`); results in `results/spread_ch
 - Baselines: GFS, ECMWF IFS and AIFS runs; the grand ensemble mean.
 - Vote: each GEFS/ENS/AIFS ENS member votes for its own lows below 1008 hPa (each ensemble counts as one block); GFS, ECMWF and AIFS runs vote with weight 0.3 each. A low is kept where at least the keep threshold of the weighted voters have a low within 450 km; threshold 0.12 / 0.14 / 0.16 at +120 / +144 / +168 h. Things that did not help: lagged runs, a depth calibration (it pushed lows below 1000 hPa and added false lows), heavier model weights.
 - Cases: 12 UTC runs, Mar 2025-Oct 2026 (winter complete). Held-out weeks are `rk.cases.held_out`; tuning also dropped runs whose valid day fell in a held-out week. Settings were locked before scoring (`preregistration.md`).
-- Code: this folder (`download.py`, `method.py` vote, `bestguess.py` map, `final.py` score, `report.py` tables and figures). Data: every member's MSLP, local cache `RK_CACHE/extra/mslp-d5-7`; publishing to the release store follows once the pull is complete.
+- Code: this folder (`download.py`, `method.py` vote, `bestguess.py` map, `final.py` score, `report.py` tables and figures). Data: every member's MSLP for all 587 runs and 594 analyses is in the shared field store (marine-research-data releases, files `mslpd57_{noaa,ec}` per basin-cycle and `mslpd57_an_{noaa,ec}` at the valid date; `store_io.py`). `method.py` reads the local cache first and falls back to the store, so the study reruns in a fresh session.
 - Checked by: an independent agent recomputed every held-out winter row of `results/comparisons.csv` from the raw per-low tables (all 84 match), redid the week resampling for the position rows (agrees within ~5 km), and checked the confidence and equal-false-low numbers. Its wording corrections are applied (`results/check.md`).

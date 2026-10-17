@@ -188,7 +188,7 @@ def main():
         refs = {"live": C.live_predict_table(d), "p48_nb": d["p48_nb"].to_numpy()}
         ref_models, ref_name = ("live", "p48_nb"), "live"
     else:
-        from rk import calib
+        from rk import calibrate as calib
         curves = calib.load_curves(a.curves or C.HERE.parents[0] / "2026-10-17-gale-core" / "p34_curves.json")
         cal = np.zeros(len(d), np.float32)
         for (b, st), g in d.groupby(["basin", "step"]):

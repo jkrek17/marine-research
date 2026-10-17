@@ -388,6 +388,20 @@ def water_mask(basin, valid):
     return (m[basin]["land"] < 0.01) & (m[basin]["ice"] <= 0.15)
 
 
+
+def mask_time(basin, valid):
+    """The time whose analysis supplies the open-water mask for `valid`: valid itself when its analysis exists, else
+    the 00/12 UTC analysis 6 h or less away (the earlier one first), else None."""
+    cands = [valid]
+    if valid.hour not in (0, 12):
+        h = valid.hour % 12
+        cands += [valid - dt.timedelta(hours=h), valid + dt.timedelta(hours=12 - h)]
+    for c in cands:
+        if abs((c - valid).total_seconds()) <= 6 * 3600 and analysis(basin, c) is not None:
+            return c
+    return None
+
+
 def ascat(basin, valid, max_dt_min=90, real=True, intercal=True, rain_keep_kt=None, smap_dt_min=180,
           rain_speed="ascat"):
     """ASCAT cells within max_dt_min of the valid time, inside the basin box -> dict of 1-D arrays, or None
@@ -412,7 +426,11 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True, rain_keep_kt=No
     rain_speed "ascat" (default): only rain cells ASCAT itself reads at rain_keep_kt+ are candidates, and keep
     ASCAT's speed. "smap": any rain-flagged cell where SMAP reads rain_keep_kt+ is kept, with the larger of
     ASCAT and SMAP (equivalent-neutral; intercal and the real-wind step then apply as usual): the upper bound
-    for cores ASCAT cannot read in rain."""
+    for cores ASCAT cannot read in rain.
+
+    Open-water mask: water_mask(basin, valid), which builds it from GFS alone where there is no analysis (06/18
+    UTC: the IFS analysis is not posted); failing that, the nearest 00/12 UTC analysis within 6 h (mask_time), which
+    also supplies the GFS air-sea field when the valid time's is missing. At 00/12 UTC the behaviour is unchanged."""
     valid = dt.datetime.combine(valid, dt.time()) if type(valid) is dt.date else valid
     lo, hi = valid - dt.timedelta(minutes=max_dt_min), valid + dt.timedelta(minutes=max_dt_min)
     days = sorted({lo.date(), hi.date()})
@@ -448,9 +466,13 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True, rain_keep_kt=No
     k = near & (~rainy | kept)
     c["rain_kept"] = kept
     c = {f: v[k] for f, v in c.items()}
+    tm = valid
     mask = water_mask(basin, valid)
     if mask is None:
-        return None
+        tm = mask_time(basin, valid)
+        if tm is None:
+            return None
+        mask = analysis(basin, tm)["mask"]
     ok = sample(mask.astype(float), basin, c["lat"], c["lon"]) > 0.99
     out = {f: v[ok] for f, v in c.items() if f not in ("scat_rain", "rad_rain", "sos")}
     out["spd_enw_raw_kt"] = out["spd_enw_kt"].copy()
@@ -459,6 +481,8 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True, rain_keep_kt=No
     out["spd_kt"] = out["spd_enw_kt"].copy()
     if real:
         a = airsea(basin, valid)
+        if a is None and tm != valid:
+            a = airsea(basin, tm)
         if a is None:
             return None
         dT = sample(a, basin, out["lat"], out["lon"])
@@ -526,6 +550,66 @@ def ascat_target(basin, valid, thr=48.0, box=(5, 7), max_dt_min=90, rain_keep_kt
     out_spd = np.where(seen, spd, np.nan).astype(np.float32)
     max_nb = np.where(seen, max_nb, np.nan).astype(np.float32)
     return {"seen": seen, "spd": out_spd, "max_nb": max_nb, "y": seen & (max_nb >= thr)}
+
+
+# ---- ASCAT on the model grid: single cells and 3 x 3 boxes ----
+
+def ascat_to_grid(basin, lat, lon, spd_kt):
+    """Snap ASCAT cells to the basin's 0.25 deg model grid with floor(x + 0.5) (RSS centres sit 0.125 deg off
+    the grid; np.rint empties every other row and column). Several cells in one grid cell (two satellites or
+    passes inside the window) are averaged. Returns (grid, count): grid [ny, nx] in kt, NaN where there is
+    no cell; count = number of cells averaged."""
+    lats, lons = grid(basin)
+    ny, nx = len(lats), len(lons)
+    iy = np.floor((lats[0] - np.asarray(lat, float)) / 0.25 + 0.5).astype(int)
+    ix = np.floor((np.asarray(lon, float) % 360 - lons[0]) / 0.25 + 0.5).astype(int)
+    k = (iy >= 0) & (iy < ny) & (ix >= 0) & (ix < nx) & np.isfinite(spd_kt)
+    s = np.zeros(ny * nx)
+    c = np.zeros(ny * nx)
+    flat = iy[k] * nx + ix[k]
+    np.add.at(s, flat, np.asarray(spd_kt, float)[k])
+    np.add.at(c, flat, 1.0)
+    c = c.reshape(ny, nx)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        g = np.where(c > 0, s.reshape(ny, nx) / c, np.nan)
+    return g, c
+
+
+def box_mean(grid_kt, min_valid=6, size=3):
+    """Mean of the valid cells in the size x size box centred on every grid cell, NaN where fewer than
+    min_valid of the size*size cells are valid (edges count missing cells as invalid). The centre cell need
+    not itself be valid. Returns (mean, n_valid)."""
+    g = np.asarray(grid_kt, float)
+    ok = np.isfinite(g)
+    r = size // 2
+    ny, nx = g.shape
+    pv = np.pad(np.where(ok, g, 0.0), r)
+    po = np.pad(ok.astype(float), r)
+    s = np.zeros((ny, nx))
+    n = np.zeros((ny, nx))
+    for dy in range(size):
+        for dx in range(size):
+            s += pv[dy:dy + ny, dx:dx + nx]
+            n += po[dy:dy + ny, dx:dx + nx]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        m = np.where(n >= min_valid, s / n, np.nan)
+    return m, n
+
+
+def ascat_box(basin, valid, intercal=True, max_dt_min=90, real=True, min_valid=6):
+    """ASCAT truth on the basin's model grid at a valid time -> dict or None (as ascat()).
+    cells: real 10 m wind, Metop-B/C offset met halfway by ascat(intercal=) snapped to the grid and averaged where cells
+    coincide, NaN without a cell. box: mean of the valid cells in the 3 x 3 box, NaN where fewer than
+    min_valid of 9 are valid. n_box: valid cells in the box. Events: box >= threshold (the main truth) or
+    cells >= threshold (the single-cell version, for comparison)."""
+    a = ascat(basin, valid, max_dt_min=max_dt_min, real=real, intercal=intercal)
+    if a is None:
+        return None
+    spd = np.asarray(a["spd_kt"], float)
+    cells, _ = ascat_to_grid(basin, a["lat"], a["lon"], spd)
+    box, nb = box_mean(cells, min_valid=min_valid)
+    return {"cells": cells.astype(np.float32), "box": box.astype(np.float32), "n_box": nb.astype(np.int8)}
+
 
 def ascat_grid(basin, valid, **kw):
     """rk.truth.ascat cells (same keyword arguments) on the basin grid -> (seen, spd_kt) 2-D arrays, or
