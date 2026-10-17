@@ -27,6 +27,16 @@ At high shares, Atlantic day 3 raw 35/45/55/65% now shows 82/85/88/93% (held-out
 
 Recommended table: `/mnt/project-files/chance-calibration/pooled/calibration_refit.json`, in the page's format. The page's current file is unchanged until Jason agrees. There is no season the fit has not seen: the counts already cover all of 1 Nov-31 Mar. The real out-of-sample checks are the Pacific 06/18 UTC cases (being accumulated) and the live nightly rows.
 
+**Out-of-sample check, Pacific 06/18 UTC (2026-10-17).** These are 06/18 UTC valid times (+30..+126 h from 00/12 UTC runs), none of them in the fit (`oot_0618.py`; counts from the Chance calibration thread, `/mnt/project-files/chance-calibration/pooled_npac0618/`, whole winter; steps grouped as the page build groups them: +30 day 1-2, +54/78 day 3, +102/126 day 4-5). Storm force, ASCAT box:
+
+| Lead | Brier skill, page | refit | Error at raw 10%+, page | refit |
+|---|---|---|---|---|
+| +30 | 0.232 | 0.317 | 0.389 | 0.185 |
+| +54/78 | 0.110 | 0.164 | 0.512 | 0.257 |
+| +102/126 | 0.049 | 0.063 | 0.399 | 0.169 |
+
+The refit beats the page table at every lead and halves the error at high shares. It is still too low in the Pacific: at +30 h raw 12/17/23/33% the refit shows 42/58/71/80% where ASCAT verified 52/86/95/100% (page 26-34%); at +54/78 h raw 12/25/34% shows 38/63/67%, verified 61/93/100%. Gale chances: refit and page tie (Brier skill 0.61/0.44/0.26). These cells were not used to tune; a Pacific-only prior is the next thing to test, on these and the nightly rows.
+
 ## The evidence
 Held-out weeks only. Fit: `basin` = fitted on that basin's tune weeks; `shared` = 48 and 64 kt fitted on both basins' tune weeks added, scored on this basin's held-out weeks. 34 kt is per basin only.
 
@@ -118,7 +128,7 @@ Other figures: `reliability_box_34.png`, `reliability_box_64.png`, analysis and 
 
 ## What it does not show
 - One winter (1 Nov to 31 Mar, all of it). The tune and held-out split is by week, but the held-out weeks are the same winter, so no season the fit did not see has been scored.
-- Pacific is 00 UTC only (06 and 18 UTC are not in the store yet). 12 of 35 held-out Pacific cycles have a 48 kt event, 2 to 4 have a 64 kt event.
+- Pacific fit is 00 UTC only; 06 and 18 UTC are used only as the out-of-sample check above. 12 of 35 held-out Pacific cycles have a 48 kt event, 2 to 4 have a 64 kt event.
 - The shared 48 kt curve is dominated by the Atlantic (66.6k tune events vs 2.5k Pacific at +24/48). It helps the Pacific only a little and over-states its low chances.
 - Core likelihood (the Core Lifted layer) is not checked here; the page's nightly verification rows started 10-16.
 - The ASCAT box is the best truth we have for peaks, not a perfect one: it is a 3x3 mean of satellite cells and misses between passes.
