@@ -215,6 +215,12 @@ def test_warning_events():
     r = score.warning_events(w, ob, seen, 48)
     assert (r["events"], r["hits"], r["areas"], r["judged"], r["false"]) == (1, 1, 2, 2, 1)
     assert r["cells"] == 32 and r["bad_cells"] == 16 + 7      # row 11 and column 11 lie beyond the slack
+    # fair-reach scores: the slack ring is a free catching area, so count it, and count catches on the event
+    assert (r["hits_on"], r["obs_cells"], r["obs_in"], r["bad_on"]) == (0, 5, 0, 32)
+    assert r["reach_cells"] == 12 * 12 + 12 * 8                 # each 4x4 block grows to 12x12; one is cut at the edge
+    w2 = w.copy(); w2[5, 5] = True
+    r2 = score.warning_events(w2, ob, seen, 48)
+    assert (r2["hits_on"], r2["obs_in"]) == (1, 1)
     r = score.warning_events(w, ob, seen, 34)
     assert (r["events"], r["hits"]) == (2, 1)
     # an area the observations did not see is not judged
