@@ -64,6 +64,27 @@ This applies the Core Lifted idea to the warning lines. The line is the stronges
 
 **HF:** member backing does not help. The false HF patches sit where the members agree too. They are deep lows with 52 kt or more in a model that the archive did not log as HF within 500 km. The cause could be the forecast or gaps in the archive; this test cannot tell which.
 
+## Head-to-head with the page's own hazard lines (2026-10-17)
+The marine wind page's lines are gale where 30%+ of GEFS+ENS members reach 34 kt, storm where core likelihood is 30%+, and HF where core is 90%+ and 30%+ of members reach 48 kt. They were scored with awips-tools `storm.py` and `core_model.json` on the same cases (`page_lines.py`). The core here lacks its 850 mb inputs and was trained on this winter, so the page lines are approximate and partly in-sample, both in their favour.
+
+| Line | Page lines: caught / false area / area nm2 | Strongest model +1/+7/+12 kt | Desk |
+|---|---|---|---|
+| Gale, whole winter (2,090 events) | 84% / 5% / 198k | 96% / 9% / 232k | 97% / 67% / 1,315k |
+| Storm, whole winter (519) | 78% / 9% / 30k | 97% / 23% / 41k | 83% / 67% / 144k |
+| HF, whole winter (86 lows) | 81% / 66% / 5k | 91% / 50% / 2k | 56% / 59% / 8k |
+| Storm, held-out (105) | 85% [78-90] / 11% / 27k | 98% [98-100] / 23% / 37k | 92% / 69% / 142k |
+| HF, held-out (15) | 87% / 76% / 4k | 100% / 59% / 2k | 67% / 62% / 6k |
+
+The page lines are tighter for gale and storm but miss about 1 in 8 gales and 1 in 5 storms that the strongest-model lines catch. In the Pacific the page storm line caught 54% against 92% (13 events). For HF the strongest-model line catches more lows with less false area and a smaller area. Jason's call (2026-10-17): a miss costs more than a false alarm; Core Lifted stays the most likely wind and the strongest-model lines become the hazard area, shown beside the current lines first ("Beside current lines").
+
+## Page spec: strongest-model warning areas (for the page owner; nothing changed yet)
+1. **New layer**, beside today's "possible" hazard lines, with a toggle. It is called "Warning areas (strongest model)" and has three bits: gale where max(GFS, ECMWF, AIFS 10 m) >= 33 kt, storm where it is >= 41 kt, HF where it is >= 52 kt. It covers ocean cells only, with no smoothing and no padding.
+2. **Payload.** A new grid field (for example `warnmax`, same bit layout as `hazard`) appended to the wire format; nothing is reordered. It also goes into the saved forecast record so verification can read it.
+3. **Leads.** Draw it at every lead the page shows, but mark it tested at 24-48 h, 30-67N, winter. Outside that it is unscored.
+4. **Verification.** From the first live cycle, the nightly storm verification scores `warnmax` exactly as it scores `hazard`: the cell table vs ASCAT at all four synoptic hours, both basins, plus events caught as in this study (`rk.score.warning_events`, `warning_points` for HF against the hf-low archive). Both lines are reported side by side by month.
+5. **High Seas text.** No change yet. Drafts keep using the page grids (gale at 30 kt, storm at 44 kt). A "strongest model" draft source can be added later as one more source in the grid-source switch.
+6. **Review** after about six weeks of live winter verification, before either line replaces the other. Thresholds stay put until then.
+
 ## How it was done
 - **Truth.** Gale and storm events are 8-connected ASCAT areas of 2 or more cells at or above the level (`rk.truth.ascat_grid`, Metop-B/C intercalibrated, ±90 min, rain dropped). An event is caught when a warned cell lies within 4 cells (about 60 nm). HF events are archive fixes with category HF at the valid time (`rk.truth.hf_fixes`), caught within 500 km. A false warned cell is one ASCAT saw with no wind at the level within 60 nm, or, for HF, one more than 500 km from an HF low. Scoring is inside the OPC high seas areas over open water: the Atlantic 31-67N west of 35W (cut at 75W), and the Pacific east of the Bering Strait-53N172E-50N180W-30N180W line.
 - **Baseline.** The issued HSFAT1/HSFEP1 at 0430 and 1630 UTC (valid 00 and 12 UTC), parsed to grids by `desk_masks.py`. Warned at level L means the union of blocks whose wind range reaches L. Only hours where every 34 kt+ block parsed are used, about two thirds of them.
