@@ -123,6 +123,8 @@ def test_page_json_layout():
 
 def test_lead_group():
     assert [C.lead_group(s) for s in (24, 48, 72, 96, 120)] == ["le48", "le48", "72", "ge96", "ge96"]
+    # 6 h steps group as the page build groups them (marine_wind/pipeline/build.py)
+    assert [C.lead_group(s) for s in (30, 54, 78, 84, 90, 102)] == ["le48", "72", "72", "72", "ge96", "ge96"]
 
 
 # ---- ASCAT grid helpers (rk.truth) ----
@@ -161,6 +163,38 @@ def test_box_mean_rule():
     # edges count missing cells as invalid: corner 4 of 9 dropped, edge cell 6 of 9 kept
     m, n = truth.box_mean(np.full((5, 5), 30.0))
     assert np.isnan(m[0, 0]) and n[0, 0] == 4 and m[0, 2] == 30 and n[0, 2] == 6
+
+
+def test_pav_pools_not_running_max():
+    # one high bin must not lift every later bin (the running maximum's shelf)
+    assert np.allclose(C._pav([0.1, 0.8, 0.3, 0.4], [1, 1, 1, 1]), [0.1, 0.5, 0.5, 0.5])
+    assert C._pav([0.1, 0.2, 0.3], [1, 1, 1]) == [0.1, 0.2, 0.3]
+
+
+def test_fit_logistic_recovers_curve():
+    # events at sigmoid(a + b * logit(p)) with a=1, b=0.8: the fit returns that curve
+    r = np.random.default_rng(3)
+    p = np.round(r.beta(0.6, 4.0, 400000) * 50) / 50
+    lp = np.log(np.clip(p, 1e-4, 1 - 1e-4) / (1 - np.clip(p, 1e-4, 1 - 1e-4)))
+    e = (r.random(p.size) < 1 / (1 + np.exp(-(1.0 + 0.8 * lp)))).astype(float)
+    raw, cal = C.fit_logistic(C.table(p, e))
+    assert raw[0] == 0 and cal[0] == 0 and raw[-1] == 100 and cal[-1] == 100
+    assert all(b >= a for a, b in zip(cal, cal[1:]))
+    want = 100 / (1 + np.exp(-(1.0 + 0.8 * np.log(0.2 / 0.8))))
+    assert abs(C.cal_at(20, raw, cal) - want) < 2.0
+
+
+def test_fit_pooled_thin_bins_follow_prior():
+    # thin high bins: fit() shrinks them toward raw; fit_pooled toward the prior curve
+    tab = {"n": np.array([100000, 5000, 200, 100]), "events": np.array([1000, 1500, 170, 95]),
+           "sum_p": np.array([100000 * .01, 5000 * .1, 200 * .4, 100 * .6])}
+    prior = ([0, 1, 10, 40, 60, 100], [0, 1, 30, 85, 95, 100])
+    r0, c0 = C.fit(tab)
+    r1, c1 = C.fit_pooled(tab, prior=prior)
+    assert C.cal_at(40, r1, c1) > C.cal_at(40, r0, c0) + 20      # 0.1*0.85+0.9*0.85 vs 0.1*0.85+0.9*0.40
+    assert all(b >= a for a, b in zip(c1, c1[1:]))
+    r2, c2 = C.fit_pooled(tab)                                    # prior None: shrinks toward raw like fit()
+    assert abs(C.cal_at(40, r2, c2) - C.cal_at(40, r0, c0)) < 0.2
 
 
 if __name__ == "__main__":

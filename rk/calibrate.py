@@ -19,8 +19,8 @@ _FIELDS = ("n", "events", "sum_p", "sum_p2", "sum_p_ev")
 
 
 def lead_group(step):
-    """Lead hour -> page lead group: le48 (+24, +48), 72, ge96 (+96, +120)."""
-    return "le48" if step <= 48 else ("72" if step == 72 else "ge96")
+    """Lead hour -> page lead group, as the page build maps its 6 h steps: le48 (<= 48 h), 72 (49-84 h), ge96."""
+    return "le48" if step <= 48 else ("72" if step <= 84 else "ge96")
 
 
 # ---- tables ----
@@ -89,6 +89,82 @@ def fit(tab, nmin=2000):
         xs.append(1.0)
         ys.append(1.0)
     ys = np.maximum.accumulate(ys)
+    return [round(100 * float(x), 1) for x in xs], [round(100 * float(y), 1) for y in ys]
+
+
+def _pav(y, w):
+    """Weighted pool-adjacent-violators: the non-decreasing sequence closest to y in weighted least squares."""
+    blocks = []                                     # [value, weight, count]
+    for yi, wi in zip(y, w):
+        blocks.append([float(yi), float(wi), 1])
+        while len(blocks) > 1 and blocks[-2][0] > blocks[-1][0]:
+            v2, w2, c2 = blocks.pop()
+            v1, w1, c1 = blocks.pop()
+            ww = w1 + w2
+            blocks.append([(v1 * w1 + v2 * w2) / ww if ww > 0 else (v1 + v2) / 2, ww, c1 + c2])
+    out = []
+    for v, _, c in blocks:
+        out += [v] * c
+    return out
+
+
+def fit_logistic(tab, knots_pct=(0.5, 1, 2, 3, 5, 7, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 95)):
+    """Smooth remap: binomial regression of the event on logit(raw chance) over the table's bins
+    (P = 1 / (1 + exp(-(a + b * logit(raw))))), returned as knots in percent from (0, 0) to (100, 100).
+    Two parameters, so thin high bins borrow the shape of the well-sampled low bins. Used as the prior for
+    fit_pooled."""
+    n = np.asarray(tab["n"], float)
+    ev = np.asarray(tab["events"], float)
+    sp = np.asarray(tab["sum_p"], float) if "sum_p" in tab else np.asarray(tab["mean_fc"], float) * n
+    k = n > 0
+    raw = np.clip(sp[k] / n[k], 1e-4, 1 - 1e-4)
+    x = np.log(raw / (1 - raw))
+    nn, yy = n[k], ev[k]
+    a, b = 0.0, 1.0
+    for _ in range(50):                              # IRLS on the bin counts
+        eta = a + b * x
+        mu = 1 / (1 + np.exp(-eta))
+        w = nn * mu * (1 - mu) + 1e-12
+        z = eta + (yy - nn * mu) / w
+        X = np.c_[np.ones_like(x), x]
+        a2, b2 = np.linalg.solve(X.T @ (w[:, None] * X), X.T @ (w * z))
+        done = abs(a2 - a) + abs(b2 - b) < 1e-9
+        a, b = a2, b2
+        if done:
+            break
+    r = np.asarray(knots_pct, float) / 100
+    c = 1 / (1 + np.exp(-(a + b * np.log(r / (1 - r)))))
+    return [0.0] + [round(100 * float(v), 2) for v in r] + [100.0], \
+           [0.0] + [round(100 * float(v), 2) for v in np.maximum.accumulate(c)] + [100.0]
+
+
+def fit_pooled(tab, prior=None, nmin=2000):
+    """Remap knots like fit(), with the two changes the 2026-10-17 audit called for:
+    - a thin bin (n < nmin) is shrunk toward `prior` (raw_knots_pct, cal_knots_pct; e.g. the curve fitted on
+      both basins) instead of toward the raw chance, which against ASCAT is the thing known to be too low;
+      prior=None keeps fit()'s shrink toward raw;
+    - the curve is made non-decreasing by pooling adjacent bins (weighted by n), not by a running maximum,
+      which lifted every bin after one high one and left flat shelves.
+    Starts at (0, 0); runs on to (100, 100) when the data stop short."""
+    n = np.asarray(tab["n"], float)
+    ev = np.asarray(tab["events"], float)
+    sp = np.asarray(tab["sum_p"], float) if "sum_p" in tab else np.asarray(tab["mean_fc"], float) * n
+    xs, ys, ws = [], [], []
+    for i in range(len(n)):
+        if n[i] <= 0:
+            continue
+        raw, obs = sp[i] / n[i], ev[i] / n[i]
+        base = raw if prior is None else float(np.interp(100 * raw, prior[0], prior[1])) / 100
+        w = min(1.0, n[i] / nmin)
+        xs.append(raw)
+        ys.append(w * obs + (1 - w) * base)
+        ws.append(n[i])
+    ys = _pav(ys, ws) if ys else ys
+    xs, ys = [0.0] + xs, [0.0] + list(ys)
+    if xs[-1] < 1.0:
+        xs.append(1.0)
+        ys.append(1.0)
+    ys = np.maximum.accumulate(ys)                 # only guards the (0, 0) and (100, 100) end points
     return [round(100 * float(x), 1) for x in xs], [round(100 * float(y), 1) for y in ys]
 
 

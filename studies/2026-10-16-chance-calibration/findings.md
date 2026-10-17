@@ -1,6 +1,6 @@
 # Chance calibration: gale chance runs low, storm chance far low (pooled ensemble share)
 
-*2026-10-16 · Atlantic 00 and 12 UTC, Pacific 00 UTC · winter 2025-26 cycles in the store (Atlantic 1 Nov to 4 Jan, Pacific 1 Nov to 10 Jan), +24 to +120 h · held-out: 70 Atlantic and 35 Pacific cycles · truth: ASCAT 3x3 box mean (analysis for reference) · chance = the page's pooled GEFS + ECMWF ENS + AIFS ENS member share*
+*2026-10-16 · Atlantic 00 and 12 UTC, Pacific 00 UTC · winter 2025-26, 1 Nov to 31 Mar (302 Atlantic and 151 Pacific cycles; corrected 2026-10-17, the header said 4 Jan / 10 Jan), +24 to +120 h · held-out: 70 Atlantic and 35 Pacific cycles · truth: ASCAT 3x3 box mean (analysis for reference) · chance = the page's pooled GEFS + ECMWF ENS + AIFS ENS member share*
 
 ## The answer
 - **Gale chance runs low.** Raw 30% gale chance verifies about 40% in ASCAT's box (+24/48 h Atlantic 40.6%, Pacific 38.2%); a true 30% gale line sits at raw 24-25%. The remap fixes the shape (reliability error 0.036 to 0.017 Atlantic, 0.044 to 0.008 Pacific at +24/48) and adds a little skill (Brier skill 0.66 to 0.68, 0.63 to 0.66).
@@ -8,6 +8,34 @@
 - **The shared curve does not fully fix the Pacific.** Fitted on both basins' tune weeks added together and scored on Pacific held-out weeks, Pacific storm Brier skill is 0.20 raw, 0.23 own-basin remap, 0.25 shared at +24/48 (0.12, 0.13, 0.15 at +72; 0.08, 0.09, 0.11 at +96/120). Better than own-basin, still small, on only 12 of 35 held-out cycles with a storm event. The shared curve is right for Pacific raw shares of 15% and up but states about double the true chance at raw 5-10% (Pacific raw 5-10% verifies 13%, the shared curve shows 19-41%; reliability error 0.016 vs 0.010 own-basin). **The recommended table therefore keeps the Pacific on its own storm curve** (closer to honest where most Pacific forecasts sit, 0.010 vs 0.016 reliability error; it moves Pacific storm chances little) and uses the shared curve for the Atlantic. The Pacific storm calibration stays provisional until the 06/18 UTC ASCAT passes are in the sample.
 - **Hurricane force cannot be calibrated.** Held-out cycles with a 64 kt event in the box: Atlantic 11 to 17 of 70, Pacific 2 to 4 of 35, under the ~30 needed. The recommended 64 kt table is the page's current one, unchanged, and the 90% HF rule stays provisional. A shared 64 kt refit made Pacific held-out Brier skill worse (-0.46 to -3.46 at +24/48 on 2 events), which is why it was not used.
 - **Analysis truth says something different, and we use ASCAT.** Against analyses the storm chance is near honest at +24/48 (Atlantic raw 30% verifies 27%; skill 0.40 to 0.49) and the gale chance is honest at +24/48 (raw 30% verifies 30%). Analyses smooth peaks, so they under-count the storm-force winds ASCAT sees; Jason chose the ASCAT box as the truth for chances. The remap below is therefore an ASCAT-box remap: it will read high to anyone checking against analyses.
+
+## Refit after the audit (2026-10-17)
+The adversarial audit (`/mnt/project-files/audit/`) found the page's storm table too low at high member shares: Atlantic day 3 showed 76% for raw shares of 35-65% where held-out cells verified 85-100%, and Pacific storm chances stayed near the raw share. The cause is the fitter: thin bins (under 2,000 cells) were shrunk toward the raw share, which against ASCAT is the thing known to be too low, and a running maximum then left flat shelves. `refit.py` refits the same tune weeks with `rk.calibrate.fit_pooled`: thin bins are shrunk toward a smooth two-parameter curve fitted on both basins (`rk.calibrate.fit_logistic`), and the curve is made non-decreasing by pooling adjacent bins. 34 kt barely moves; 64 kt is not refitted.
+
+Held-out weeks, ASCAT box, storm force (`/mnt/project-files/chance-calibration/pooled/refit_compare.csv`, `refit_highbins.csv`). The last two columns are reliability error at raw shares of 10% and up:
+
+| Basin | Lead | Brier skill, page | Brier skill, refit | Reliability error, page | refit | Error at raw 10%+, page | refit |
+|---|---|---|---|---|---|---|---|
+| Atlantic | +24/48 | 0.531 | 0.531 | 0.006 | 0.006 | 0.054 | 0.051 |
+| Atlantic | +72 | 0.454 | 0.458 | 0.006 | 0.005 | 0.052 | 0.035 |
+| Atlantic | +96/120 | 0.311 | 0.315 | 0.009 | 0.010 | 0.096 | 0.104 |
+| Pacific | +24/48 | 0.228 | 0.284 | 0.010 | 0.012 | 0.209 | 0.073 |
+| Pacific | +72 | 0.134 | 0.187 | 0.016 | 0.008 | 0.293 | 0.135 |
+| Pacific | +96/120 | 0.092 | 0.136 | 0.013 | 0.007 | 0.449 | 0.205 |
+
+At high shares, Atlantic day 3 raw 35/45/55/65% now shows 82/85/88/93% (held-out 85/89/94/100%; page 76%). Atlantic day 4-5 raw 45/55% shows 78/84% (held-out 91/93%; page 66-67%). Pacific day 1-2 raw 17/24/35% shows 59/72/82% (held-out 60/70/76%; page 26-36%). Still off: Atlantic day 4-5 raw 12-17% shows 55-63% where held-out verified 41-47%. The tune weeks said 55-63% too, so this gap is a difference between weeks, not the fitter. The Pacific rests on few storms (16-736 held-out cells per bin from a dozen cycles).
+
+Recommended table: `/mnt/project-files/chance-calibration/pooled/calibration_refit.json`, in the page's format. The page's current file is unchanged until Jason agrees. There is no season the fit has not seen: the counts already cover all of 1 Nov-31 Mar. The real out-of-sample checks are the Pacific 06/18 UTC cases (being accumulated) and the live nightly rows.
+
+**Out-of-sample check, Pacific 06/18 UTC (2026-10-17).** These are 06/18 UTC valid times (+30..+126 h from 00/12 UTC runs), none of them in the fit (`oot_0618.py`; counts from the Chance calibration thread, `/mnt/project-files/chance-calibration/pooled_npac0618/`, whole winter; steps grouped as the page build groups them: +30 day 1-2, +54/78 day 3, +102/126 day 4-5). Storm force, ASCAT box:
+
+| Lead | Brier skill, page | refit | Error at raw 10%+, page | refit |
+|---|---|---|---|---|
+| +30 | 0.232 | 0.317 | 0.389 | 0.185 |
+| +54/78 | 0.110 | 0.164 | 0.512 | 0.257 |
+| +102/126 | 0.049 | 0.063 | 0.399 | 0.169 |
+
+The refit beats the page table at every lead and halves the error at high shares. It is still too low in the Pacific: at +30 h raw 12/17/23/33% the refit shows 42/58/71/80% where ASCAT verified 52/86/95/100% (page 26-34%); at +54/78 h raw 12/25/34% shows 38/63/67%, verified 61/93/100%. Gale chances: refit and page tie (Brier skill 0.61/0.44/0.26). These cells were not used to tune; a Pacific-only prior is the next thing to test, on these and the nightly rows.
 
 ## The evidence
 Held-out weeks only. Fit: `basin` = fitted on that basin's tune weeks; `shared` = 48 and 64 kt fitted on both basins' tune weeks added, scored on this basin's held-out weeks. 34 kt is per basin only.
@@ -99,8 +127,8 @@ Other figures: `reliability_box_34.png`, `reliability_box_64.png`, analysis and 
 *Intervals were not computed. Weeks, not cells, are the independent sample, so cell counts overstate the evidence.*
 
 ## What it does not show
-- One winter. Cycles in the store only: Atlantic to 4 Jan, Pacific to 10 Jan. The tune and held-out split is by week, but the held-out weeks are the same winter.
-- Pacific is 00 UTC only (06 and 18 UTC are not in the store yet). 12 of 35 held-out Pacific cycles have a 48 kt event, 2 to 4 have a 64 kt event.
+- One winter (1 Nov to 31 Mar, all of it). The tune and held-out split is by week, but the held-out weeks are the same winter, so no season the fit did not see has been scored.
+- Pacific fit is 00 UTC only; 06 and 18 UTC are used only as the out-of-sample check above. 12 of 35 held-out Pacific cycles have a 48 kt event, 2 to 4 have a 64 kt event.
 - The shared 48 kt curve is dominated by the Atlantic (66.6k tune events vs 2.5k Pacific at +24/48). It helps the Pacific only a little and over-states its low chances.
 - Core likelihood (the Core Lifted layer) is not checked here; the page's nightly verification rows started 10-16.
 - The ASCAT box is the best truth we have for peaks, not a perfect one: it is a 3x3 mean of satellite cells and misses between passes.
