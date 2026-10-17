@@ -19,8 +19,8 @@ _FIELDS = ("n", "events", "sum_p", "sum_p2", "sum_p_ev")
 
 
 def lead_group(step):
-    """Lead hour -> page lead group: le48 (+24, +48), 72, ge96 (+96, +120)."""
-    return "le48" if step <= 48 else ("72" if step == 72 else "ge96")
+    """Lead hour -> page lead group, as the page build maps its 6 h steps: le48 (<= 48 h), 72 (49-84 h), ge96."""
+    return "le48" if step <= 48 else ("72" if step <= 84 else "ge96")
 
 
 # ---- tables ----

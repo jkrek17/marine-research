@@ -85,7 +85,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
   - `ascat_box(basin, valid, intercal=True, real=True, min_valid=6) -> {"cells", "box", "n_box"} | None`: `ascat()` cells, from `ascat(..., intercal=)` (Metop offset handled there), on the basin grid (kt, float32, NaN = no truth). Event = `box >= thr` (the main truth for chances) or `cells >= thr` (single cell, for comparison).
 
 ## rk/calibrate.py (plain numpy arrays in; chances 0-1, knots in percent)
-- `EDGES`: bin edges `[0, .01, .02, .05, .10, .15, .20, .30, .40, .50, .60, .70, .80, .90, 1.00001]`. `LEAD_GROUPS = {"le48": (24, 48), "72": (72,), "ge96": (96, 120)}`; `lead_group(step)`.
+- `EDGES`: bin edges `[0, .01, .02, .05, .10, .15, .20, .30, .40, .50, .60, .70, .80, .90, 1.00001]`. `LEAD_GROUPS = {"le48": (24, 48), "72": (72,), "ge96": (96, 120)}`; `lead_group(step)` maps any step as the page build does (<= 48 h le48, 49-84 h 72, else ge96).
 - `table(p, event, edges=EDGES, w=None) -> dict` of per-bin arrays `n, events, sum_p, sum_p2, sum_p_ev` (w = optional counts); `add_tables(*tabs)` sums them, so many cycles pool without keeping cells.
 - `reliability(p, event, edges=EDGES) -> dict`: per bin `n`, `events`, `mean_fc` (mean forecast), `obs_freq` (NaN if empty), `edges`.
 - `fit(table, nmin=2000) -> (raw_knots_pct, cal_knots_pct)`: the page's fitter (`wind-focus/basins/code/fit_calibration.py`): bin mean raw -> observed frequency, shrunk toward raw by min(1, n/nmin), starts (0, 0), ends (100, 100) if the data stop short, calibrated forced non-decreasing. Takes a summed table or a `reliability()` dict; one truth.

@@ -123,6 +123,8 @@ def test_page_json_layout():
 
 def test_lead_group():
     assert [C.lead_group(s) for s in (24, 48, 72, 96, 120)] == ["le48", "le48", "72", "ge96", "ge96"]
+    # 6 h steps group as the page build groups them (marine_wind/pipeline/build.py)
+    assert [C.lead_group(s) for s in (30, 54, 78, 84, 90, 102)] == ["le48", "72", "72", "72", "ge96", "ge96"]
 
 
 # ---- ASCAT grid helpers (rk.truth) ----
