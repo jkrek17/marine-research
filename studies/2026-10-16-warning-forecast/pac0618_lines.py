@@ -2,8 +2,8 @@
 
 Valid times 06/18 UTC from the 00/12 UTC runs at +30 and +54 h, against the 1030/2230 UTC HSF text at +24 and
 +48 h (the text written from those runs), the desk's NDFD grids and ASCAT. Model fields come from the kit store
-(rk.store.load_det), which keeps ensemble statistics but not members, so the page blend and Core Lifted are not
-built here. Open-water mask: the nearest 00/12 UTC analysis (rk.truth.mask_time). Rows as ndfd_lines.py (truth
+(rk.store.load_det). The store keeps ensemble statistics but not members, so the page blend and Core Lifted are
+read from the Storm-core lift retrain thread's grids (CORELIFT, held-out cycles only; see its README.md). Open-water mask: the nearest 00/12 UTC analysis (rk.truth.mask_time). Rows as ndfd_lines.py (truth
 ascat and archive only; there is no ECMWF analysis at 06/18 UTC).
 
 usage: python3 pac0618_lines.py OUT.csv ; env NPROC (default 3)
@@ -27,7 +27,8 @@ from rk import cases, store, truth  # noqa: E402
 
 BASIN = "npac"
 STEPS = (30, 54)
-RULES = ("desk", "ndfd", "mean2", "max3")
+RULES = ("desk", "ndfd", "mean2", "max3", "blend", "corelift")
+CORELIFT = W.EXTRA.parent / "core-lift-retrain" / "corelift-heldout" / BASIN
 
 
 def _case(args):
@@ -45,6 +46,10 @@ def _case(args):
     if seen is None:
         return []
     fields = {"max3": np.maximum(np.maximum(s["gfs"], s["ifs"]), s["aifs"]), "mean2": 0.5 * (s["gfs"] + s["ifs"])}
+    cl = CORELIFT / ("%s_f%03d.npz" % (run.strftime("%Y%m%d%H"), step))
+    if cl.exists():
+        with np.load(cl) as z:
+            fields.update(blend=z["blend"].astype(np.float32), corelift=z["corelift"].astype(np.float32))
     tm, complete = N.text_masks(BASIN, valid, step - 6)
     nd = N.ndfd_at(BASIN, run, valid)
     return N.score_rows(BASIN, run, step, valid, sea, fields, {"ascat": (seen, spd)}, tm, complete, nd, RULES)
