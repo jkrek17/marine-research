@@ -70,6 +70,43 @@ def test_unscan():
     assert desk.unscan(raw, 3, 0).tolist() == raw.tolist()
 
 
+def _fake_cache(path, **extra):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    arrays = dict(speed=np.zeros((1, 2, 2), np.float16), valid=np.array(["2026011512"]),
+                  product=np.array(["YCYZ98"]), refs=np.array(["2026011510"]), ref=np.array("2026011510"))
+    arrays.update(extra)
+    np.savez(path, **arrays)
+
+
+def test_cache_version_stamp():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        old = os.environ.get("RK_DESK")
+        os.environ["RK_DESK"] = tmp
+        try:
+            issue = dt.datetime(2026, 1, 15, 10)
+            p = desk._path("natl", issue)
+            assert not desk._cached_ok(p)                                        # absent
+            _fake_cache(p)
+            assert not desk._cached_ok(p)                                        # no reader_version
+            _fake_cache(p, reader_version=np.array(desk.READER_VERSION - 1))
+            assert not desk._cached_ok(p)                                        # old version
+            p.write_bytes(b"not an npz")
+            assert not desk._cached_ok(p)                                        # unreadable
+            _fake_cache(p, reader_version=np.array(desk.READER_VERSION))
+            assert desk._cached_ok(p)                                            # current version
+            assert desk._read(issue) is None                                     # the other basin is absent
+            _fake_cache(desk._path("npac", issue), reader_version=np.array(desk.READER_VERSION))
+            assert set(desk._read(issue)) == {"natl", "npac"}
+            _fake_cache(desk._path("npac", issue))                               # stale file: not served
+            assert desk._read(issue) is None
+        finally:
+            if old is None:
+                os.environ.pop("RK_DESK", None)
+            else:
+                os.environ["RK_DESK"] = old
+
+
 def test_net():
     if os.environ.get("RK_NET") != "1":
         print("note: RK_NET not set; network test skipped")

@@ -32,6 +32,11 @@ def issue_for(basin, cycle):
     d = dt.datetime(cycle.year, cycle.month, cycle.day) + dt.timedelta(days=day)
     return d.replace(hour=hour)
 VALID_HOURS = (0, 6, 12, 18)
+# Stamp on every cached basin grid. Bump it whenever decoding or regridding changes (scan order, unit
+# conversion, box snapping, area mean, product merging): a cached file without it or with another value is
+# treated as not cached and is re-decoded and overwritten. 1 = before the row-scan fix (unstamped files);
+# 2 = alternative row scanning undone (`unscan`, 2026-10-16).
+READER_VERSION = 2
 MISSING = 9998.0          # NDFD marks missing with 9999
 _NS = "{http://s3.amazonaws.com/doc/2006-03-01/}"
 _MAPS = {}                # (product, Ni, Nj) -> {basin: int32 flat box index per NDFD cell, -1 outside}
@@ -49,6 +54,19 @@ def cache_dir():
 
 def _path(basin, issue):
     return cache_dir() / basin / (tag(issue) + ".npz")
+
+
+def _cached_ok(path):
+    """True if `path` is a cache npz written by the current reader (has reader_version == READER_VERSION).
+    Missing, unreadable, unstamped or differently stamped files are not valid; nothing is deleted."""
+    path = Path(path)
+    if not path.exists():
+        return False
+    try:
+        with np.load(path) as z:
+            return "reader_version" in z.files and int(z["reader_version"]) == READER_VERSION
+    except Exception:
+        return False
 
 
 def issuances(day, product="YCYZ98"):
@@ -134,6 +152,8 @@ def _mapping(product, h):
     k = (product, ni, nj)
     if k in _MAPS:
         return _MAPS[k]
+    # The mapping depends only on the NDFD grid geometry and the basin boxes, not on how values are decoded,
+    # so it carries no reader_version (it is checked against Ni/Nj instead).
     p = cache_dir() / ("map_%s.npz" % product)
     if p.exists():
         with np.load(p) as z:
@@ -202,7 +222,7 @@ def _read(issue):
     out = {}
     for b in BASINS:
         p = _path(b, issue)
-        if not p.exists():
+        if not _cached_ok(p):
             return None
         with np.load(p) as z:
             out[b] = {"ref": parse(str(z["ref"])), "valid": [parse(str(s)) for s in z["valid"]],
@@ -239,13 +259,14 @@ def load(issue_dt):
                       valid=np.array([tag(v) for v in valid]),
                       product=np.array([merged[v][0] for v in valid]),
                       refs=np.array([tag(merged[v][1]) for v in valid]),
-                      ref=np.array(tag(parts[0][1][1])))
+                      ref=np.array(tag(parts[0][1][1])),
+                      reader_version=np.array(READER_VERSION))
         _save(str(_path(b, issue)), **arrays)
     return _read(issue)
 
 
 def fill(start, end, hours=HOURS, workers=3, log=None):
-    """Load every issuance from start to end (dates, inclusive); cached ones are skipped.
+    """Load every issuance from start to end (dates, inclusive); cached ones (written by the current READER_VERSION) are skipped; older ones are re-decoded.
     Returns counts {'ok','missing','failed','partial','cached'} plus 'failed_tags' and 'partial_tags'."""
     rep = {"ok": 0, "missing": 0, "failed": 0, "partial": 0, "cached": 0, "failed_tags": [], "partial_tags": []}
     jobs = []
@@ -253,7 +274,7 @@ def fill(start, end, hours=HOURS, workers=3, log=None):
     while d <= dt.datetime(end.year, end.month, end.day):
         for h in hours:
             issue = d.replace(hour=h)
-            if all(_path(b, issue).exists() for b in BASINS):
+            if all(_cached_ok(_path(b, issue)) for b in BASINS):
                 rep["cached"] += 1
             else:
                 jobs.append(issue)
