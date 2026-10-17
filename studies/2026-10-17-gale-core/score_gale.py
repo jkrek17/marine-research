@@ -316,12 +316,17 @@ def main():
     ap.add_argument("--boot", type=int, default=1000)
     ap.add_argument("--summary-only", action="store_true")
     ap.add_argument("--final", action="store_true")
+    ap.add_argument("--final-extra", action="store_true",
+                    help="after --final: score held-out cases the final run could not (no truth then), with the "
+                         "same locked choice; writes final_extra_*")
     ap.add_argument("--choice-dir", default=str(HERE), help="folder holding FINAL_CHOICE.json (tests only)")
     ap.add_argument("--basins", default="natl,npac")
     ap.add_argument("--steps", default=",".join(map(str, cases.STEPS)))
     a = ap.parse_args()
     out = Path(a.results)
-    prefix = "final_" if a.final else ""
+    if a.final_extra:
+        a.final = True
+    prefix = "final_extra_" if a.final_extra else ("final_" if a.final else "")
     label = "HELD-OUT" if a.final else "TUNE"
     root = Path(a.root) if a.root else C.default_root()
     ts, setbase = TS, a.set
@@ -334,7 +339,12 @@ def main():
             sys.exit("refusing --final: %s does not exist. The held-out weeks are scored once, after t and the "
                      "model set are chosen from the tune results (write FINAL_CHOICE.json with "
                      "{\"t\": ..., \"set\": ...})." % ch)
-        if marker.exists() or (out / "final_case_scores.csv").exists():
+        if a.final_extra:
+            if not (marker.exists() and (out / "final_case_scores.csv").exists()):
+                sys.exit("--final-extra comes after --final")
+            if (out / "final_extra_case_scores.csv").exists():
+                sys.exit("refusing --final-extra: %s exists" % (out / "final_extra_case_scores.csv"))
+        elif marker.exists() or (out / "final_case_scores.csv").exists():
             sys.exit("refusing --final: the held-out score has been run already (%s); it is used once." % (
                 marker if marker.exists() else out / "final_case_scores.csv"))
         choice = json.load(open(ch))
@@ -360,6 +370,10 @@ def main():
     steps = tuple(int(s) for s in a.steps.split(","))
     jobs = [(b, c, s, str(root), setname, names, ts, a.curves) for b, c, s in C.all_cases(a.basins.split(","), steps)
             if cases.split(c) == want]
+    if a.final_extra:      # only the cases the final run left unscored
+        done = pd.read_csv(out / "final_case_scores.csv", dtype={"cycle": str})
+        seen = set(zip(done["basin"], done["cycle"], done["step"].astype(int)))
+        jobs = [j for j in jobs if (j[0], cases.tag(j[1]), j[2]) not in seen]
     print("scoring %d %s cases, model %s, %d products -> %s" % (len(jobs), want, setname, len(names), out), flush=True)
     tally = {"done": 0, "missing_grids": 0, "missing_ascat": 0}
     rows = []
@@ -376,7 +390,8 @@ def main():
     cs.to_csv(out / (prefix + "case_scores.csv"), index=False)
     summ = summarize(cs, out, a.boot, prefix=prefix)
     if a.final:
-        marker.write_text(json.dumps({"scored": dt.datetime.now(dt.timezone.utc).isoformat(), "choice": choice}))
+        if not a.final_extra:
+            marker.write_text(json.dumps({"scored": dt.datetime.now(dt.timezone.utc).isoformat(), "choice": choice}))
         print(summ[summ.step.astype(str) == "all"].round(3).to_string(index=False))
         print("SUMMARY: %d held-out cases scored, %s; wrote %s*.csv" % (tally["done"], tally, out / prefix), flush=True)
         return

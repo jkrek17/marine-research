@@ -10,4 +10,4 @@ Scored once on 17 Oct 05:50Z with the choice locked beforehand (FINAL_CHOICE.jso
 | Pacific | retrained, +5 at 35% | 0.417 | 0.182 | 0.381 (+0.000) | 0.55 | 0.600 |
 
 Verdict: the retrained model is indistinguishable from the live one on held-out weeks, as on tune weeks. Keep the live core model and +5 kt; no page change. Reliability of both models is the same (Pacific: 5 of 6 bins within 10 points; the member p48 share is not reliable without calibration).
-The 06/18Z-valid steps could not be scored (no IFS analysis at 06/18Z, so no ASCAT truth); see the gale-core findings.
+With the Pacific 06/18Z-valid steps added (`score.py --final-extra`, rk.truth.water_mask): Pacific storm tiles 208 (from 108), catch 0.361 live vs 0.365 retrained, CSI 0.328 vs 0.333. Still no difference.

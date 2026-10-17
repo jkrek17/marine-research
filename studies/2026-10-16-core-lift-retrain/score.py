@@ -4,6 +4,7 @@
   python3 score.py --set store+basin [--root DIR] [--results DIR] [--workers 4] [--boot 1000]
   python3 score.py --summary-only [--results DIR]            (recompute the summary from the case CSVs)
   python3 score.py --final [--choice-dir DIR]                (held-out weeks, once; see below)
+  python3 score.py --final-extra --steps ...                 (held-out cases --final could not score, same choice)
 
 Products per case (forecast speed at the grid, kt; r10 = the live blend):
   blend                    r10
@@ -213,12 +214,17 @@ def main():
     ap.add_argument("--boot", type=int, default=1000)
     ap.add_argument("--summary-only", action="store_true")
     ap.add_argument("--final", action="store_true")
+    ap.add_argument("--final-extra", action="store_true",
+                    help="after --final: score held-out cases the final run could not (no truth then), with the "
+                         "same locked choice; writes final_extra_*")
     ap.add_argument("--choice-dir", default=str(C.HERE), help="folder holding FINAL_CHOICE.json (tests only)")
     ap.add_argument("--basins", default="natl,npac")
     ap.add_argument("--steps", default=",".join(map(str, cases.STEPS)))
     a = ap.parse_args()
     out = Path(a.results)
-    prefix = "final_" if a.final else ""
+    if a.final_extra:
+        a.final = True
+    prefix = "final_extra_" if a.final_extra else ("final_" if a.final else "")
     root = Path(a.root) if a.root else C.default_root()
     names = product_names()
     if a.final:
@@ -234,7 +240,12 @@ def main():
             sys.exit("--set %s differs from the chosen set %s" % (a.set, choice["set"]))
         a.set = choice["set"]
         names = ["blend", "live_lift"] + ([choice["product"]] if choice["product"] not in ("blend", "live_lift") else [])
-        if (out / "final_case_scores.csv").exists() and not a.summary_only:
+        if a.final_extra:
+            if not (out / "final_case_scores.csv").exists():
+                sys.exit("--final-extra comes after --final")
+            if (out / "final_extra_case_scores.csv").exists() and not a.summary_only:
+                sys.exit("refusing --final-extra: %s exists" % (out / "final_extra_case_scores.csv"))
+        elif (out / "final_case_scores.csv").exists() and not a.summary_only:
             sys.exit("refusing --final: %s exists; the held-out score is used once." % (out / "final_case_scores.csv"))
     out.mkdir(parents=True, exist_ok=True)
     if a.summary_only:
@@ -248,6 +259,10 @@ def main():
     steps = tuple(int(s) for s in a.steps.split(","))
     jobs = [(b, c, s, str(root), a.set, names) for b, c, s in C.all_cases(a.basins.split(","), steps)
             if cases.split(c) == want]
+    if a.final_extra:      # only the cases the final run left unscored
+        done = pd.read_csv(out / "final_case_scores.csv", dtype={"cycle": str})
+        seen = set(zip(done["basin"], done["cycle"], done["step"].astype(int)))
+        jobs = [j for j in jobs if (j[0], cases.tag(j[1]), j[2]) not in seen]
     print("scoring %d %s cases, set %s, %d products -> %s" % (len(jobs), want, a.set, len(names), out), flush=True)
     tally = {"done": 0, "missing_grids": 0, "missing_ascat": 0}
     rows, rel = [], []

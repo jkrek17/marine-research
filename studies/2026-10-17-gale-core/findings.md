@@ -2,7 +2,7 @@
 
 **Question (Jason, 00:58Z 17 Oct):** should we look for cores of 34 kt too, where the gale decision is hard?
 
-**Answer:** yes in the Atlantic; not yet in the Pacific. Lifting Core Lifted to 34 kt where the gale-core chance is 60% or more catches about 13-15 points more of the ASCAT gale on held-out weeks in both basins and lifts the gale-tile score, but in the Pacific it draws 1.34x ASCAT's gale area, just over the preset 1.3x cap. Nothing goes on the page without Jason's go.
+**Answer:** yes, in both basins. Lifting Core Lifted to 34 kt where the gale-core chance is 60% or more catches 12-13 points more of the ASCAT gale on held-out weeks, lifts the gale-tile score, and keeps the gale area at 1.19x (Atlantic) and 1.25x (Pacific) ASCAT's, inside the preset 1.3x cap. The Pacific verdict needs its 06/18Z ASCAT passes (as design.md said): on 00/12Z alone it rested on 42% of the Pacific gale cells and read 1.34x. Jason chose Atlantic only at 06:10Z on the 00/12Z-only result; the Pacific question goes back to him.
 
 ## Method
 - Same 28 core features plus basin as the storm-core retrain; target = ASCAT 34+ kt within ~50 km (5x7 box max); candidate cells ocean & (blend >= 24 kt or strongest model >= 30 kt). Week-out-of-fold HGB on tune weeks; final model fit on all tune weeks.
@@ -25,10 +25,21 @@ Win line: Atlantic passes all four parts. Pacific passes catch, CSI and beats th
 
 Tune vs held-out agree: tune catch gain +0.149 Atl / +0.171 Pac at 1.19x / 1.14x area. The Pacific held-out weeks happened to be gale-richer for the model than for ASCAT.
 
+## Pacific with all ASCAT hours (17 Oct 06:35Z)
+The design (Cases) adds the Pacific 06/18Z-valid steps to the held-out score. They were first unscorable (no IFS analysis at 06/18Z, so no water mask); rk.truth.water_mask now takes the identical mask from GFS alone. Scored with `score_gale.py --final-extra`, same locked choice (t = 0.6), 350 more Pacific cases.
+
+| Pacific, held-out | ASCAT gale cells | gale catch | area vs ASCAT | gale-tile CSI | false alarms |
+|---|---|---|---|---|---|
+| 00/12Z only | 59,666 | 0.637 -> 0.782 | 1.34 | 0.602 -> 0.661 | 0.145 -> 0.185 |
+| 06/18Z only | 81,784 | 0.486 -> 0.595 | 1.19 | 0.489 -> 0.514 | 0.219 -> 0.260 |
+| all (the preset test) | 141,450 | 0.550 -> 0.674 (+0.124 [0.111, 0.137]) | **1.25** [1.11, 1.34] | 0.526 -> 0.562 (+0.036 [0.019, 0.057]) | 0.193 -> 0.233 |
+
+galecore@0.6 minus ref@0.6 catch, all hours: +0.100 [0.085, 0.116]. All four parts of the win line pass. (Atlantic 06/18Z adds only 3,981 gale cells, 1%; its numbers barely move: catch 0.627 -> 0.760, area 1.19.)
+
 ## What it means for forecasters
 - The gale-core chance finds near-gale water that will verify at gale far better than the member gale chance does (out of fold BSS 0.51 vs 0.37, AUC 0.91 vs 0.88), so a "likely gale" layer from it is worth having.
 - As a wind lift it adds roughly a fifth to the gale area for 13-15 points more caught gale. That fits Jason's "false alarm costs less than a miss" but the Pacific overshoots the agreed area cap.
-- Options for Jason: Atlantic only at 60% now; or both basins with the Pacific at a higher threshold, which would be a new choice and has to be tested on fresh weeks (next winter, or a live shadow run) before it counts.
+- Pacific: with its 06/18Z passes it passes the same test at the same 60% threshold, so the shadow layer can become the Pacific product if Jason agrees.
 
 ## Not scored
 The 06/18Z-valid steps (+30/+54/...) could not be scored: ASCAT truth needs an IFS analysis at the valid time and there is none at 06/18Z in the AWS archive (rk.fetch.det('ifs', 06Z, 0) is None). The held-out score therefore uses the same 00/12Z valid times as the tune weeks.
