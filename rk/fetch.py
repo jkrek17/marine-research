@@ -112,6 +112,37 @@ def det(model, cycle, step):
     return res
 
 
+# Lower-level fields for the storm-core model. Key maps copied from the marine wind page
+# (awips-tools marine_wind/pipeline/fetch.py: GFS_LOW, EC_LOW_SFC, EC_LOW_PL).
+GFS_LOW = {"TMP:2 m above ground": "t2", "TMP:surface": "skt", "UGRD:925 mb": "u925", "VGRD:925 mb": "v925",
+           "TMP:925 mb": "t925", "UGRD:850 mb": "u850", "VGRD:850 mb": "v850", "TMP:850 mb": "t850",
+           "LAND:surface": "land", "ICEC:surface": "ice"}
+EC_LOW_SFC = {"2t": "t2", "skt": "skt"}
+EC_LOW_PL = {(p, lev): p + lev for p in ("u", "v", "t") for lev in ("925", "850")}
+_EC_LOW = {("sfc", p, None): n for p, n in EC_LOW_SFC.items()}
+_EC_LOW.update({("pl", p, lev): n for (p, lev), n in EC_LOW_PL.items()})
+LOW_NAMES = ("t2", "skt", "u925", "v925", "t925", "u850", "v850", "t850")
+
+
+def low(model, cycle, step):
+    """Lower-level fields -> {basin: {'t2','skt','u925','v925','t925','u850','v850','t850'
+    (+ 'land','ice' for gfs)}} or None if not posted or incomplete. Temperatures K, winds m/s,
+    land 0-1 (GFS LAND), ice fraction 0-1 (GFS ICEC). model: gfs, ifs or aifs."""
+    wait_for_quiet()
+    if model == "gfs":
+        out = _ncep(gfs_url(cycle, step), GFS_LOW)
+        names = LOW_NAMES + ("land", "ice")
+    elif model in ("ifs", "aifs"):
+        raw = nwp.fields("ifs" if model == "ifs" else "aifs-single", cycle.strftime("%Y%m%d%H"), step, _EC_LOW)
+        out = None if raw is None else {n: _cut(v) for n, v in raw.items()}
+        names = LOW_NAMES
+    else:
+        raise ValueError("unknown deterministic model %r" % model)
+    if out is None or any(n not in out for n in names):
+        return None
+    return _by_basin(out, names)
+
+
 def members(ens, cycle, step, msl=True, workers=6):
     """Ensemble members -> {basin: {'u': [n,y,x], 'v': [n,y,x], 'msl': [n,y,x]}} or None.
     ens: gefs (c00 + p01..p30), ens (IFS ENS, -ef), aifs-ens (-cf + -pf). Members missing a field are dropped;

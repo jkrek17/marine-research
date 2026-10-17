@@ -235,3 +235,23 @@ def to_page_json(curves, note="", path=None):
         with open(path, "w") as f:
             json.dump(out, f, indent=1)
     return out
+
+
+# ---- curve files (the page's calibration.json layout) ----
+
+def load_curves(path):
+    """A curves JSON {season: {truth: {basin: {lead group: {"raw": [...], "cal": [...]}}}}}, knots in percent
+    (e.g. studies/2026-10-17-gale-core/p34_curves.json) -> dict."""
+    import json
+    with open(path) as fh:
+        return json.load(fh)
+
+
+def p34_remap(p, basin, step, curves, season="winter", truth="ascat"):
+    """Calibrated chance (0..1) from the raw member share p (0..1, any shape) for one basin and step, from a
+    curves dict (load_curves); linear between knots, flat beyond. Raw knots must increase."""
+    k = curves[season][truth][basin][lead_group(int(step))]
+    raw, cal = np.asarray(k["raw"], float), np.asarray(k["cal"], float)
+    if np.any(np.diff(raw) <= 0):
+        raise ValueError("raw knots must increase")
+    return (np.interp(np.asarray(p, float) * 100.0, raw, cal) / 100.0).astype(np.float32)

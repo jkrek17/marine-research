@@ -114,6 +114,100 @@ def tile_peaks(fc_at_obs, ob, lat, lon, size_deg=5, min_n=150, min_peak=34):
     return pd.DataFrame(rows, columns=cols)
 
 
+def brier_skill(p, y, w=None):
+    """Weighted Brier skill score against the constant base rate of the same sample:
+    1 - BS / (base (1 - base)), BS = sum w (p - y)^2 / sum w. NaN when the base rate is 0 or 1."""
+    p, y = np.asarray(p, float), np.asarray(y, float)
+    w = np.ones_like(p) if w is None else np.asarray(w, float)
+    sw = w.sum()
+    if sw == 0:
+        return float("nan")
+    base = (w * y).sum() / sw
+    ref = base * (1 - base)
+    return float("nan") if ref == 0 else float(1 - (w * (p - y) ** 2).sum() / sw / ref)
+
+
+def auc_from_hist(pos, neg):
+    """ROC area from weighted histograms of the positives and negatives over probability bins ordered
+    low to high (last axis; leading axes allowed, e.g. bootstrap draws). Ties within a bin count half."""
+    pos, neg = np.asarray(pos, float), np.asarray(neg, float)
+    before = np.cumsum(neg, -1) - neg
+    num = (pos * (before + 0.5 * neg)).sum(-1)
+    den = pos.sum(-1) * neg.sum(-1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(den > 0, num / den, np.nan)
+
+
+def auc(p, y, w=None):
+    """Weighted ROC area (probability that a random positive outranks a random negative, ties half).
+    NaN when one class is missing. Exact: groups equal values of p."""
+    p, y = np.asarray(p, float), np.asarray(y, float) > 0.5
+    w = np.ones_like(p) if w is None else np.asarray(w, float)
+    up, inv = np.unique(p, return_inverse=True)
+    pos = np.bincount(inv, weights=w * y, minlength=len(up))
+    neg = np.bincount(inv, weights=w * ~y, minlength=len(up))
+    return float(auc_from_hist(pos, neg))
+
+
+def reliability(p, y, w=None, bins=10):
+    """Reliability table: `bins` equal probability bins on [0, 1] (the last includes 1).
+    Columns bin, lo, hi, n (cells), w (weight), mean_p, freq (observed relative frequency), weighted."""
+    p, y = np.asarray(p, float), np.asarray(y, float)
+    w = np.ones_like(p) if w is None else np.asarray(w, float)
+    b = np.clip((p * bins).astype(int), 0, bins - 1)
+    rows = []
+    for i in range(bins):
+        s = b == i
+        sw = w[s].sum()
+        rows.append({"bin": i, "lo": i / bins, "hi": (i + 1) / bins, "n": int(s.sum()), "w": float(sw),
+                     "mean_p": float((w[s] * p[s]).sum() / sw) if sw else np.nan,
+                     "freq": float((w[s] * y[s]).sum() / sw) if sw else np.nan})
+    return pd.DataFrame(rows)
+
+
+def tile_hits(fc, ob, seen, lat, lon, thr, size_deg=5, min_seen=150):
+    """Tile-by-tile event hits on a grid, at the cells the observation saw.
+
+    fc, ob: forecast and observed speed on the same grid (kt); seen: bool grid, True where the
+    observation exists (ob is ignored elsewhere, may be NaN); lat, lon: 1-D grid vectors (rows, columns)
+    or 2-D grids (longitudes any convention, taken modulo 360). Tiles are size_deg boxes; a tile is kept
+    when it has at least min_seen seen cells. In a kept tile the observed event is "any seen cell >= thr"
+    and the forecast event is "any forecast cell >= thr among the SEEN cells" (a forecast storm outside the
+    swath is not judged). NaN forecast cells never count.
+    One row per tile: tile, lat0, lon0, n_seen, ob_event, fc_event (bool). Use `tile_counts` for totals.
+    """
+    fc = np.asarray(fc, float)
+    ob = np.asarray(ob, float)
+    seen = np.asarray(seen, bool)
+    lat, lon = np.asarray(lat, float), np.asarray(lon, float)
+    if lat.ndim == 1:
+        lat, lon = np.meshgrid(lat, lon, indexing="ij")
+    cols = ["tile", "lat0", "lon0", "n_seen", "ob_event", "fc_event"]
+    iy = np.floor(lat / size_deg).astype(int)
+    ix = np.floor((lon % 360) / size_deg).astype(int)
+    key = (iy + 100) * 1000 + ix
+    k = key[seen]
+    if k.size == 0:
+        return pd.DataFrame(columns=cols)
+    o_ev = np.nan_to_num(ob[seen], nan=-1) >= thr
+    f_ev = np.nan_to_num(fc[seen], nan=-1) >= thr
+    uk, inv = np.unique(k, return_inverse=True)
+    n = np.bincount(inv)
+    o = np.bincount(inv, weights=o_ev) > 0
+    f = np.bincount(inv, weights=f_ev) > 0
+    keep = n >= min_seen
+    uk, n, o, f = uk[keep], n[keep], o[keep], f[keep]
+    y0, x0 = (uk // 1000 - 100) * size_deg, (uk % 1000) * size_deg
+    return pd.DataFrame({"tile": ["%d_%d" % (a, b) for a, b in zip(y0, x0)], "lat0": y0, "lon0": x0,
+                         "n_seen": n, "ob_event": o, "fc_event": f}, columns=cols)
+
+
+def tile_counts(tiles):
+    """(hits, misses, false_alarms) from a tile_hits table (or the sum over several)."""
+    o, f = tiles["ob_event"].to_numpy(bool), tiles["fc_event"].to_numpy(bool)
+    return int((o & f).sum()), int((o & ~f).sum()), int((~o & f).sum())
+
+
 def points(fc, basin, obs):
     """Sample a forecast grid (kt, basin crop) at observation points.
 

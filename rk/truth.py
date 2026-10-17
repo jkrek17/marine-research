@@ -11,6 +11,7 @@ to CACHE/truth and marked unpublished; tools/publish_store.py sends it. A loader
 is not posted. The hf-low archive is not in releases: hf_archive() reads it from the hf-low repo over HTTPS.
 """
 import datetime as dt
+import functools
 import io
 import threading
 from pathlib import Path
@@ -372,6 +373,22 @@ def smap_day(day):
     return c
 
 
+@functools.lru_cache(maxsize=64)
+def water_mask(basin, valid):
+    """Open, ice-free water at the valid time (bool, basin grid) -> array or None: the analysis mask when the
+    analysis is stored or can be built, else the same definition (GFS f000 land < 0.01 and ice <= 0.15) from
+    GFS alone. The mask never used IFS, but analysis() needs both models, and there is no IFS analysis at
+    06/18 UTC, which left the Pacific's best ASCAT hours unscored before 2026-10-17."""
+    an = analysis(basin, valid)
+    if an is not None:
+        return an["mask"]
+    m = fetch.gfs_mask(valid)
+    if m is None:
+        return None
+    return (m[basin]["land"] < 0.01) & (m[basin]["ice"] <= 0.15)
+
+
+
 def mask_time(basin, valid):
     """The time whose analysis supplies the open-water mask for `valid`: valid itself when its analysis exists, else
     the 00/12 UTC analysis 6 h or less away (the earlier one first), else None."""
@@ -385,7 +402,8 @@ def mask_time(basin, valid):
     return None
 
 
-def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
+def ascat(basin, valid, max_dt_min=90, real=True, intercal=True, rain_keep_kt=None, smap_dt_min=180,
+          rain_speed="ascat"):
     """ASCAT cells within max_dt_min of the valid time, inside the basin box -> dict of 1-D arrays, or None
     when a needed day is not posted (RSS lags about 2 days) or the analysis is missing.
 
@@ -399,9 +417,20 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
     equivalent-neutral speed before the real-wind conversion, so spd_enw_kt and spd_kt both carry it.
     spd_enw_raw_kt is the unadjusted equivalent-neutral speed. intercal=False gives the raw RSS values.
 
-    Fallback: where the analysis (open-water mask) or the GFS air-sea field is missing at the valid time itself
-    (06/18 UTC: the IFS analysis is not posted), the nearest 00/12 UTC analysis within 6 h supplies both, the earlier
-    one preferred (mask_time). At 00/12 UTC the behaviour is unchanged."""
+    rain_keep_kt (default None: every rain-flagged cell dropped): keep a rain-flagged cell whose raw
+    equivalent-neutral speed is >= rain_keep_kt where SMAP agrees: the largest SMAP wind (smap_day,
+    equivalent-neutral, not rain-masked) within one 0.25 deg cell of it, from passes within smap_dt_min of
+    the valid time, is also >= rain_keep_kt. Returns None if a needed SMAP day is not posted. Field
+    rain_kept (bool) marks the kept rain cells. Rain cells below the threshold stay dropped, so only use it
+    to ask what the dropped strong cells change (adversarial audit 2026-10-17, holes 4 and 6).
+    rain_speed "ascat" (default): only rain cells ASCAT itself reads at rain_keep_kt+ are candidates, and keep
+    ASCAT's speed. "smap": any rain-flagged cell where SMAP reads rain_keep_kt+ is kept, with the larger of
+    ASCAT and SMAP (equivalent-neutral; intercal and the real-wind step then apply as usual): the upper bound
+    for cores ASCAT cannot read in rain.
+
+    Open-water mask: water_mask(basin, valid), which builds it from GFS alone where there is no analysis (06/18
+    UTC: the IFS analysis is not posted); failing that, the nearest 00/12 UTC analysis within 6 h (mask_time), which
+    also supplies the GFS air-sea field when the valid time's is missing. At 00/12 UTC the behaviour is unchanged."""
     valid = dt.datetime.combine(valid, dt.time()) if type(valid) is dt.date else valid
     lo, hi = valid - dt.timedelta(minutes=max_dt_min), valid + dt.timedelta(minutes=max_dt_min)
     days = sorted({lo.date(), hi.date()})
@@ -415,14 +444,36 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
         c["dt_min"] = (c.pop("t_min").astype(np.float32) + (t0 - valid).total_seconds() / 60.0)
         parts.append(c)
     c = {k: np.concatenate([q[k] for q in parts]) for k in parts[0]}
-    k = np.abs(c["dt_min"]) <= max_dt_min
-    k &= (c["scat_rain"] == 0) & (c["rad_rain"] < 2) & inside(basin, c["lat"], c["lon"])
+    near = (np.abs(c["dt_min"]) <= max_dt_min) & inside(basin, c["lat"], c["lon"])
+    rainy = (c["scat_rain"] != 0) | (c["rad_rain"] >= 2)
+    kept = np.zeros(rainy.shape, bool)
+    if rain_keep_kt is not None:
+        if rain_speed not in ("ascat", "smap"):
+            raise ValueError("rain_speed must be 'ascat' or 'smap'")
+        cand = near & rainy
+        if rain_speed == "ascat":
+            cand &= c["spd_enw_kt"] >= rain_keep_kt
+        if cand.any():
+            sm = _smap_max(valid, smap_dt_min, c["lat"][cand], c["lon"][cand], rain_keep_kt)
+            if sm is None:
+                return None
+            agree = np.isfinite(sm)
+            idx = np.flatnonzero(cand)[agree]
+            kept[idx] = True
+            if rain_speed == "smap":
+                c["spd_enw_kt"] = c["spd_enw_kt"].astype(np.float32, copy=True)
+                c["spd_enw_kt"][idx] = np.maximum(c["spd_enw_kt"][idx], sm[agree])
+    k = near & (~rainy | kept)
+    c["rain_kept"] = kept
     c = {f: v[k] for f, v in c.items()}
-    tm = mask_time(basin, valid)
-    if tm is None:
-        return None
-    an = analysis(basin, tm)
-    ok = sample(an["mask"].astype(float), basin, c["lat"], c["lon"]) > 0.99
+    tm = valid
+    mask = water_mask(basin, valid)
+    if mask is None:
+        tm = mask_time(basin, valid)
+        if tm is None:
+            return None
+        mask = analysis(basin, tm)["mask"]
+    ok = sample(mask.astype(float), basin, c["lat"], c["lon"]) > 0.99
     out = {f: v[ok] for f, v in c.items() if f not in ("scat_rain", "rad_rain", "sos")}
     out["spd_enw_raw_kt"] = out["spd_enw_kt"].copy()
     if intercal:
@@ -439,6 +490,66 @@ def ascat(basin, valid, max_dt_min=90, real=True, intercal=True):
         out = {f: v[good] for f, v in out.items()}
         out["spd_kt"] = enw_to_real(out["spd_enw_kt"], dT[good]).astype(np.float32)
     return out
+
+
+def _smap_max(valid, dt_min, lat, lon, floor_kt=0.0):
+    """Largest SMAP equivalent-neutral wind (kt) within one 0.25 deg cell of each (lat, lon), from SMAP cells
+    within dt_min of valid; NaN where none (or none >= floor_kt). None when a needed SMAP day is not posted."""
+    lo, hi = valid - dt.timedelta(minutes=dt_min), valid + dt.timedelta(minutes=dt_min)
+    best = {}
+    for day in sorted({lo.date(), hi.date()}):
+        sm = smap_day(day)
+        if sm is None:
+            return None
+        off = (dt.datetime.combine(day, dt.time()) - valid).total_seconds() / 60.0
+        k = (np.abs(sm["t_min"].astype(np.float64) + off) <= dt_min) & (sm["spd_enw_kt"] >= floor_kt)
+        for r, q, v in zip(np.floor(sm["lat"][k] / 0.25 + 0.5).astype(int),
+                           np.floor((sm["lon"][k] % 360) / 0.25 + 0.5).astype(int) % 1440, sm["spd_enw_kt"][k]):
+            if v > best.get((r, q), -1.0):
+                best[(r, q)] = float(v)
+    r0 = np.floor(np.asarray(lat, np.float64) / 0.25 + 0.5).astype(int)
+    q0 = np.floor((np.asarray(lon, np.float64) % 360) / 0.25 + 0.5).astype(int)
+    out = np.full(r0.shape, np.nan, np.float32)
+    for n, (r, q) in enumerate(zip(r0, q0)):
+        vals = [best[(r + dr, (q + dq) % 1440)] for dr in (-1, 0, 1) for dq in (-1, 0, 1)
+                if (r + dr, (q + dq) % 1440) in best]
+        if vals:
+            out[n] = max(vals)
+    return out
+
+def ascat_target(basin, valid, thr=48.0, box=(5, 7), max_dt_min=90, rain_keep_kt=None, rain_speed="ascat",
+                 smap_dt_min=180):
+    """ASCAT storm-core target on the basin grid -> dict or None (None when ascat() is None: a day not posted).
+
+    Uses ascat(real=True, intercal=True). Cells are snapped to the 0.25 deg grid with floor(x + 0.5) (the
+    RSS centres sit 0.125 deg off the grid; see LESSONS); when several observations fall in one cell the
+    highest counts. Returns
+      seen    bool [y, x]  a (rain-free, open-water) ASCAT cell landed here
+      spd     float [y, x] ASCAT real 10 m wind (kt) in the cell, NaN where unseen
+      max_nb  float [y, x] maximum of spd over the box (rows, columns) centred on the cell, unseen cells
+              ignored; NaN at unseen cells. box (5, 7) is about 50 km each way at 30-67 N, as the live
+              model's target (wind-focus core/code/ascat_target.py: 5x7 maximum filter, -1 for unseen).
+      y       bool [y, x]  seen & (max_nb >= thr); the training label. Only cells ASCAT saw count.
+    No seen cell at all gives all-False / all-NaN grids (a valid case with nothing to score).
+    rain_keep_kt, rain_speed, smap_dt_min: passed to ascat() (rain-flagged strong cells kept where SMAP agrees)."""
+    from scipy import ndimage
+    from .basins import grid
+    a = ascat(basin, valid, max_dt_min=max_dt_min, real=True, intercal=True, rain_keep_kt=rain_keep_kt,
+              rain_speed=rain_speed, smap_dt_min=smap_dt_min)
+    if a is None:
+        return None
+    lats, lons = grid(basin)
+    ny, nx = len(lats), len(lons)
+    row = np.floor((lats[0] - np.asarray(a["lat"], np.float64)) / 0.25 + 0.5).astype(int)
+    col = np.floor(((np.asarray(a["lon"], np.float64) % 360) - lons[0]) / 0.25 + 0.5).astype(int)
+    ok = (row >= 0) & (row < ny) & (col >= 0) & (col < nx)
+    spd = np.full((ny, nx), -1.0, np.float32)
+    np.maximum.at(spd, (row[ok], col[ok]), np.asarray(a["spd_kt"], np.float32)[ok])
+    seen = spd >= 0
+    max_nb = ndimage.maximum_filter(spd, size=box)
+    out_spd = np.where(seen, spd, np.nan).astype(np.float32)
+    max_nb = np.where(seen, max_nb, np.nan).astype(np.float32)
+    return {"seen": seen, "spd": out_spd, "max_nb": max_nb, "y": seen & (max_nb >= thr)}
 
 
 # ---- ASCAT on the model grid: single cells and 3 x 3 boxes ----
