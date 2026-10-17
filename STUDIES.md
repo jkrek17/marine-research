@@ -6,10 +6,10 @@ Truth abbreviations: **anl** = GFS+IFS analysis mean, **ASCAT** = RSS ASCAT real
 
 | Started | Study | Question (Jason's words where we have them) | Answer in one line | Truth | Where |
 |---|---|---|---|---|---|
-| 2026-10-17 | Gale cores | Should we look for cores of 34 kt too, where the gale decision is hard? | Tune weeks pass: gale-core chance >= 60% lifted to 34 kt catches +15 pts Atl / +17 pts Pac of ASCAT gale at 1.19x / 1.14x ASCAT area, gale-tile CSI +.04 / +.06; held-out pending | ASCAT | `studies/2026-10-17-gale-core/` |
+| 2026-10-17 | Gale cores | Should we look for cores of 34 kt too, where the gale decision is hard? | Atlantic yes, Pacific not yet: held-out, 60% gale-core chance lifted to 34 kt catches +13 pts Atl / +15 pts Pac of ASCAT gale, gale-tile CSI +.04 / +.06, but Pacific area 1.34x ASCAT (cap 1.3x); page waits on Jason | ASCAT | `studies/2026-10-17-gale-core/` |
 <<<<<<< HEAD
 | 2026-10-16 | AIFS in the blend | Should the AIFS be in the Core Lifted? | Yes, at half weight: held-out gale CSI +0.012 Atl / +0.017 Pac and storm catch +2 / +8 pts vs live; dropping AIFS catches more but adds false alarms and fails in the Pacific | ASCAT, buoys | `studies/2026-10-16-aifs-in-blend/` |
-| 2026-10-16 | Storm-core lift retrain | Retrain the storm-core lift on both basins with held-out weeks; keep +5 kt or make it depend on likelihood? (research agenda avenue 1) | Code ready: `train.py` (tune-week CV), `predict.py`, `score.py` (final gate: `FINAL_CHOICE.json`); waiting on the GFS low-level fill and the full table | ASCAT | `studies/2026-10-16-core-lift-retrain/` |
+| 2026-10-16 | Storm-core lift retrain | Retrain the storm-core lift on both basins with held-out weeks; keep +5 kt or make it depend on likelihood? (research agenda avenue 1) | No change: retrained on both basins, held-out storm-tile CSI .549 vs live .547 (Atl), .381 vs .381 (Pac); +8 kt doubles false alarms; keep live model and +5 kt (Jason) | ASCAT | `studies/2026-10-16-core-lift-retrain/` |
 =======
 | 2026-10-16 | Research harness | "Can any of the work be put into a harness" | Store and truth on public releases, twice-daily fill and daily truth jobs; standing-score presets for day 5-7 pressure (reproduces the study's held-out scores) and warning rules (provisional until the study freezes its rules) | anl, ASCAT | `studies/2026-10-16-harness/`, `tools/run_presets.py` |
 >>>>>>> origin/main

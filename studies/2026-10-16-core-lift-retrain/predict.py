@@ -2,7 +2,7 @@
 """Write the P(core) grids for every case, from the saved models.
 
   python3 predict.py [--thr 48] [--cand storm|gale] [--sets live28,live28+basin,store,store+basin] [--root DIR] [--workers 2]
-                     [--no-low | --low-root DIR] [--low-models gfs,ifs,aifs] [--final]
+                     [--no-low | --low-root DIR] [--low-models gfs,ifs,aifs] [--final [--held-out-only]]
                      [--start 2025-11-01] [--end 2026-03-31] [--basins natl,npac] [--steps 24,48,72,96,120]
                      [--max-cycles N]
 
@@ -122,6 +122,8 @@ def main():
     ap.add_argument("--end", default="2026-03-31")
     ap.add_argument("--basins", default="natl,npac")
     ap.add_argument("--steps", default=",".join(map(str, cases.STEPS)))
+    ap.add_argument("--held-out-only", action="store_true",
+                    help="with --final: only the held-out weeks (tune grids already written)")
     ap.add_argument("--max-cycles", type=int, default=None, help="first N cycles per basin (small run)")
     a = ap.parse_args()
     root = Path(a.root) if a.root else C.default_root()
@@ -134,6 +136,10 @@ def main():
     steps = tuple(int(s) for s in a.steps.split(","))
     low_models = tuple(a.low_models.split(","))
     allc = C.all_cases(a.basins.split(","), steps, start, end)
+    if a.held_out_only:
+        if not a.final:
+            raise SystemExit("--held-out-only needs --final")
+        allc = [(b, c, s) for b, c, s in allc if cases.held_out(c)]
     if a.max_cycles:
         keep = {}
         for b, c, s in allc:
