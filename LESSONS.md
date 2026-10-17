@@ -37,6 +37,8 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Re-test claims made against analyses once ASCAT is the referee.** "A lone storm-force model verifies 1-3%" (analysis) is about 80% within 50 km of ASCAT 48+ (Atlantic winter; `/mnt/project-files/audit/`).
 
 ## Running
+- **A gate that sits on an interval's edge must hold across bootstrap seeds.** The HF satellite pilot's Brier interval ended at -0.00003 with seed 0 and 2,000 draws and at +0.001 with any other seed; the draft said 'passed'. Use 10,000 draws for a one-shot gate and try a second seed when the edge is within 0.002 of zero.
+- **GridSat-B1 has no water vapour in recent years and packs its satellite id.** `irwvp` is all fill in 2025; `satid_ir` is a signed byte holding primary*15+secondary (unsigned first). Each variable is one gzip chunk, so read only the IR chunk by byte range (~10 MB of 30-55 MB). *`rk.satellite`.*
 - **Don't run heavy downloads during the marine wind build** (~02:30, 08:30, 14:30, 20:30 UTC) or alongside a verification backfill: ECMWF pulls fail. *`rk.fetch.wait_for_quiet`.*
 - **Fresh ECMWF ENS files return 503 SlowDown.** Retry fast with jitter, many times. *`rk.fetch.get`.*
 - **Caches in session folders die with the session.** Fields and truth go in the shared data folder through `rk.store`.

@@ -8,3 +8,4 @@ shapely
 netCDF4
 scikit-learn
 joblib
+h5py
