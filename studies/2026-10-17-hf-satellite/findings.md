@@ -26,6 +26,28 @@ Mean motion-relative IR around every HF and storm-force fix of the tuning weeks 
 
 Imagery: GridSat-B1 IR for every archive fix time, about 6,200 basin-times streamed (~78 GB read, ~12 GB stored and published as truth kind `gridsat`). 7,256 fixes measured, 7,031 with at least 90% of the crop seen; 225 partial views, 188 of them Atlantic HF fixes at high latitude.
 
+## Learned image features, 2002-2026 (IR)
+
+### The answer
+Not passed: letting a model learn its own features from the IR crops found nothing the seven hand-built measures had not already caught. Features learned without labels (20 EOFs of the crops, or a 32-number autoencoder code) and a small CNN trained on HF vs storm force all scored about the same on tuning weeks (ROC 0.69-0.70 with pressure and latitude, against 0.68 for the hand-built measures). On the held-out weeks the one taken forward (20 EOFs) scored 0.648 against 0.646 (+0.002, interval -0.032 to +0.036; Brier +0.0003, interval -0.0027 to +0.0033). Against ASCAT it ranked peaks no better (rank correlation 0.20, vs 0.27 for the hand-built measures and 0.34 for pressure alone, 88 fixes). The information in a single IR picture about HF vs storm force seems to be mostly the comma-head and dry-slot pattern the hand-built measures already describe.
+
+### The evidence
+| Held-out weeks 2002-03 to 2023-24 | Fixes (HF / storm) | Pressure + latitude | + 7 hand-built IR measures | + 20 learned EOFs |
+|---|---|---|---|---|
+| All | 914 / 138 (319 storms) | 0.584 | 0.646 | 0.648 |
+| Atlantic | 440 / 55 | 0.561 | 0.581 | 0.597 (+0.016, not significant) |
+| Pacific | 474 / 83 | 0.629 | 0.703 | 0.700 |
+| Latitude-matched (S of 55N, Atlantic W of 30W) | 624 / 93 | 0.615 | 0.679 | 0.683 |
+
+*ROC area. Tuning weeks, 5-fold by storm: EOF20 0.693, autoencoder 0.693, CNN 0.692, hand-built 0.682; EOF20 went forward on a tie (it is listed first). The pilot's held-out weeks (2024-26, not the verdict): learned 0.624 vs hand-built 0.672, worse. Crops: 1200 km half-width at 40 km (60x60 pixels), motion up; EOFs and autoencoder fit on tuning-week crops only, without labels.*
+
+Run-to-run note: the first runs left the networks' starting weights unseeded and gave different picks (CNN or EOF20) and held-out gains of +0.002 to +0.024, never significant and never passing; the fixed run seeds everything and repeats exactly (two identical runs). One early CNN run also applied a logistic fitted on out-of-fold CNN outputs to a CNN refit on all tuning weeks, whose outputs were on a wider scale, so its chances were overconfident (Brier +0.008); averaging the five fold CNNs fixes that (`learn.py` reports it, post hoc, when the CNN goes forward).
+
+### Latitude-matched composites
+![South of 55N, Atlantic west of 30W: the Atlantic HF comma deepens to the Pacific's shape](fig/composites_full_w30_s55.png)
+
+Jason asked whether the Atlantic's weaker signal comes from where its storms are. Atlantic archive fixes sit at a median 55N (half at or north of 55N, median view angle 68 deg) against 47N in the Pacific (61 deg). West of 30W alone changes little (`fig/composites_full_w30.png`, 1,770 HF / 232 storm-force fixes). West of 30W and south of 55N (916 HF / 117 storm-force Atlantic fixes; Pacific also south of 55N, 1,608 / 294), the Atlantic comma left of track and behind the centre deepens to about 5-6 C colder at HF, the same shape and place as the Pacific's. What still differs is the surround: Pacific HF lows are warmer (clearer or drier) outside the comma, Atlantic HF lows slightly colder everywhere. The scores agree: the latitude-matched subset scores 0.68 with IR in both cases.
+
 ## Air-mass RGB, pilot winters 2024-25 and 2025-26
 
 ### The answer
@@ -52,9 +74,10 @@ The same composite kept to fixes the satellite sees within 65 deg at the centre 
 What limits it: GOES ABI only (GOES-East for the Atlantic, GOES-West for the Pacific); the Atlantic HF lows sit far from GOES-East, so 107 Atlantic HF fixes were partial views beyond 80 deg view angle (223 usable). Meteosat would see the eastern Atlantic better and is not in the reader yet. 763 of 764 basin-times were found (npac 2025-01-16 12Z missing), about 25 GB read, 3.4 GB stored and published as truth kind `airmass`.
 
 ## Code (full archive and air mass)
-`pull.py --seasons 2002-2025`, `features.py --seasons 2002-2025` (writes `features_full.csv` to `RK_DATA/hf-satellite`, 1.2 MB, kept out of git), `run_full.py --final`; `pull_airmass.py`, `features_airmass.py`, `run_airmass.py --final`. Results `results_full.csv`, `scores_full.csv`, `features_airmass.csv`, `results_airmass.csv`, `scores_airmass.csv`.
+`crops.py` and `learn.py --final` (learned features; crops in `RK_CACHE/extra/hf-satellite/crops.npz`), `figures.py --set full --atl-west 30 [--atl-max-lat 55]`, `pull.py --seasons 2002-2025`, `features.py --seasons 2002-2025` (writes `features_full.csv` to `RK_DATA/hf-satellite`, 1.2 MB, kept out of git), `run_full.py --final`; `pull_airmass.py`, `features_airmass.py`, `run_airmass.py --final`. Results `results_full.csv`, `scores_full.csv`, `features_airmass.csv`, `results_airmass.csv`, `scores_airmass.csv`.
 
 ## Checked by (full archive and air mass)
+The learned-features numbers were rechecked the same way from `results_learn.csv` (three seeds, all matched; no leakage found: EOFs and autoencoder fit on tuning crops only, held-out labels used only to score). It flagged that EOF20 tied the autoencoder rather than winning, that the learned gain over pressure is the hand-built measures' gain again, and that the pilot weeks are worse with learned features; all stated above.
 An independent agent recomputed every number above from `results_full.csv`, `results_airmass.csv` and `features_full.csv` with its own code (10,000 week draws, three seeds; interval ends move by at most 0.003, so no verdict depends on the seed), confirmed that no held-out storm was used in tuning and that the split matches `rk.cases.held_out` on each storm's first archive fix. All matched. It flagged wording to avoid: that IR "helps" in the Atlantic, that pre-2017 is the strongest result, and that the Atlantic air-mass-only number is a finding; this write-up follows that.
 
 ---

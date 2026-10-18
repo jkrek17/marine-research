@@ -9,3 +9,4 @@ netCDF4
 scikit-learn
 joblib
 h5py
+torch  # studies/2026-10-17-hf-satellite/learn.py (CPU wheel: --index-url https://download.pytorch.org/whl/cpu)
