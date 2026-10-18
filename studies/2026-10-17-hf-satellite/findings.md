@@ -20,6 +20,10 @@ Not passed again, for the same reason as the pilot. Over 23 winters the seven IR
 
 *Baseline: logistic on central pressure and latitude. Gradient boosting on the same inputs: 0.643, no better than the logistic. Tuning weeks (5-fold by storm, 4,659 fixes of 1,352 storms): 0.625 to 0.682. The pilot's held-out weeks (2024-26, already scored once in the pilot) with the model tuned on all years: 0.594 to 0.672, Brier -0.0108 [-0.0218, -0.0017]; that would pass the rule, but those weeks are not the verdict. Pre-2017 has only 38 storm-force fixes, so its larger ROC gain is not the strongest result.*
 
+![2002-2026 IR: at HF, colder cloud wraps left of track and behind the centre, most clearly in the Pacific](fig/composites_full.png)
+
+Mean motion-relative IR around every HF and storm-force fix of the tuning weeks (centre at the archive fix, motion up). At HF the cold comma head is colder and wraps further around the left and rear of the centre; in the Pacific the difference is about 6-8 C and the near-centre dry slot is warmer at HF, in the Atlantic it is weaker and broader.
+
 Imagery: GridSat-B1 IR for every archive fix time, about 6,200 basin-times streamed (~78 GB read, ~12 GB stored and published as truth kind `gridsat`). 7,256 fixes measured, 7,031 with at least 90% of the crop seen; 225 partial views, 188 of them Atlantic HF fixes at high latitude.
 
 ## Air-mass RGB, pilot winters 2024-25 and 2025-26
@@ -36,6 +40,10 @@ Air mass adds nothing over IR here. Adding six air-mass measures (ozone/dry-stra
 | With air mass, no IR | 0.651 |
 
 By basin: Atlantic IR 0.655, IR + air mass 0.657, air mass alone 0.678 (46 fixes, 15 storms: too few to read as a result); Pacific IR 0.725, IR + air mass 0.655. Tuning weeks (362 fixes): IR + air mass beat IR by only +0.008.
+
+![Air mass, 2024-26: at HF more high cloud in the comma head; in the Pacific, dry ozone-rich air around it](fig/composites_airmass.png)
+
+Air-mass RGB of the mean bands around HF and storm-force fixes (tuning weeks, motion up), and the HF minus storm-force difference in the 9.6 minus 10.3 um (ozone) term: orange where HF has more high cloud, purple where it has more dry, ozone-rich air. Storm-force samples are small (40 and 49), so the purple patches are noisy.
 
 What limits it: GOES ABI only (GOES-East for the Atlantic, GOES-West for the Pacific); the Atlantic HF lows sit far from GOES-East, so 107 Atlantic HF fixes were partial views beyond 80 deg view angle (223 usable). Meteosat would see the eastern Atlantic better and is not in the reader yet. 763 of 764 basin-times were found (npac 2025-01-16 12Z missing), about 25 GB read, 3.4 GB stored and published as truth kind `airmass`.
 
