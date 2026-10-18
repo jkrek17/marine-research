@@ -56,6 +56,28 @@ def main():
                     area48=tot[2] / tot[3] if tot[3] else np.nan,
                     area64=tot[4] / tot[5] if tot[5] else np.nan))
     s = pd.DataFrame(rows)
+    # momentum test: of ASCAT's >= thr cells, the share where each model carries >= thr at 925 / 850 mb
+    mom = []
+    for (cat, lead), g in ok.groupby(["category", "lead"]):
+        for basin in ("both", "natl", "npac"):
+            h = g if basin == "both" else g[g.basin == basin]
+            for m in ("gfs", "ifs", "aifs"):
+                for lev in ("925", "850"):
+                    for thr in (48, 64):
+                        col = "%s_s%s_ge%d" % (m, lev, thr)
+                        if col + "_nb" not in h or h[col + "_nb"].isna().all():
+                            continue
+                        hh = h[h[col + "_nb"].notna()]
+                        n_ob = hh["ascat_n%d" % thr].sum()
+                        mom.append(dict(category=cat, lead=lead, basin=basin, model=m, level=lev, thr=thr,
+                                        n=len(hh), ascat_cells=int(n_ob),
+                                        share_cell=hh[col + "_cell"].sum() / n_ob if n_ob else np.nan,
+                                        share_50km=hh[col + "_nb"].sum() / n_ob if n_ob else np.nan,
+                                        peak_aloft=hh["%s_s%s_peak" % (m, lev)].mean()))
+    if mom:
+        mm = pd.DataFrame(mom)
+        mm.to_csv(HERE / "momentum.csv", index=False, float_format="%.3f")
+        print(mm[(mm.basin == "both") & (mm.category == "HF")].to_string(index=False, float_format=lambda x: "%.2f" % x))
     s.to_csv(HERE / "summary.csv", index=False, float_format="%.3f")
     show = s[s.basin == "both"][["category", "lead", "product", "n", "storms", "weeks", "ascat_peak",
                                   "product_peak", "gap", "gap_lo", "gap_hi", "gap_k5", "ascat_reach64",

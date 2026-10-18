@@ -7,8 +7,8 @@ The ceiling on what a sharper wind (downscaling) could win near hurricane-force 
 
 Cases: hf-low archive fixes (rk.truth.hf_archive) inside the basin box, valid 00/06/12/18 UTC,
 Nov 2025 - Mar 2026 (the months the store holds full fields), forecast from the 00/12 UTC cycle that is 24-29, 48-53 or 72-77 h earlier (one step per
-lead day: f024/f030, f048/f054, f072/f078). The store has no low-level files at f030/f054/f078 in
-this winter, so 06/18 UTC fixes come back no_forecast and the scored cases are 00/12 UTC (f024/f048/f072).
+lead day: f024/f030, f048/f054, f072/f078). The store had no low-level files at f030/f054/f078 in
+this winter; they are filled into LOW_ROOT (tools/fill_low.py --root) and read from there when the store has none.
 Truth: ASCAT real 10 m wind, intercalibrated, rain dropped (rk.truth.ascat_grid), snapped to the basin grid.
 A case is scored when ASCAT saw at least MIN_SEEN grid cells within RADIUS_KM of the fix.
 Per case, the peak over the SEEN cells within the radius for ASCAT and for each product:
@@ -16,6 +16,9 @@ Per case, the peak over the SEEN cells within the radius for ASCAT and for each 
   blend            r10, the page's blend (rk.features.core)
   corelift         r10 + 5 kt where the live core model's P >= 0.35 (awips-tools storm.core_grid)
 Also the 5th-highest seen cell (ascat_k5, {product}_k5): a peak not set by one noisy cell.
+Momentum test (added 2026-10-18): each model's 925 and 850 mb speed ({m}_s925, {m}_s850): its peak over
+the seen cells, and how many of ASCAT's >= 48 / >= 64 kt cells have >= 48 / >= 64 kt aloft in the same cell
+(_ge64_cell) or within ~50 km (_ge64_nb). If the momentum is aloft, mixing it down can make a 64 kt core.
 Also the peak over ALL cells in the radius (seen or not) for each product.
 Writes cases.csv (one row per fix and lead); summary.py turns it into the tables.
 Each store cycle is evicted from the local cache after use (published files only; nothing is written).
@@ -36,15 +39,21 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
-from rk import basins, paths, score, store, truth  # noqa: E402
+from scipy import ndimage  # noqa: E402
+
+from rk import KT, basins, paths, score, store, truth  # noqa: E402
 from rk import features  # noqa: E402
 
 RADIUS_KM = 500.0
+NB_MOM = 5            # momentum test neighbourhood: 5 x 5 cells, about 50 km
 MIN_SEEN = 200
 START, END = dt.datetime(2025, 11, 1), dt.datetime(2026, 4, 1)   # full store fields: Nov 2025 - Mar 2026
 LEADS = (24, 48, 72)
 PRODUCTS = ("gfs", "ifs", "aifs", "blend", "corelift")
 OUT = HERE / "cases.csv"
+# Low-level (core-model) files the store lacked, filled with tools/fill_low.py --root (2026-10-18):
+# f030/f054/f078 for all three models, and IFS/AIFS f024/f048/f072 for 2025-12-16 to 2026-01-19.
+LOW_ROOT = paths.cache("extra", "core-ceiling-low")
 
 _LIVE = {}
 
@@ -112,6 +121,8 @@ def run_cycle(item):
         storm, model = live()
         for step in sorted({c["step"] for c in cases_}):
             f = features.core(basin, cycle, step)
+            if f is None and LOW_ROOT.exists():
+                f = features.core(basin, cycle, step, low_root=LOW_ROOT)   # 06/18 UTC steps filled for this study
             det = {m: store.load_det(basin, cycle, m, step) for m in ("gfs", "ifs", "aifs")}
             if f is None or any(v is None for v in det.values()):
                 for c in cases_:
@@ -122,6 +133,15 @@ def run_cycle(item):
             grids = {m: det[m]["speed"] for m in det}
             grids["blend"] = f["r10"]
             grids["corelift"] = np.where(P >= storm.LIFT_P, f["r10"] + storm.LIFT_KT, f["r10"])
+            aloft = {}                                  # momentum test: 925 / 850 mb speed (kt) per model
+            for m in ("gfs", "ifs", "aifs"):
+                lw = store.load_low(basin, cycle, m, step)
+                if lw is None and LOW_ROOT.exists():
+                    lw = store.load_low(basin, cycle, m, step, root=LOW_ROOT)
+                if lw is not None:
+                    for lev in ("925", "850"):
+                        sp = np.hypot(lw["u" + lev], lw["v" + lev]) * KT
+                        aloft[m + "_s" + lev] = (sp, ndimage.maximum_filter(sp, size=NB_MOM, mode="nearest"))
             for c in (c for c in cases_ if c["step"] == step):
                 seen, spd = truth.ascat_grid(basin, c["valid"])
                 row = dict(c, cycle=cycle)
@@ -146,6 +166,13 @@ def run_cycle(item):
                     row[k + "_peak_all"] = float(np.nanmax(g[circ]))
                     row[k + "_n48"] = int((g[sc] >= 48).sum())
                     row[k + "_n64"] = int((g[sc] >= 64).sum())
+                for thr in (48, 64):
+                    ob = sc & (spd >= thr)
+                    for k, (sp, spn) in aloft.items():
+                        row["%s_peak" % k] = float(np.nanmax(sp[sc]))
+                        # share of ASCAT >= thr cells where the model carries >= thr aloft (same cell / within ~50 km)
+                        row["%s_ge%d_cell" % (k, thr)] = int((sp[ob] >= thr).sum())
+                        row["%s_ge%d_nb" % (k, thr)] = int((spn[ob] >= thr).sum())
                 rows.append(row)
     except Exception:
         traceback.print_exc()
