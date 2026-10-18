@@ -289,6 +289,24 @@ def find_lows(msl, basin, below=1000.0, size=13, inset_deg=0.0, sep_km=150.0):
     return out.iloc[keep].reset_index(drop=True)
 
 
+def pressure_drop(msl, basin, lat, lon, ring_km=500.0, width_km=50.0, centre_km=150.0):
+    """How deep a low is against its surroundings, hPa: the mean MSLP on the ring ring_km +- width_km around
+    (lat, lon) minus the lowest MSLP within centre_km of it. Wind follows this drop over the radius, so two lows
+    with the same central pressure but different widths give different drops. Returns (drop, centre_hpa,
+    ring_hpa); NaN where the ring or the centre has no finite cell on the basin grid."""
+    from rk.basins import grid
+    f = np.asarray(msl, float)
+    lats, lons = grid(basin)
+    LA, LO = np.meshgrid(lats, lons, indexing="ij")
+    d = km(LA, LO, lat, lon)
+    ring = f[(np.abs(d - ring_km) <= width_km) & np.isfinite(f)]
+    core = f[(d <= centre_km) & np.isfinite(f)]
+    if not ring.size or not core.size:
+        return float("nan"), float("nan"), float("nan")
+    c, r = float(core.min()), float(ring.mean())
+    return r - c, c, r
+
+
 def match_lows(truth_lows, fc_lows, radius_km=300.0, miss_penalty_km=None, miss_depth="nan",
                fc_msl=None, basin=None):
     """Match each truth low to the nearest forecast low within radius_km (study default 300 km).
