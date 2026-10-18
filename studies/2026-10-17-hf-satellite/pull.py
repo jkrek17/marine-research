@@ -1,7 +1,9 @@
 """Fill the GridSat-B1 IR boxes (truth kind gridsat) for every pilot fix time. Resumable: cached times are
 skipped; one read serves both basins. Then publish with tools/publish_store.py.
 
-    python3 studies/2026-10-17-hf-satellite/pull.py [--workers 4] [--dry-run]
+    python3 studies/2026-10-17-hf-satellite/pull.py [--workers 4] [--seasons 2002-2025] [--dry-run]
+
+--seasons: a range (2002-2025) or a comma list; default the pilot's two (2024, 2025).
 """
 import argparse
 import time
@@ -15,11 +17,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--seasons", default="2024,2025")
     a = ap.parse_args()
-    d = fixes()
+    if "-" in a.seasons:
+        lo, hi = map(int, a.seasons.split("-"))
+        seasons = tuple(range(lo, hi + 1))
+    else:
+        seasons = tuple(int(x) for x in a.seasons.split(","))
+    d = fixes(seasons)
     times = sorted({t.to_pydatetime() for t in d["valid"]})
     todo = [t for t in times if not all(store.truth_local("gridsat", b, t) for b in ("natl", "npac"))]
-    print("%d fixes, %d valid times, %d to fetch (~%.1f GB at ~10 MB each)"
+    print("%d fixes, %d valid times, %d to fetch (~%.1f GB at ~12.6 MB each)"
           % (len(d), len(times), len(todo), len(todo) * 0.0105), flush=True)
     if a.dry_run:
         return

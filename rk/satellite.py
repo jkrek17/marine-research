@@ -10,8 +10,10 @@ GridSat-B1 (NOAA CDR, Knapp et al. 2011): 0.07 deg, 3-hourly, 70S-70N, 1980 onwa
 merged; the water-vapour channel is empty in recent years, so only IR is read. Views are slanted north of about
 60N; `sat` says which satellite filled each pixel.
 """
+import datetime as dt
 import io
 import math
+import re
 
 import numpy as np
 
@@ -203,3 +205,162 @@ def crop(b, lat, lon, half_km=1200.0, res_km=10.0, head=None):
     w = map_coordinates(ok.astype(np.float32), [fy, fx], order=1, mode="constant", cval=0.0)
     out = np.where(w > 0.999, out, np.nan)         # any missing neighbour -> missing
     return out.astype(np.float32)
+
+
+# ---- ABI air-mass bands (GOES-East and GOES-West, AWS noaa-goes16/17/18/19) ----
+#
+# Air-mass RGB inputs: band 8 (6.2 um upper-level water vapour), 10 (7.3 um lower-level WV), 12 (9.6 um ozone) and
+# 13 (10.3 um clean IR window). ABI-L2-CMIPF files are chunked 226 x 226, so only the rows and columns over the
+# SAT_BOX are read by byte range (~5-7 MB per band of 17-23 MB). Values are put on the same 0.07 deg SAT_BOX grid
+# as gridsat (nearest ABI pixel), so crop() and view_zenith() work unchanged.
+
+ABI_URL = "https://noaa-goes{n}.s3.amazonaws.com/"
+ABI_BANDS = (8, 10, 12, 13)
+ABI_MAX_VZA = 80.0                       # beyond this the pixel is left missing
+GOES_EAST_SWITCH = dt.datetime(2025, 4, 7, 15)   # GOES-19 replaced GOES-16 as GOES-East
+GOES_WEST_SWITCH = dt.datetime(2023, 1, 4, 18)   # GOES-18 replaced GOES-17 as GOES-West
+ABI_START = {"natl": dt.datetime(2017, 12, 18), "npac": dt.datetime(2019, 2, 12)}   # operational GOES-16 / -17
+
+
+def goes_for(basin, valid):
+    """The GOES satellite numbers to try for a basin and time, preferred first: GOES-East for the Atlantic,
+    GOES-West for the Pacific; the other one of the pair as a fallback around a handover. [] before ABI_START."""
+    if valid < ABI_START[basin]:
+        return []
+    if basin == "natl":
+        return [16, 19] if valid < GOES_EAST_SWITCH else [19, 16]
+    return [17, 18] if valid < GOES_WEST_SWITCH else [18, 17]
+
+
+def abi_key(n, band, valid):
+    """S3 key of the first full-disk CMIP file of a band starting in the valid hour, or None."""
+    prefix = "ABI-L2-CMIPF/%s/%02d/OR_ABI-L2-CMIPF-M" % (valid.strftime("%Y/%j"), valid.hour)
+    r = fetch.get(ABI_URL.format(n=n) + "?list-type=2&max-keys=200&prefix=" + prefix)
+    if r is None:
+        return None
+    keys = sorted(k for k in re.findall(r"<Key>([^<]+)</Key>", r.text) if "C%02d_G%d_" % (band, n) in k)
+    return keys[0] if keys else None
+
+
+def abi_xy(lat, lon, lon0, h, a, b):
+    """GOES-R fixed-grid scan angles (x, y, radians) of lat/lon (degrees) for a satellite over lon0 (degrees)
+    at perspective height h above an ellipsoid (a, b), and a mask of the points the satellite sees
+    (GOES-R PUG vol. 3, 5.1.2.8.1)."""
+    H = h + a
+    phi, lam = np.radians(lat), np.radians(lon - lon0)
+    phic = np.arctan((b * b) / (a * a) * np.tan(phi))
+    e2 = 1 - (b * b) / (a * a)
+    rc = b / np.sqrt(1 - e2 * np.cos(phic) ** 2)
+    sx = H - rc * np.cos(phic) * np.cos(lam)
+    sy = -rc * np.cos(phic) * np.sin(lam)
+    sz = rc * np.sin(phic)
+    seen = H * (H - sx) - sy * sy - (a * a) / (b * b) * sz * sz >= 0
+    x = np.arcsin(-sy / np.sqrt(sx * sx + sy * sy + sz * sz))
+    y = np.arctan(sz / sx)
+    return x, y, seen
+
+
+def _prefetch(f, ds, r0, r1, c0, c1):
+    """Download the byte span holding every chunk of ds that meets rows r0:r1, columns c0:c1 in one request
+    (h5py would otherwise ask for each ~50 kB chunk separately, which is latency-bound)."""
+    ch = ds.chunks
+    spans = []
+    for i in range(ds.id.get_num_chunks()):
+        ci = ds.id.get_chunk_info(i)
+        r, c = ci.chunk_offset
+        if r < r1 and r + ch[0] > r0 and c < c1 and c + ch[1] > c0:
+            spans.append((ci.byte_offset, ci.byte_offset + ci.size))
+    if spans:
+        lo, hi = min(a for a, _ in spans), max(b for _, b in spans)
+        f._fetch(lo // f.block, (hi - 1) // f.block)
+
+
+def _abi_band(url, lat2, lon2):
+    """One CMIP band on a lat/lon grid (2-D arrays) -> (K float32 with NaN, sub-satellite lon, bytes read)."""
+    import h5py
+    f = RangeFile(url, block=1 << 18)
+    with h5py.File(f, "r") as h:
+        p = h["goes_imager_projection"].attrs
+        lon0 = float(p["longitude_of_projection_origin"][0])
+        hgt, a, b = (float(p[k][0]) for k in ("perspective_point_height", "semi_major_axis", "semi_minor_axis"))
+        xs, ys = h["x"].attrs, h["y"].attrs
+        sx, ox = float(xs["scale_factor"][0]), float(xs["add_offset"][0])
+        sy, oy = float(ys["scale_factor"][0]), float(ys["add_offset"][0])
+        nx, ny = h["x"].shape[0], h["y"].shape[0]
+        x, y, seen = abi_xy(lat2, lon2, lon0, hgt, a, b)
+        col = np.rint((x - ox) / sx).astype(np.int64)
+        row = np.rint((y - oy) / sy).astype(np.int64)
+        ok = seen & (col >= 0) & (col < nx) & (row >= 0) & (row < ny)
+        out = np.full(lat2.shape, np.nan, np.float32)
+        if ok.any():
+            r0, r1, c0, c1 = row[ok].min(), row[ok].max() + 1, col[ok].min(), col[ok].max() + 1
+            c = h["CMI"]
+            _prefetch(f, c, r0, r1, c0, c1)
+            raw = c[r0:r1, c0:c1]
+            fill = int(c.attrs["_FillValue"][0])
+            val = raw[row[ok] - r0, col[ok] - c0]
+            k = val * float(c.attrs["scale_factor"][0]) + float(c.attrs["add_offset"][0])
+            out[ok] = np.where(val == fill, np.nan, k)
+    return out, lon0, f.fetched
+
+
+def abi_airmass(basin, valid):
+    """The four air-mass bands over the basin's SAT_BOX (0.07 deg, same grid as gridsat) -> {"lat", "lon",
+    "b08", "b10", "b12", "b13" (K float32, NaN missing or view zenith > ABI_MAX_VZA), "sat", "satnames",
+    "satlon", "bytes"} or None when no satellite has all four bands for the hour."""
+    s, n, w, e = SAT_BOX[basin]
+    lat = np.round(np.arange(n, s - 1e-6, -0.07), 4).astype(np.float32)
+    lon = np.round(np.arange(w, e + 1e-6, 0.07), 4).astype(np.float32)
+    lat2, lon2 = np.meshgrid(lat.astype(np.float64), lon.astype(np.float64), indexing="ij")
+    for sat in goes_for(basin, valid):
+        keys = [abi_key(sat, b, valid) for b in ABI_BANDS]
+        if any(k is None for k in keys):
+            continue
+        out, nbytes = {"lat": lat, "lon": lon}, 0
+        for b, k in zip(ABI_BANDS, keys):
+            out["b%02d" % b], lon0, got = _abi_band(ABI_URL.format(n=sat) + k, lat2, lon2)
+            nbytes += got
+        out.update(satnames=np.array(["GOES-%d" % sat]), satlon=np.array([lon0], np.float32))
+        out["sat"] = np.where(np.isfinite(out["b13"]), 0, -1).astype(np.int8)
+        v = view_zenith(out)
+        for b in ABI_BANDS:
+            out["b%02d" % b][~(v <= ABI_MAX_VZA)] = np.nan
+        out["sat"][~(v <= ABI_MAX_VZA)] = -1
+        out["bytes"] = nbytes
+        return out
+    return None
+
+
+def airmass_box(basin, valid, download=True):
+    """Air-mass bands over the basin's SAT_BOX -> abi_airmass() keys (K float32, NaN missing) plus "vza", or None.
+    Cache, legacy, release (truth kind `airmass`, int16 K = v * 0.01 + 200 like gridsat); with download=True a
+    missing time is built from ABI and marked unpublished. 00/06/12/18 UTC only."""
+    _check_hour(valid)
+    p = truth_locate("airmass", basin, valid)
+    if p is None:
+        if not download:
+            return None
+        m = abi_airmass(basin, valid)
+        if m is None:
+            return None
+        enc = {k: np.where(np.isfinite(m[k]), np.round((m[k] - OFFSET) / SCALE), FILL).astype(np.int16)
+               for k in ("b08", "b10", "b12", "b13")}
+        truth_save("airmass", basin, valid, lat=m["lat"], lon=m["lon"], sat=m["sat"], satnames=m["satnames"],
+                   satlon=m["satlon"], **enc)
+        p = truth_locate("airmass", basin, valid, download=False)
+    with np.load(p) as z:
+        b = {k: z[k] for k in ("lat", "lon", "sat", "satnames", "satlon")}
+        for k in ("b08", "b10", "b12", "b13"):
+            v = z[k]
+            b[k] = np.where(v == FILL, np.nan, v * SCALE + OFFSET).astype(np.float32)
+    b["vza"] = view_zenith(b)
+    return b
+
+
+def airmass_rgb(b08, b10, b12, b13):
+    """EUMETSAT air-mass RGB (0-1 per channel, gamma 1) from the four bands in K: red = WV6.2 - WV7.3 over
+    -25..0 K, green = O3 9.6 - IR 10.3 over -40..+5 K, blue = WV6.2 inverted over 243..208 K."""
+    r = np.clip((b08 - b10 + 25.0) / 25.0, 0, 1)
+    g = np.clip((b12 - b13 + 40.0) / 45.0, 0, 1)
+    bl = np.clip((243.0 - b08) / 35.0, 0, 1)
+    return np.stack([r, g, bl], -1)
