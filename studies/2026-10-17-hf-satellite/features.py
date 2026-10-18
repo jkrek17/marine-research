@@ -26,6 +26,8 @@ def feats(c):
     """Seven IR features of one crop (K) -> dict, plus valid share within 1000 km."""
     ok = np.isfinite(c)
     d = {"valid1000": ok[R <= 1000].mean()}
+    if d["valid1000"] < MIN_VALID:                  # partial view: not scored, and some sectors are empty
+        return d
 
     def m(sel):
         v = c[sel & ok]
@@ -48,7 +50,15 @@ FEATURES = ["cold500", "cold1000", "p05_500", "centre_minus_ring", "dryslot", "c
 
 
 def main():
-    d = fixes()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seasons", default="", help="e.g. 2002-2025 -> features_full.csv; default the pilot's")
+    a = ap.parse_args()
+    if a.seasons:
+        lo, hi = map(int, a.seasons.split("-"))
+        d, name, comp_name = fixes(tuple(range(lo, hi + 1))), "features_full.csv", "composites_full.npz"
+    else:
+        d, name, comp_name = fixes(), "features.csv", "composites.npz"
     rows, sums = [], {}
     boxes = {}
     for i, f in d.iterrows():
@@ -56,7 +66,7 @@ def main():
         key = (f["basin"], t)
         if key not in boxes:
             boxes.clear()
-            boxes[key] = satellite.box(f["basin"], t, download=False)
+            boxes[key] = satellite.box(f["basin"], t, download=True)
         b = boxes[key]
         row = {k: f[k] for k in ("basin", "event_id", "valid", "lat", "lon", "hpa", "category", "head", "split")}
         if b is None:
@@ -81,13 +91,15 @@ def main():
             n[ok] += 1
             sums[k] = (s, n)
     out = pd.DataFrame(rows)
-    out.to_csv(HERE / "features.csv", index=False, float_format="%.4f")
+    dest = paths.data("hf-satellite") if a.seasons else HERE     # the full table (1.2 MB) stays out of git
+    dest.mkdir(parents=True, exist_ok=True)
+    out.to_csv(dest / name, index=False, float_format="%.4f")
     print(out.groupby(["basin", "category", "status"]).size().unstack(fill_value=0))
     comp = {}
     for (b, cat), (s, n) in sums.items():
         comp["%s_%s" % (b, cat)] = np.where(n > 0, s / np.maximum(n, 1), np.nan).astype(np.float32)
         comp["%s_%s_n" % (b, cat)] = n.astype(np.int16)
-    np.savez_compressed(paths.cache("extra", "hf-satellite", "composites.npz"), **comp)
+    np.savez_compressed(paths.cache("extra", "hf-satellite", comp_name), **comp)
 
 
 if __name__ == "__main__":

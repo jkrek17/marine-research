@@ -1,4 +1,5 @@
 """Tests for rk.satellite (no network). Run with pytest or `python3 tests/test_satellite.py`."""
+import datetime as dt
 import io
 import sys
 from pathlib import Path
@@ -121,6 +122,31 @@ def test_range_file_reads_like_bytes():
         assert len(calls) == n0
     finally:
         s.fetch.get = real
+
+
+def test_abi_xy_pug_example():
+    # GOES-R PUG vol. 3, 5.1.2.8.1 worked example
+    x, y, seen = s.abi_xy(np.array(33.846162), np.array(-84.690932), -75.0, 35786023.0, 6378137.0, 6356752.31414)
+    assert abs(x - -0.024052) < 1e-6 and abs(y - 0.095340) < 1e-6 and seen
+    x, y, seen = s.abi_xy(np.array([0.0, 0.0]), np.array([-75.0, 105.0]), -75.0, 35786023.0, 6378137.0,
+                          6356752.31414)
+    assert abs(x[0]) < 1e-12 and abs(y[0]) < 1e-12 and seen[0] and not seen[1]
+
+
+def test_goes_for_handover():
+    t = dt.datetime
+    assert s.goes_for("natl", t(2017, 1, 1)) == []
+    assert s.goes_for("natl", t(2024, 12, 1, 0)) == [16, 19]
+    assert s.goes_for("natl", t(2025, 12, 1, 0)) == [19, 16]
+    assert s.goes_for("npac", t(2022, 12, 1, 0)) == [17, 18]
+    assert s.goes_for("npac", t(2024, 12, 1, 0)) == [18, 17]
+
+
+def test_airmass_rgb_ranges():
+    rgb = s.airmass_rgb(np.array([243.0, 208.0]), np.array([268.0, 200.0]), np.array([240.0, 300.0]),
+                        np.array([280.0, 250.0]))
+    assert rgb.shape == (2, 3)
+    assert np.allclose(rgb[0], [0.0, 0.0, 0.0]) and np.allclose(rgb[1], [1.0, 1.0, 1.0])
 
 
 if __name__ == "__main__":
