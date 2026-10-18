@@ -1,0 +1,7 @@
+{
+ "method": "logistic",
+ "cv_auc": {
+  "logistic": 0.7467567520431065,
+  "boosted": 0.7221182862020634
+ }
+}
