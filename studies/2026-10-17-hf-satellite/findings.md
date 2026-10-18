@@ -45,6 +45,10 @@ By basin: Atlantic IR 0.655, IR + air mass 0.657, air mass alone 0.678 (46 fixes
 
 Air-mass RGB of the mean bands around HF and storm-force fixes (tuning weeks, motion up), and the HF minus storm-force difference in the 9.6 minus 10.3 um (ozone) term: orange where HF has more high cloud, purple where it has more dry, ozone-rich air. Storm-force samples are small (40 and 49), so the purple patches are noisy.
 
+![Air mass within 65 deg view angle: in the Pacific, a clearer ring of dry ozone-rich air ahead-left and behind the HF comma](fig/composites_airmass_vza65.png)
+
+The same composite kept to fixes the satellite sees within 65 deg at the centre (Atlantic about west of 50W; all weeks, since nothing is fitted): Atlantic 89 HF / 24 storm-force fixes, Pacific 71 / 25. The Pacific dry-air pattern is clearer; the Atlantic difference stays weak. West of 30W alone changes almost nothing, because the 90%-seen rule had already dropped most fixes east of 30W (5 tuning fixes remain there).
+
 What limits it: GOES ABI only (GOES-East for the Atlantic, GOES-West for the Pacific); the Atlantic HF lows sit far from GOES-East, so 107 Atlantic HF fixes were partial views beyond 80 deg view angle (223 usable). Meteosat would see the eastern Atlantic better and is not in the reader yet. 763 of 764 basin-times were found (npac 2025-01-16 12Z missing), about 25 GB read, 3.4 GB stored and published as truth kind `airmass`.
 
 ## Code (full archive and air mass)
