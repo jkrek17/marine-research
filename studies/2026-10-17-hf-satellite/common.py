@@ -20,8 +20,8 @@ def season(t):
     return t.year if t.month >= 6 else t.year - 1
 
 
-def fixes():
-    """Archive fixes of the pilot seasons in the basin boxes -> DataFrame with basin, event_id, valid, lat,
+def fixes(seasons=SEASONS):
+    """Archive fixes of the given seasons (default the pilot's) in the basin boxes -> DataFrame with basin, event_id, valid, lat,
     lon (0-360), hpa, category, head (motion heading from the neighbouring fixes, NaN for a one-fix event),
     split (held_out when the event's first fix is in a held-out week)."""
     out = []
@@ -31,7 +31,7 @@ def fixes():
         a["basin"] = b
         a["event_id"] = b + "_" + a["event_id"].astype(str)     # ids repeat across the two basin sheets
         a["season"] = [season(t) for t in a["valid"]]
-        a = a[a["season"].isin(SEASONS)]
+        a = a[a["season"].isin(seasons)]
         a = a.sort_values(["event_id", "valid"]).drop_duplicates(["event_id", "valid"])
         heads = []
         for _, g in a.groupby("event_id", sort=False):

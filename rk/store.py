@@ -411,7 +411,7 @@ def fill(cycle, steps=STEPS, models=DET, ens=ENS, workers=6, basins=tuple(BASINS
 
 TRUTH_KINDS = {"analysis": (True, 10), "obs": (True, 10), "airsea": (True, 10),
                "ascat": (False, 8), "smap": (False, 8),
-               "gridsat": (True, 10)}   # kind: (per basin, stem length); gridsat: rk.satellite IR boxes
+               "gridsat": (True, 10), "airmass": (True, 10)}   # kind: (per basin, stem length); gridsat, airmass: rk.satellite boxes
 
 
 def truth_key(kind, basin, stem):
