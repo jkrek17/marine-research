@@ -1,0 +1,154 @@
+{
+ "method": "boosted",
+ "counts": {
+  "cores": 147,
+  "hf": 39,
+  "weeks": 5,
+  "valid_times": 51,
+  "hf_valid_times": 11,
+  "natl": 115,
+  "npac": 32,
+  "npac_hf": 4,
+  "distinct_core_rows": 99
+ },
+ "auc": {
+  "model": 0.9047958214624882,
+  "p_max": 0.8882953466286799,
+  "r10_max": 0.9119183285849952
+ },
+ "brier_skill": 0.35280500937163695,
+ "threshold": 0.41033430837732204,
+ "diff_vs_p_max": [
+  0.016500474833808232,
+  -0.1123623623623623,
+  0.10246112522742883
+ ],
+ "diff_vs_r10_max": [
+  -0.00712250712250706,
+  -0.08045977011494254,
+  0.03898550724637684
+ ],
+ "passed": false,
+ "flagging": [
+  {
+   "basin": "all",
+   "lead": "all",
+   "cores": 147,
+   "hf": 39,
+   "flagged": 21,
+   "hits": 18,
+   "pod": 0.46153846153846156,
+   "far": 0.1428571428571429
+  },
+  {
+   "basin": "all",
+   "lead": 24,
+   "cores": 53,
+   "hf": 14,
+   "flagged": 11,
+   "hits": 9,
+   "pod": 0.6428571428571429,
+   "far": 0.18181818181818177
+  },
+  {
+   "basin": "all",
+   "lead": 48,
+   "cores": 46,
+   "hf": 13,
+   "flagged": 5,
+   "hits": 5,
+   "pod": 0.38461538461538464,
+   "far": 0.0
+  },
+  {
+   "basin": "all",
+   "lead": 72,
+   "cores": 48,
+   "hf": 12,
+   "flagged": 5,
+   "hits": 4,
+   "pod": 0.3333333333333333,
+   "far": 0.19999999999999996
+  },
+  {
+   "basin": "natl",
+   "lead": "all",
+   "cores": 115,
+   "hf": 35,
+   "flagged": 19,
+   "hits": 17,
+   "pod": 0.4857142857142857,
+   "far": 0.10526315789473684
+  },
+  {
+   "basin": "natl",
+   "lead": 24,
+   "cores": 43,
+   "hf": 12,
+   "flagged": 10,
+   "hits": 8,
+   "pod": 0.6666666666666666,
+   "far": 0.19999999999999996
+  },
+  {
+   "basin": "natl",
+   "lead": 48,
+   "cores": 36,
+   "hf": 12,
+   "flagged": 5,
+   "hits": 5,
+   "pod": 0.4166666666666667,
+   "far": 0.0
+  },
+  {
+   "basin": "natl",
+   "lead": 72,
+   "cores": 36,
+   "hf": 11,
+   "flagged": 4,
+   "hits": 4,
+   "pod": 0.36363636363636365,
+   "far": 0.0
+  },
+  {
+   "basin": "npac",
+   "lead": "all",
+   "cores": 32,
+   "hf": 4,
+   "flagged": 2,
+   "hits": 1,
+   "pod": 0.25,
+   "far": 0.5
+  },
+  {
+   "basin": "npac",
+   "lead": 24,
+   "cores": 10,
+   "hf": 2,
+   "flagged": 1,
+   "hits": 1,
+   "pod": 0.5,
+   "far": 0.0
+  },
+  {
+   "basin": "npac",
+   "lead": 48,
+   "cores": 10,
+   "hf": 1,
+   "flagged": 0,
+   "hits": 0,
+   "pod": 0.0,
+   "far": NaN
+  },
+  {
+   "basin": "npac",
+   "lead": 72,
+   "cores": 12,
+   "hf": 1,
+   "flagged": 1,
+   "hits": 0,
+   "pod": 0.0,
+   "far": 1.0
+  }
+ ]
+}
