@@ -321,6 +321,18 @@ def test_warning_points():
     assert r["bad_cells"] == 9
 
 
+def test_pressure_drop():
+    narrow = _field("natl", [(50, 320, 960.0)], sigma_deg=2.0)
+    wide = _field("natl", [(50, 320, 960.0)], sigma_deg=5.0)
+    dn, cn, rn = score.pressure_drop(narrow, "natl", 50, 320)
+    dw, cw, _ = score.pressure_drop(wide, "natl", 50, 320)
+    assert abs(cn - 960) < 0.5 and abs(cw - 960) < 0.5      # same centre
+    assert dn > dw > 0 and abs(dn - (rn - cn)) < 1e-9        # narrower low, bigger drop to 500 km
+    exp = 52 * (1 - np.exp(-0.5 * (500 / 111.0 / 2.0) ** 2))
+    assert abs(dn - exp) < 1.5
+    assert np.isnan(score.pressure_drop(np.full_like(narrow, np.nan), "natl", 50, 320)[0])
+
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):
