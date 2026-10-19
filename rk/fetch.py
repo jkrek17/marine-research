@@ -143,15 +143,17 @@ def low(model, cycle, step):
     return _by_basin(out, names)
 
 
-def members(ens, cycle, step, msl=True, workers=6):
+def members(ens, cycle, step, msl=True, workers=6, wind=True):
     """Ensemble members -> {basin: {'u': [n,y,x], 'v': [n,y,x], 'msl': [n,y,x]}} or None.
     ens: gefs (c00 + p01..p30), ens (IFS ENS, -ef), aifs-ens (-cf + -pf). Members missing a field are dropped;
-    msl is left out of the result when msl=False."""
+    msl is left out of the result when msl=False, u and v when wind=False (MSLP only, a third of the bytes)."""
     wait_for_quiet()
-    want = ("u", "v", "msl") if msl else ("u", "v")
+    want = (("u", "v") if wind else ()) + (("msl",) if msl else ())
+    if not want:
+        raise ValueError("members: ask for wind, msl or both")
     mem = {}
     if ens == "gefs":
-        keys = dict(UVP if msl else UV)
+        keys = {k: n for k, n in UVP.items() if n in want}
         ymd, hh = cycle.strftime("%Y%m%d"), cycle.strftime("%H")
 
         def one(m):
@@ -163,7 +165,7 @@ def members(ens, cycle, step, msl=True, workers=6):
                     mem[i] = o
     elif ens in ("ens", "aifs-ens"):
         model, typs = ("ifs", ("ef",)) if ens == "ens" else ("aifs-ens", ("cf", "pf"))
-        wanted = ("10u", "10v", "msl") if msl else ("10u", "10v")
+        wanted = tuple(p for p, n in _EC_PARAMS.items() if n in want)
         ymd, hh = cycle.strftime("%Y%m%d"), cycle.strftime("%H")
         jobs = []
         for typ in typs:
@@ -188,6 +190,16 @@ def members(ens, cycle, step, msl=True, workers=6):
         if msl:
             res[b]["msl"] = res[b]["msl"] / 100.0  # Pa -> hPa
     return res
+
+
+PATTERN = {"HGT:500 mb": "z500", "PRMSL:mean sea level": "msl", "UGRD:250 mb": "u250", "VGRD:250 mb": "v250"}
+
+
+def gfs_pattern(cycle, step):
+    """GFS 500 hPa height (m), MSLP (Pa, MSLET fallback), 250 hPa u and v (m/s) on the whole 0.25 deg globe
+    [721, 1440] (lat 90..-90) -> dict, or None if not posted. The Storm Twins inputs (rk.twins)."""
+    wait_for_quiet()
+    return nwp.ncep(gfs_url(cycle, step), PATTERN)
 
 
 def gfs_mask(valid):

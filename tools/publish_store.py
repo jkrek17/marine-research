@@ -31,6 +31,9 @@ zips of the batch are deleted, so a long run holds about one batch on disk (they
 that pushed anything ends with gc --prune=now. A cycle whose local files are all
 identical to the published ones is not re-uploaded (its marks are just cleared).
 
+--what lab --lab FILE... sends the lab job's fixed inputs: each {name}.npz becomes asset {name}.npz of release
+lab-assets (rk.store.lab_asset), replacing the published one.
+
 --include-legacy also treats every file under RK_DATA/fields (the old shared layout) as local, for the
 one-time move; identical files are skipped, so it is safe to repeat. --include-legacy-truth does the same
 for RK_DATA/truth (analysis, obs, airsea, ascat, smap; about 0.7 GB, about 1,300 files; hf_lows is left out).
@@ -135,7 +138,8 @@ def main(argv=None):
                     help="clone of marine-research-data (default: $RK_DATA_REPO)")
     ap.add_argument("--direct", metavar="FOLDER", help="write the files to FOLDER (incoming/ layout) "
                     "for scripts/upload_incoming.sh instead of pushing a branch")
-    ap.add_argument("--what", choices=("all", "fields", "truth"), default="all")
+    ap.add_argument("--what", choices=("all", "fields", "truth", "lab"), default="all")
+    ap.add_argument("--lab", nargs="+", default=[], metavar="FILE", help="lab inputs ({name}.npz) to send with --what lab")
     ap.add_argument("--max-mb", type=float, default=500.0, help="most MB per pushed branch")
     ap.add_argument("--include-legacy", action="store_true", help="also the old RK_DATA/fields files")
     ap.add_argument("--include-legacy-truth", action="store_true", help="also the old RK_DATA/truth files")
@@ -144,7 +148,11 @@ def main(argv=None):
 
     fjobs = collect(a.include_legacy) if a.what in ("all", "fields") else []
     tjobs = collect_truth(a.include_legacy_truth) if a.what in ("all", "truth") else []
-    if not fjobs and not tjobs:
+    ljobs = [Path(f) for f in a.lab] if a.what == "lab" else []
+    for f in ljobs:
+        if f.suffix != ".npz" or not f.is_file():
+            raise SystemExit("--lab takes existing .npz files, got %s" % f)
+    if not fjobs and not tjobs and not ljobs:
         print("nothing to publish")
         return 0
     outdir = Path(a.direct).resolve() if a.direct else None
@@ -230,6 +238,9 @@ def main(argv=None):
                 rel = "truth/%s/%s%s.npz" % (kind, b + "/" if b else "", stem)
                 add(rel, path, path.stat().st_size,
                     lambda k=kind, bb=b, s_=stem, d=dirty: store.truth_mark_clean(k, bb, [s_]) if d else None)
+            for f in ljobs:
+                print("lab %s -> %.1f MB" % (f.name, f.stat().st_size / 1e6))
+                add("lab/" + f.name, f, f.stat().st_size, lambda: None)
             if tjobs:
                 print("truth: %d files (%s)" % (len(tjobs), ", ".join("%d %s" % (v, k) for k, v in sorted(counts.items()))))
             flush()

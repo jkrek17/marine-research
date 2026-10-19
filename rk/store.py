@@ -622,3 +622,26 @@ def analysis(basin, valid):
     p = truth_cache_path("analysis", basin, valid)
     with np.load(p) as z:
         return _load_analysis(z)
+
+
+# ---- lab assets: fixed inputs of the wxmap.pro lab job (release lab-assets) ----
+
+LAB_RELEASE = "lab-assets"
+
+
+def lab_asset(name, refresh=False):
+    """Path of a lab job input ({name}.npz, e.g. twins_library): cache CACHE/lab/, else downloaded from release
+    lab-assets (published with tools/publish_store.py --what lab --lab FILE...). None if nowhere."""
+    name = _check_name(name)
+    p = paths.CACHE / "lab" / (name + ".npz")
+    if p.exists() and not refresh:
+        return p
+    if os.environ.get("RK_OFFLINE") == "1":
+        return p if p.exists() else None
+    blob = _http_get("%s/%s/%s.npz" % (RELEASES.rstrip("/"), LAB_RELEASE, name))
+    if blob is None:
+        return p if p.exists() else None
+    p.parent.mkdir(parents=True, exist_ok=True)
+    _write_bytes(p, blob)
+    return p
+

@@ -44,7 +44,8 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - Every decoder crops both basins from one GRIB message.
 - `det(model, cycle, step) -> {basin: {"u","v","msl"}} | None` for model in `gfs`, `ifs`, `aifs` (u, v m/s, msl hPa). Step 0 of gfs/ifs is the analysis.
 - `low(model, cycle, step) -> {basin: {"t2","skt","u925","v925","t925","u850","v850"[, "land","ice"]}} | None` for model in `gfs`, `ifs`, `aifs` (temperatures K, winds m/s; `land` and `ice` 0-1, gfs only, from LAND and ICEC). Key maps `GFS_LOW`, `EC_LOW_SFC`, `EC_LOW_PL` copied from the marine wind page. None if not posted or any field is missing.
-- `members(ens, cycle, step, msl=True) -> {basin: {"u": [n,y,x], "v": [n,y,x], "msl": [n,y,x]}} | None` for ens in `gefs` (c00 + p01..p30), `ens` (IFS ENS, `-ef`), `aifs-ens` (`-cf` + `-pf`).
+- `members(ens, cycle, step, msl=True, wind=True) -> {basin: {"u": [n,y,x], "v": [n,y,x], "msl": [n,y,x]}} | None` for ens in `gefs` (c00 + p01..p30), `ens` (IFS ENS, `-ef`), `aifs-ens` (`-cf` + `-pf`). `wind=False` leaves u and v out (MSLP only, the bomb watch's lab job).
+- `gfs_pattern(cycle, step) -> {'z500' (m), 'msl' (Pa), 'u250', 'v250' (m/s)} | None`: whole-globe 0.25 deg [721, 1440] (lat 90..-90) GFS fields for Storm Twins (`PATTERN`).
 - `gdas_background(valid) -> {basin: {"u": [7,y,x], "v": [7,y,x], "land"}}`: the previous GDAS cycle's f003..f009 10 m wind, for building ship and buoy winds.
 
 ## rk/store.py (model-field store and truth files: GitHub Releases, local cache)
@@ -67,6 +68,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
   - Writers: `truth_save(kind, basin, stem, **arrays) -> Path` writes into the cache atomically and marks it unpublished (`.dirty/{stem}.npz` beside it); `truth_dirty() -> {(kind, basin|None): [file names]}`, `truth_mark_clean(kind, basin, names)`. `rk.truth` loaders (`obs_points`, `airsea`, `ascat_day`, `smap_day`) and `analysis` use these; nothing writes truth to `RK_DATA` any more.
   - `truth_merge(kind, local, remote_bytes) -> new | same | replaced | kept`: arrays compared, not bytes; local wins when different, except that a local NRT smap day never replaces a published FINAL one (`kept`).
   - The hf-low archive CSVs are not in releases (see `rk.truth.hf_archive`).
+- Lab inputs: `lab_asset(name, refresh=False) -> Path | None`: fixed inputs of the lab job (`twins_library`, `twins_clim0012`, `twins_pca`) from `RK_CACHE/lab/{name}.npz`, else release `lab-assets` (`LAB_RELEASE`). Sent with `tools/publish_store.py --what lab --lab FILE...`.
 - Publishing: `tools/publish_store.py --repo <clone of marine-research-data>` (or `RK_DATA_REPO`) zips each dirty cycle merged with its published asset, commits `incoming/{basin}/{cycle}.zip` on a branch `upload/<utc-timestamp>-<n>` (at most ~500 MB per branch), pushes, then clears the marks. The workflow in marine-research-data turns the zips into release assets and deletes the branch. Truth files go the same way as `incoming/truth/{kind}[/{basin}]/{stem}.npz` (plain assets; a published file with the same arrays is skipped, a different one is replaced). `--direct <folder>` writes the `incoming/` layout to a folder instead of pushing (for `scripts/upload_incoming.sh` in the data repo, used by the scheduled fill and truth jobs); `--what all|fields|truth`; `--include-legacy-truth` also takes every file under `RK_DATA/truth` (not `hf_lows`) for the one-time move. Scheduled jobs: `tools/fill_store.py --complete --min-age-hours 8` and `tools/fill_truth.py`.
 
 ## rk/truth.py
@@ -152,6 +154,13 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `coarsen(a)`: 0.25 deg [721, 1440] (lat 90..-90) -> 1.5 deg [121, 240] (lat -90..90), the ERA5 pipeline's conservative 7-point rule. `anomalies(z500_m, msl_hpa, u250, v250, clim, valid)`: 1.5 deg fields -> {channel: field}; `clim` is RK_DATA/lab/twins_clim0012.npz (00/12 UTC, float16). `patch(fields, lat, lon) -> [6, 13, 13]` float16. `destination`, `sample` as in hf-low.
 - `Frozen(path).pcs(X) -> [n, 15]`: hf-low's frozen ERA5 PCA (`gfs/results/frozen_pca_full.npz`).
 - `twins(lib, pcs, k=30, exclude_season=None, show=5) -> {n, counts (per CLASSES), hf_share, closest}`: k nearest library fixes in the 15-PC space; `closest` = the `show` nearest from different storms. `lib` = RK_DATA/lab/twins_library.npz (`studies/2026-10-19-storm-twins/build_library.py`: 32,288 ERA5 pipeline A fixes Oct-Apr 2014-15..2021-22 with pcs, track, time, basin, season, lat, lon, msl, gcls = next-24 h ERA5 gust class 0-3). A proxy library.
+- `gfs_patches(g, lows, valid, clim) -> [k, 6, 13, 13]`: `rk.fetch.gfs_pattern` fields at a 00/12 UTC valid time, coarsened, as anomalies, one patch per low (lat, lon). `assets() -> (library, clim, Frozen)` from `rk.store.lab_asset` (FileNotFoundError when missing).
+
+## rk/bomb.py (bomb rule of the day 5-7 bomb watch: studies/2026-10-19-bomb-d5-7, shared with the lab job)
+- `find_lows(hpa, lats, lons) -> (k, 3)` lat, lon, hPa: 13-cell minima below `BELOW` = 1012 hPa, `PAD` cells off the box edge, deduplicated within `SEP_KM` = 150 km (`dedupe`). `dec(a)`: stored int16 (hPa x 10 - 10000) -> hPa.
+- `bombs(prev, now) -> (m, 4)` lat, lon, hPa, Bergeron number: each low at t takes the nearest low at t-24 within `TRACK_KM` = 1,200 km; Bergeron = drop x sin60 / sin(mean lat) / 24; a bomb is >= 1.
+- `cells(basin)`: 2 deg cell centres of `BOXES`; `near(points, clat, clon, radius=NBR_KM)`: any point within 500 km of each cell; `member_field`.
+- `ocean_mask(basin) -> bool [y, x]`: open, ice-free water on the basin grid (the analysis mask, 2026-01-15 12 UTC, cached per process); `ocean_cells(basin, lats, lons)`: cells at least half open water (the cells the study scored).
 
 ## rk/compare.py
 - `paired(df, method, baseline, value, by=None, block="week", n_boot=2000, seed=0) -> DataFrame`: mean difference method minus baseline with 95% intervals from resampling whole ISO weeks (storms within a week are not independent). Column `significant`.
