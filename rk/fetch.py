@@ -228,3 +228,52 @@ def gdas_background(valid):
             if "land" in r:
                 land[b] = r["land"][b]
     return {b: {"u": np.stack(U[b]), "v": np.stack(V[b]), "land": land[b]} for b in BASINS}
+
+
+# ---- GEFSv12 reforecast (2000-2019, 00 UTC, 5 members a day, 11 on Wednesdays; noaa-gefs-retrospective) ----
+
+REFORECAST = "https://noaa-gefs-retrospective.s3.amazonaws.com/GEFSv12/reforecast"
+REFORECAST_MEMBERS = ("c00", "p01", "p02", "p03", "p04")
+
+
+def reforecast_url(day, member, var="pres_msl", days="1-10"):
+    """The GRIB2 file holding every lead of one variable for one 00 UTC reforecast run and member.
+    var is the file stem (pres_msl, ugrd_hgt, tmp_2m, ...); days '1-10' (0.25 deg) or '10-16'."""
+    d = day.strftime("%Y%m%d") + "00"
+    return "%s/%s/%s/%s/Days:%s/%s_%s_%s.grib2" % (REFORECAST, d[:4], d, member, days, var, d, member)
+
+
+def reforecast_index(url):
+    """{forecast hour: (start, end)} from the file's .idx (end None for the last record), or None.
+    Each file holds one variable, so the lead is the key (the first record of a lead wins)."""
+    r = get(url + ".idx")
+    if r is None:
+        return None
+    rows = [ln.split(":") for ln in r.text.strip().splitlines()]
+    out = {}
+    for i, f in enumerate(rows):
+        lead = f[5].split()[0]
+        if not lead.isdigit():
+            continue
+        end = int(rows[i + 1][1]) - 1 if i + 1 < len(rows) else None
+        out.setdefault(int(lead), (int(f[1]), end))
+    return out
+
+
+def gefs_reforecast(day, member, steps, var="pres_msl"):
+    """One reforecast run and member -> {step: {basin: 2-D float32}} for the steps asked (MSLP in hPa,
+    other fields in their GRIB units), or None when the file is not there. A missing step is left out."""
+    url = reforecast_url(day, member, var)
+    idx = reforecast_index(url)
+    if idx is None:
+        return None
+    out = {}
+    for s in steps:
+        if s not in idx:
+            continue
+        blob = get(url, idx[s])
+        if blob is None:
+            continue
+        v = _cut(nwp.decode(blob.content))
+        out[s] = {b: a / 100.0 for b, a in v.items()} if var.startswith("pres_msl") else v
+    return out

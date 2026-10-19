@@ -154,6 +154,36 @@ def test_ascat_fallback_06z():
     assert b is not None and len(b["spd_kt"]) > 100
 
 
+
+def test_era5_chunk_decode_and_cache():
+    import datetime as dt
+    import tempfile
+    import numcodecs
+    from rk import fetch, paths
+    a = np.full((721, 1440), 101325.0, np.float32)
+    a[100, 200] = 96000.0
+    blob = numcodecs.Blosc().encode(a.tobytes())
+
+    class R:
+        content = blob
+    calls = []
+    saved, cache = fetch.get, paths.CACHE
+    with tempfile.TemporaryDirectory() as tmp:
+        paths.CACHE = Path(tmp)
+        fetch.get = lambda url, rng=None, tries=8: calls.append(url) or R()
+        try:
+            v = dt.datetime(2010, 1, 5)
+            out = truth.era5(v)
+            assert calls[0].endswith("/mean_sea_level_pressure/964344.0.0"), calls[0]
+            assert set(out) == {"natl", "npac"} and abs(float(out["natl"].max()) - 1013.25) < 1e-3
+            again = truth.era5(v)                       # second read from the cache, no fetch
+            assert len(calls) == 1 and np.array_equal(again["npac"], out["npac"])
+            fetch.get = lambda url, rng=None, tries=8: None
+            assert truth.era5(dt.datetime(2010, 1, 6)) is None
+        finally:
+            fetch.get, paths.CACHE = saved, cache
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

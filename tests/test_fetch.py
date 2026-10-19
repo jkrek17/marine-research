@@ -56,6 +56,29 @@ def test_other_errors_still_raise():
         _restore(saved)
 
 
+class _R:
+    def __init__(self, text):
+        self.text = text
+
+
+def test_reforecast_url_and_index():
+    d = dt.datetime(2010, 1, 1)
+    assert fetch.reforecast_url(d, "p01") == (fetch.REFORECAST + "/2010/2010010100/p01/Days:1-10/"
+                                              "pres_msl_2010010100_p01.grib2")
+    idx = "\n".join(["1:0:d=2010010100:PRES:mean sea level:3 hour fcst:ENS=+1",
+                      "2:100:d=2010010100:PRES:mean sea level:6 hour fcst:ENS=+1",
+                      "3:250:d=2010010100:PRES:mean sea level:9 hour fcst:ENS=+1"])
+    saved = fetch.get
+    fetch.get = lambda url, rng=None, tries=8: _R(idx) if url.endswith(".idx") else None
+    try:
+        assert fetch.reforecast_index("x") == {3: (0, 99), 6: (100, 249), 9: (250, None)}
+        assert fetch.gefs_reforecast(d, "c00", (6, 12)) == {}      # record not there: step left out
+        fetch.get = lambda url, rng=None, tries=8: None
+        assert fetch.gefs_reforecast(d, "c00", (6,)) is None      # no file: None
+    finally:
+        fetch.get = saved
+
+
 if __name__ == "__main__":
     for n, f in list(globals().items()):
         if n.startswith("test_"):
