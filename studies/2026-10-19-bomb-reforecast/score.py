@@ -31,9 +31,16 @@ def fit(method, d):
     return lg if method == "logistic" else calibrate.fit_pooled(tab, prior=lg, nmin=500)
 
 
+def training(t):
+    """Training rows: tune-week inits whose valid time no held-out row also verifies at (LESSONS.md: held-out
+    runs spill into the next week, so a valid-week test alone leaves shared ERA5 storms in training)."""
+    shared = t.valid.isin(t.loc[t.split == "held_out", "valid"].unique())
+    return t[(t.split == "tune") & ~t.valid_held & ~shared]
+
+
 def add_climatology(t):
     """Event frequency per basin and cell over training weeks (winter only); basin-pooled where < 20 cases."""
-    tr = t[(t.split == "tune") & ~t.valid_held]
+    tr = training(t)
     g = tr.groupby(["basin", "cell"]).event.agg(["mean", "size"]).rename(columns={"mean": "c", "size": "k"})
     b = tr.groupby("basin").event.mean().rename("cb")
     t = t.join(g, on=["basin", "cell"]).join(b, on="basin")
@@ -49,7 +56,7 @@ def top(p, y, lo=0.3):
 def main():
     t = add_climatology(pd.read_parquet(paths.data("bomb-reforecast", "cells.parquet")))
     RES.mkdir(exist_ok=True)
-    tune = t[(t.split == "tune") & ~t.valid_held].copy()
+    tune = training(t).copy()
     held = t[t.split == "held_out"].copy()
     wk = d57.week(tune.cycle)
     u = np.unique(wk)
