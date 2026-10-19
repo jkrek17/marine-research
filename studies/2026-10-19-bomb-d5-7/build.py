@@ -79,7 +79,7 @@ def anl_lows(day, basin):
 def one(ymd, cl):
     c0 = dt.datetime.strptime(ymd, "%Y%m%d").replace(hour=12)
     fc, f96 = load_cycle(ymd)
-    if not all(fc.values()) or not all(f96.values()):
+    if not fc["noaa"] or not fc["ec"] or not f96["noaa"] or not f96["ec"]:
         return None
     rows = []
     for basin, (clat, clon) in cl.items():
@@ -102,7 +102,7 @@ def one(ymd, cl):
                     hits.append(bomb.near(b[b[:, 3] >= 1.0], clat, clon))
                 shares[ens] = (np.mean(hits, axis=0), len(hits))
                 nmem += len(hits)
-            if len(shares) < 3:
+            if "gefs" not in shares or "ens" not in shares:     # AIFS ENS starts mid-2025; optional
                 continue
             out["p_raw"] = sum(s * k for s, k in shares.values()) / nmem
             out["p_eq"] = np.mean([s for s, _ in shares.values()], axis=0)

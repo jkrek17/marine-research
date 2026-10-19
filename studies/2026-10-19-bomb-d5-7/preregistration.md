@@ -19,3 +19,6 @@ The layer passes when, at all three leads on held-out weeks, the chosen method h
 
 ## Prior (written before scoring)
 The ensemble shares will be skilful against climatology at day 5 and weaker by day 7, with BSS of roughly +0.05 to +0.15. The raw shares will read low, which calibration fixes. The deterministic yes/no will have a worse Brier than the calibrated share at every lead.
+
+## Note added before scoring (2026-10-19)
+AIFS ENS is not archived before mid-2025, so a run counts when GEFS and ENS are both present; AIFS ENS joins the shares where it exists.

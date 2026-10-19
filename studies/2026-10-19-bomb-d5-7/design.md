@@ -20,7 +20,7 @@
 
 **Methods tried, simplest first:**
 1. Each deterministic model's yes/no (a bomb ending within 500 km).
-2. Raw member share: the fraction of the 133 members (31 GEFS, 51 ENS, 51 AIFS ENS) with a bomb ending within 500 km.
+2. Raw member share: the fraction of the members (31 GEFS, 51 ENS, and 51 AIFS ENS where it exists; it starts mid-2025) with a bomb ending within 500 km.
 3. The same share with each ensemble weighted equally.
 4. The best of 2 and 3, calibrated on training weeks (`rk.calibrate.fit_logistic`).
 
