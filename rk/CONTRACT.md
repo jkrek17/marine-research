@@ -147,6 +147,12 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `rarity_table(lows, month, ref=None, **kw)`: a lows table (lat, lon, hpa) with pct, n, months, deepest added.
 - ERA5 minus the OPC archive at matched HF fixes: +1.0 hPa Atlantic, 0.0 hPa Pacific (event medians, `studies/2026-10-19-storm-rarity/offset_check.py`), so no offset is applied.
 
+## rk/twins.py (Storm Twins: storm-centred pattern and closest past ERA5 storms; ported from hf-low storm_patch_analogs)
+- Patch recipe as tested in hf-low: 13 x 13 north-up, 154.33 km spacing (926 km = 500 nm edge), channels `CH` = a_z500 (m), a_msl (hPa), a_u250, a_v250 (anomalies from the WeatherBench2 1990-2019 ERA5 climatology), z500, msl (display).
+- `coarsen(a)`: 0.25 deg [721, 1440] (lat 90..-90) -> 1.5 deg [121, 240] (lat -90..90), the ERA5 pipeline's conservative 7-point rule. `anomalies(z500_m, msl_hpa, u250, v250, clim, valid)`: 1.5 deg fields -> {channel: field}; `clim` is RK_DATA/lab/twins_clim0012.npz (00/12 UTC, float16). `patch(fields, lat, lon) -> [6, 13, 13]` float16. `destination`, `sample` as in hf-low.
+- `Frozen(path).pcs(X) -> [n, 15]`: hf-low's frozen ERA5 PCA (`gfs/results/frozen_pca_full.npz`).
+- `twins(lib, pcs, k=30, exclude_season=None, show=5) -> {n, counts (per CLASSES), hf_share, closest}`: k nearest library fixes in the 15-PC space; `closest` = the `show` nearest from different storms. `lib` = RK_DATA/lab/twins_library.npz (`studies/2026-10-19-storm-twins/build_library.py`: 32,288 ERA5 pipeline A fixes Oct-Apr 2014-15..2021-22 with pcs, track, time, basin, season, lat, lon, msl, gcls = next-24 h ERA5 gust class 0-3). A proxy library.
+
 ## rk/compare.py
 - `paired(df, method, baseline, value, by=None, block="week", n_boot=2000, seed=0) -> DataFrame`: mean difference method minus baseline with 95% intervals from resampling whole ISO weeks (storms within a week are not independent). Column `significant`.
 - `boot_sums(week_ids, stats, n_boot=2000, seed=0) -> (total [k], draws [n_boot, k])`: whole-week bootstrap of additive statistics (stats [n_rows, k]); ratios are computed from the sums.
