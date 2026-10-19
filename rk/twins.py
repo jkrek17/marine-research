@@ -72,6 +72,22 @@ def patch(fields, lat, lon):
     return np.stack([sample(fields[c], la, lo) for c in CH]).astype(np.float16)
 
 
+def gfs_patches(g, lows, valid, clim):
+    """rk.fetch.gfs_pattern fields at a 00/12 UTC valid time and lows (k, >=2: lat, lon) -> patches [k, 6, 13, 13]."""
+    a = anomalies(coarsen(g["z500"]), coarsen(g["msl"]) / 100.0, coarsen(g["u250"]), coarsen(g["v250"]), clim, valid)
+    return np.stack([patch(a, la, lo) for la, lo in np.asarray(lows)[:, :2]]) if len(lows) else np.zeros((0, 6, NP, NP), np.float16)
+
+
+def assets():
+    """The lab job's inputs from rk.store.lab_asset -> (library dict, climatology dict, Frozen)."""
+    from . import store
+    p = {n: store.lab_asset(n) for n in ("twins_library", "twins_clim0012", "twins_pca")}
+    missing = [n for n, v in p.items() if v is None]
+    if missing:
+        raise FileNotFoundError("lab assets not found: %s (release lab-assets)" % ", ".join(missing))
+    return dict(np.load(p["twins_library"])), dict(np.load(p["twins_clim0012"])), Frozen(p["twins_pca"])
+
+
 class Frozen:
     """The frozen ERA5 scaler, mask and PCA (hf-low gfs/results/frozen_pca_full.npz)."""
 
