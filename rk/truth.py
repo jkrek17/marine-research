@@ -5,6 +5,8 @@ ascat()  RSS ASCAT v2.1 cells near the valid time, equivalent-neutral or real 10
 smap_day()  RSS SMAP v1.0 L3 daily winds (L-band radiometer), a second equivalent-neutral instrument
 ascat_grid()  ascat() snapped to the basin grid (seen mask, max speed)
 hf_archive(), hf_fixes()  OPC hurricane-force low fixes from the jkrek17/hf-low archive
+era5()   any ERA5 single-level field at an hour, from the public ARCO zarr (a reanalysis: a proxy for the analysis,
+         back to 1940), cut to both boxes and cached under CACHE/truth/era5/ (not in releases)
 Everything here is cached as truth files (rk.store.truth_*): CACHE/truth first, then the legacy
 DATA/truth, then the release truth-{kind}[-{basin}]-{YYYYMM} of marine-research-data. A new file is written
 to CACHE/truth and marked unpublished; tools/publish_store.py sends it. A loader returns None when its source
@@ -675,3 +677,34 @@ def hf_fixes(basin, valid, categories=("HF",), in_box=True):
     if in_box:
         k &= inside(basin, a["lat"].values, a["lon"].values)
     return a[k].reset_index(drop=True)
+
+
+# ---- ERA5 (ARCO zarr on Google Cloud, public) ----
+
+ERA5_ZARR = "https://storage.googleapis.com/gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3"
+_ERA5_T0 = dt.datetime(1900, 1, 1)
+
+
+def era5(valid, var="mean_sea_level_pressure", cache=True):
+    """ERA5 at one hour -> {basin: 2-D float32} on the boxes' 0.25 deg grid (same layout as the analysis;
+    MSLP in hPa, other fields in ERA5 units), or None if the chunk is not there. ERA5 is a reanalysis: say
+    "ERA5 (proxy)" wherever it stands in for the analysis. Cached as CACHE/truth/era5/VAR/YYYYMMDDHH.npz
+    (about 0.4 MB an hour; cache=False for bulk pulls that keep only what they derive)."""
+    import numcodecs
+    p = paths.cache("truth", "era5", var, valid.strftime("%Y%m%d%H") + ".npz")
+    if p.exists():
+        with np.load(p) as z:
+            return {b: z[b] for b in z.files}
+    i = int((valid - _ERA5_T0).total_seconds() // 3600)
+    r = fetch.get("%s/%s/%d.0.0" % (ERA5_ZARR, var, i))
+    if r is None:
+        return None
+    a = np.frombuffer(numcodecs.Blosc().decode(r.content), dtype="<f4").reshape(721, 1440)
+    out = {b: (v / 100.0 if var == "mean_sea_level_pressure" else v).astype(np.float32)
+           for b, v in fetch._cut(a).items()}
+    if cache:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp.npz")
+        np.savez_compressed(tmp, **out)
+        tmp.replace(p)
+    return out
