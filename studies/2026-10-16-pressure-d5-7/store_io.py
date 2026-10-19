@@ -17,7 +17,10 @@ DOMS = ("natl", "npac")
 
 
 def _name(kind, src):
-    return ("mslpd57_an_%s" if kind == "an" else "mslpd57_%s") % src
+    """an -> mslpd57_an_{src}; fc -> mslpd57_{src}; another tag (fc96, the bomb study's +96 h) -> mslpd57_96_{src}."""
+    if kind == "an":
+        return "mslpd57_an_%s" % src
+    return "mslpd57_%s" % src if kind == "fc" else "mslpd57_%s_%s" % (kind[2:], src)
 
 
 def get(kind, src, ymd):
