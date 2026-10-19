@@ -91,21 +91,22 @@ def ec_ens(model, ymd, step):
     return out
 
 
-def cycle(ymd, pool, src):
-    """src 'noaa' (GFS + GEFS) or 'ec' (IFS, AIFS, ENS, AIFS ENS) -> CACHE/fc_{src}_YYYYMMDD.npz"""
-    path = os.path.join(CACHE, "fc_%s_%s.npz" % (src, ymd))
+def cycle(ymd, pool, src, steps=STEPS, det_steps=DET_STEPS, tag="fc"):
+    """src 'noaa' (GFS + GEFS) or 'ec' (IFS, AIFS, ENS, AIFS ENS) -> CACHE/{tag}_{src}_YYYYMMDD.npz
+    (other studies pull other steps under their own tag, e.g. the bomb study's +96 h as tag 'fc96')."""
+    path = os.path.join(CACHE, "%s_%s_%s.npz" % (tag, src, ymd))
     alt = os.environ.get("HAVE_DIR")      # also skip runs already stored here (when writing to a local overflow dir)
     if os.path.exists(path) or (alt and os.path.exists(os.path.join(alt, os.path.basename(path)))):
         return "have"
     out = {}
     jobs = {}
-    for s in DET_STEPS:
+    for s in det_steps:
         if src == "noaa":
             jobs[("gfs", s)] = pool.submit(gfs_det, ymd, s)
         else:
             jobs[("ifs", s)] = pool.submit(ec_det, "ifs", ymd, s)
             jobs[("aifs", s)] = pool.submit(ec_det, "aifs-single", ymd, s)
-    for s in STEPS:
+    for s in steps:
         if src == "noaa":
             for i in range(31):
                 mem = "c00" if i == 0 else "p%02d" % i
@@ -125,7 +126,7 @@ def cycle(ymd, pool, src):
         if f is not None:
             for d in B.DOMS:
                 out["det_%s_%s_%d" % (m, d, s)] = enc(f[d])
-    for s in STEPS:
+    for s in steps:
         if src == "noaa":
             sets = {"gefs": [(i, res[("gefs", s, i)]) for i in range(31) if res[("gefs", s, i)] is not None]}
         else:
