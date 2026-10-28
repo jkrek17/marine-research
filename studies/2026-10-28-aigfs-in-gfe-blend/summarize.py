@@ -11,7 +11,7 @@ Writes to --out (default RK_DATA/extra/aigfs-in-gfe-blend) and copies the small 
                    weeks for both). Per-group rows carry csi34, pod48, csi48 only.
   singles.csv      gfs, ifs, aifs, aigfs alone: mean error (forecast - ASCAT) at ASCAT >= 34 kt, all / cold air /
                    not cold air, and storm-tile (48+) POD, by split, basin and day group (1-2: steps 24, 30, 48;
-                   3-5: 54..126; day = ceil(step / 24)). Cold air = GFS t2 - skt < 0 (see run.py); the split
+                   3-5: 54..126; day = ceil(step / 24)). Cold air = GFS t2 - skt < -3 K (see run.py); the split
                    columns exist only where GFS low-level fields exist (steps 24..120), n_cold + n_notcold < n_all.
   verdict.md       the win line applied, then the tables.
 
@@ -262,7 +262,7 @@ def main():
         L += ["## %s" % label, "", _md(level_table(lv, split)), "",
               "Differences (whole-week 95% intervals):", "", _md(diff_table(df, split)), "",
               "Gale-tile CSI by lead:", "", _md(lead_table(lv, split)), "",
-              "Single models: mean error (kt, forecast - ASCAT) at ASCAT >= 34, all / cold air (GFS t2 - skt < 0) / "
+              "Single models: mean error (kt, forecast - ASCAT) at ASCAT >= 34, all / cold air (GFS t2 - skt < -3 K) / "
               "not cold; storm-tile POD:", "", _md(singles_table(sg, split)), ""]
     (out / "verdict.md").write_text("\n".join(L) + "\n")
     if not a.no_copy and out.resolve() != HERE:
