@@ -33,6 +33,7 @@ from .basins import BASINS
 from .cases import STEPS, available, tag
 
 DET = ("gfs", "ifs", "aifs")
+EXTRA_DET = ("aigfs",)   # accepted by fill and load_det, not in the default set the scheduled fill uses
 ENS = ("gefs", "ens", "aifs-ens")
 MIN_MEMBERS = 20
 FULL_MEMBERS = {"gefs": 31, "ens": 51, "aifs-ens": 51}   # control + perturbed; fill(complete=True) needs all of them

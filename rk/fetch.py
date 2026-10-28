@@ -92,12 +92,17 @@ def _ec_member(job):
 
 def det(model, cycle, step):
     """Deterministic run -> {basin: {'u','v','msl'}} (u, v m/s; msl hPa) or None if not posted.
-    model: gfs, ifs or aifs. Step 0 of gfs and ifs is the analysis."""
+    model: gfs, ifs, aifs or aigfs (NOAA AI-GFS). Step 0 of gfs and ifs is the analysis."""
     wait_for_quiet()
     if model == "gfs":
         out = _ncep(gfs_url(cycle, step), UVP)
         if out is None:
             return None
+    elif model == "aigfs":
+        raw = nwp.fields("aigfs", cycle.strftime("%Y%m%d%H"), step, UVP)
+        if raw is None:
+            return None
+        out = {n: _cut(v) for n, v in raw.items()}
     elif model in ("ifs", "aifs"):
         raw = nwp.fields("ifs" if model == "ifs" else "aifs-single", cycle.strftime("%Y%m%d%H"), step,
                          _EC_SELECT)

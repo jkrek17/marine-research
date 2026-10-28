@@ -173,6 +173,38 @@ def assemble(lats, speeds, pooled, stats, step, pa48=None, low=None, names=MODEL
     return {k: np.asarray(c[k], np.float32) for k in FEATURES}
 
 
+NOMEM_K = 0.3                # build.py: the 9-run spread multiplier of the deterministic blend
+
+
+def det_blend(basin, cycle, step, models=MODELS, weights=None, lags=(12, 24), k=NOMEM_K):
+    """The page's deterministic blend (build.py nomem_blend / support_base) from the store -> {"r10", "runs"} or None.
+
+    speeds = the current runs of `models` at (cycle, step); runs = speeds plus each model's run `lag` hours
+    earlier at step + lag (same valid time). Weight of model i = mean over runs of the Gaussian kernel
+    (SUPPORT_KT) at its speed x weights.get(model, 1) + 1e-6; base = weighted mean of the speeds;
+    r10 = base + min(k x SD of the runs, CAP_KT) (kt, float32, basin grid). `runs` is how many were pooled.
+    None if any run is missing; nothing is filled."""
+    models, lags = tuple(models), tuple(lags)
+    if not models:
+        raise ValueError("need at least one model")
+    w = weights or {}
+    runs = []
+    for lag in (0,) + lags:
+        c = cycle - dt.timedelta(hours=lag)
+        for m in models:
+            d = store.load_det(basin, c, m, step + lag)
+            if d is None:
+                return None
+            runs.append(np.asarray(d["speed"], np.float32))
+    runs = np.array(runs)
+    speeds = runs[:len(models)]
+    wt = np.array([np.exp(-0.5 * ((runs - s[None]) / SUPPORT_KT) ** 2).mean(0) * w.get(m, 1.0)
+                   for m, s in zip(models, speeds)]) + 1e-6
+    base = (wt * speeds).sum(0) / wt.sum(0)
+    r10 = base + np.minimum(k * runs.std(0), CAP_KT)
+    return {"r10": np.asarray(r10, np.float32), "runs": len(runs)}
+
+
 def blend(basin, cycle, step, models=MODELS, ens=ENSEMBLES, det_weights=None):
     """The page's blend wind for one basin, cycle and lead from the store -> {"r10", "boost", "base"} or None.
 
