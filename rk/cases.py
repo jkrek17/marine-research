@@ -7,7 +7,8 @@ STEPS = (24, 48, 72, 96, 120)
 
 _START = {"gfs": dt.datetime(2025, 3, 1), "gefs": dt.datetime(2025, 3, 1), "ifs": dt.datetime(2025, 3, 1),
           "ens": dt.datetime(2025, 3, 1), "aifs": dt.datetime(2025, 3, 1),
-          "aifs-ens": dt.datetime(2025, 8, 1)}
+          "aifs-ens": dt.datetime(2025, 8, 1),
+          "aigfs": dt.datetime(2025, 1, 1)}   # via NOAA's hindcast of the current model (nwp.sources.aigfs)
 
 
 def tag(d):
