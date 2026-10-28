@@ -168,6 +168,22 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `cells(basin)`: 2 deg cell centres of `BOXES`; `near(points, clat, clon, radius=NBR_KM)`: any point within 500 km of each cell; `member_field`.
 - `ocean_mask(basin) -> bool [y, x]`: open, ice-free water on the basin grid (the analysis mask, 2026-01-15 12 UTC, cached per process); `ocean_cells(basin, lats, lons)`: cells at least half open water (the cells the study scored).
 
+## rk/storm_read.py (follow one named low through every run and member; tools/storm_read.py)
+Pure numpy on already-pulled MSLP and wind; no network. Lows come from `rk.bomb.find_lows`. Times are naive UTC datetimes; in track points and JSON they are strings `"YYYY-MM-DDTHHZ"` (`tstr(dt)`, `tparse(s)`). Wind is kt, MSLP hPa.
+- Constants: `PARENT_KM` = 700 (parent low within this of the given position), `STEP_KM` = 800 (nearest low per 6 h step), `WIND_KM` = 600, `STEP_H` = 6.
+- `wind_max(speed, lats, lons, lat, lon, radius_km=WIND_KM) -> float`: highest value of `speed` (kt, [y, x]) within the radius of the point; NaN when no cell is inside.
+- `follow(lows_by_t, t0, lat0, lon0) -> {datetime: (lat, lon, hPa)} | None`: `lows_by_t` is `{valid: find_lows array}`. The parent is the nearest low at `t0` within `PARENT_KM` of (lat0, lon0); then forward and backward in 6 h steps, each step the nearest low within `STEP_KM` of the previous point; a step with no low in range, or no field, ends that direction. None when there is no parent.
+- `track(msl_by_t, speed_by_t, lats, lons, t0, lat0, lon0) -> list[dict] | None`: finds the lows in every `msl_by_t` field, follows them, and adds the wind. Points are time-sorted dicts `{t, lat, lon, p, wmax}`; `wmax` is `wind_max` about the point, None where `speed_by_t` has no field for that time.
+- `bergeron(points, key) -> (best, at_key)`: Bergeron number (`p(t-24) - p(t)`, times sin60 / sin(mean lat) / 24) for every point that has a point 24 h earlier; `best` is the largest, `at_key` the one for the 24 h ending at `key` (a datetime); None where there is no pair. A bomb is `best >= 1`.
+- `at(points, t) -> dict | None`: the point at time `t`.
+- `point_summary(points, key, wind_from, wind_to) -> dict`: for one run or member, `{tracked, p, lat, lon, wmax, pmin, tmin, wlife, berg, berg_key, bomb}`: values at `key`, the lowest pressure and its time, the highest `wmax` over `wind_from..wind_to` (`wlife`), the Bergeron numbers; an untracked run has `tracked` False and None elsewhere.
+- `ens_summary(rows) -> dict`: for the `point_summary` rows of one ensemble's members: `{n, tracked, at_key, p: [10, 50, 90 percentiles of the pressure at key of members that have the low then], lat, lon (medians), pmin (median of the lowest pressures), bomb, bomb_share, key: {"34", "48", "64": share}, life: {...}}`. Shares divide by `n`, every member: an untracked member counts as no bomb and no wind. `key` is `wmax` at the key time, `life` is `wlife`.
+- `pooled(rows_by_ens) -> dict`: the same over all members of all ensembles (member-weighted).
+- `summarize(det_tracks, ens_tracks, key, wind_from, wind_to) -> dict`: `det_tracks {model: {cycle tag: points | None}}`, `ens_tracks {ens: [points | None per member]}` -> `{key, wind_window, det: {model: {cycle: point_summary}}, ens: {ens: ens_summary}, pooled, latest}`.
+- `narrative(summary) -> dict`: sentences generated from the numbers (`bomb`, `depth` with the depth/timing split, `wind`, `trend`: the run-to-run change) and `caveats`, the fixed lines (`CAVEATS`). `NAMES`, `ENS_PARENT` (ensemble to parent model, for hues).
+
+`tools/storm_read.py` (docs: `tools/storm_read.md`) does the pull through `rk.fetch` (cached under `rk.paths.cache("storm-read", basin)`), the figures and the page.
+
 ## rk/compare.py
 - `paired(df, method, baseline, value, by=None, block="week", n_boot=2000, seed=0) -> DataFrame`: mean difference method minus baseline with 95% intervals from resampling whole ISO weeks (storms within a week are not independent). Column `significant`.
 - `boot_sums(week_ids, stats, n_boot=2000, seed=0) -> (total [k], draws [n_boot, k])`: whole-week bootstrap of additive statistics (stats [n_rows, k]); ratios are computed from the sums.
