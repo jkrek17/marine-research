@@ -176,6 +176,16 @@ def assemble(lats, speeds, pooled, stats, step, pa48=None, low=None, names=MODEL
 NOMEM_K = 0.3                # build.py: the 9-run spread multiplier of the deterministic blend
 
 
+def half_deg(a):
+    """A basin grid as a 0.5 deg product would hold it: keep every other row and column (the 0.5 deg points;
+    both basin boxes start on one), then bilinear back to the 0.25 deg grid. NaN where a neighbour is NaN."""
+    a = np.asarray(a, np.float32)
+    sub = a[::2, ::2]
+    jj, ii = np.meshgrid(np.arange(a.shape[0]) / 2.0, np.arange(a.shape[1]) / 2.0, indexing="ij")
+    jj, ii = np.minimum(jj, sub.shape[0] - 1), np.minimum(ii, sub.shape[1] - 1)
+    return ndimage.map_coordinates(sub, [jj, ii], order=1, mode="nearest").astype(np.float32)
+
+
 def det_blend(basin, cycle, step, models=MODELS, weights=None, lags=(12, 24), k=NOMEM_K):
     """The page's deterministic blend (build.py nomem_blend / support_base) from the store -> {"r10", "runs"} or None.
 
