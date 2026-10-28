@@ -25,11 +25,11 @@ Per (case, product) one row of counts, written to OUT/case_counts.csv (columns `
   b_n b_sum_err b_sum_abs                buoy pairs where forecast or buoy >= 34 kt: n, sum(fc - obs), sum|err|
   g_n g_sum                              seen cells with ASCAT >= 34 (and finite forecast): n, sum(fc - ASCAT)
   gc_n gc_sum / gw_n gw_sum              the same split into cold air / not cold air
-Cold air = (t2 - skt) < 0 K from GFS low-level fields of the same run (rk.store.load_low(basin, cycle, "gfs",
+Cold air = (t2 - skt) < -3 K from GFS low-level fields of the same run (rk.store.load_low(basin, cycle, "gfs",
 step)), i.e. rk.features' `dT = t2 - skt` (2 m air minus skin temperature; negative = air colder than the sea,
 the unstable side; the same dT sign convention rk.truth.enw_to_real uses). The "stability study" named in the
 design card is not in this repository, so this is the definition in rk, the only one found by grep of
-LESSONS.md, studies/ and rk/; threshold 0 K, an assumption. load_low exists only for steps 24..120 of the
+LESSONS.md, studies/ and rk/; threshold -3 K (cold outbreaks), chosen before any full run because 0 K put ~90% of gale cells in "cold". load_low exists only for steps 24..120 of the
 00/12 UTC steps; where it is None (the +30..+126 steps) the four split counts are NaN and the case is still
 scored. Pooled split bias must therefore be read as "cases that have low-level fields".
 Finished cases are cached in OUT/cache/<basin>/<cycle>_f<step>.json and skipped on a rerun.
@@ -64,7 +64,7 @@ THRS = (34, 48)
 WINDOW = (dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31))
 STEPS_00_12 = (24, 48, 72, 96, 120)
 STEPS_06_18 = (30, 54, 78, 102, 126)
-COLD_K = 0.0          # cold air: t2 - skt < COLD_K
+COLD_K = -3.0         # cold air: t2 - skt < COLD_K (air 3 K or more colder than the sea: cold outbreaks; 0 K put ~90% of gale cells in "cold")
 COUNTS = ["nt34", "h34", "m34", "fa34", "nt48", "h48", "m48", "fa48", "fc34", "ob34", "fc48", "ob48",
           "b_n", "b_sum_err", "b_sum_abs"]
 BIAS_COUNTS = ["g_n", "g_sum", "gc_n", "gc_sum", "gw_n", "gw_sum"]
