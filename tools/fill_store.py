@@ -11,7 +11,7 @@ Every cycle at --hours (default 0 and 12 UTC) is streamed once and BOTH basins a
 messages are global and decoded once, so the second basin costs no extra streaming. The analyses (GFS and
 IFS step 0 plus the mask) at every valid time are cached for both basins the same way. --basin only
 chooses which basins are written (default both; there is rarely a reason to narrow it).
---models picks what is streamed: a comma list from gfs, ifs, aifs (deterministic) and gefs, ens, aifs-ens
+--models picks what is streamed: a comma list from gfs, ifs, aifs, aigfs (deterministic; aigfs only when named) and gefs, ens, aifs-ens
 (ensembles), default all six; the shorthands noaa (= gfs,gefs) and ecmwf (= ifs,aifs,ens,aifs-ens) expand in
 place and can be mixed with names. --no-analysis skips the analyses (they need IFS, an ECMWF fetch), which
 is what a NOAA-only fill wants. The dry-run estimate counts only the chosen models.
@@ -93,8 +93,8 @@ def main():
                                                                ",".join(cases.tag(c) for c in young)), flush=True)
 
     from rk import store
-    chosen = parse_models(a.models, store.DET + store.ENS)
-    det = tuple(m for m in store.DET if m in chosen)
+    chosen = parse_models(a.models, store.DET + store.EXTRA_DET + store.ENS)
+    det = tuple(m for m in store.DET + store.EXTRA_DET if m in chosen)
     ens = tuple(m for m in store.ENS if m in chosen)
     per_step = sum(GB_STEP[m] for m in ens) + GB_DET * len(det)
     per_cycle = len(steps) * (per_step + (0 if a.no_analysis else 2 * GB_DET))   # + analyses (GFS and IFS step 0)
