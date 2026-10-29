@@ -36,6 +36,9 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Say what a filter dropped.** The HSF hours that failed to parse were busier: a third of the storm events and two fifths of the HF lows.
 - **Re-test claims made against analyses once ASCAT is the referee.** "A lone storm-force model verifies 1-3%" (analysis) is about 80% within 50 km of ASCAT 48+ (Atlantic winter; `/mnt/project-files/audit/`).
 
+- **Name lines by what they are, not by intent.** The page's "possible" lines (30% of members) sat inside the "warning" lines (strongest model), so the names read backwards; Jason caught it on sight. Check that a looser-sounding name is the bigger area before shipping a pair of lines.
+- **Tidying a scored line is a rule change.** Dropping small warning pieces looks like styling but changes catch and area; score it on the held-out weeks first (gale pieces under ~2 sq deg cost about 1 point of catch, `studies/2026-10-29-warning-specks/`), and cut it in the pipeline so the page, records and verification carry the same line.
+
 ## Running
 - **Count where cases drop out before naming the cause.** The core-ceiling check blamed missing 06/18 UTC core-model inputs for having 5 Pacific cases; filling them added 3. Most Pacific HF fixes (123 of 147) fail on ASCAT sampling (fewer than 200 cells within 90 min of the fix). Tabulate status by basin and hour first. *`studies/2026-10-17-core-ceiling/status.csv`.*
 - **A "the momentum is aloft" test is saturated near deep lows.** 925 mb runs 20-30% above 10 m, so 64 kt aloft over ASCAT's 64 kt cells (91-98%) is also there in 84% of cases where ASCAT stayed below 64. Test the other direction (of the cells with momentum aloft, which reach the surface) before calling it mixing.
