@@ -418,8 +418,37 @@ def star_passes(kind, day):
     return sorted(out, key=lambda x: (x[0], x[2]))
 
 
+def _star_grid(recs):
+    """UHR ASCAT layout, leaflet-velocity grids [{header: {parameterNumber 2 (u) | 3 (v) | other (q), lo1, la1,
+    dx, dy, nx, ny}, data: [row-major from la1 southward, None = no wind]}] -> point records like OSCAT's."""
+    by = {}
+    for r in recs:
+        h = r["header"]
+        by[{2: "u", 3: "v"}.get(h.get("parameterNumber"), "q")] = r
+    h = by["u"]["header"]
+    nx, ny = int(h["nx"]), int(h["ny"])
+    def arr(k):
+        if k not in by:
+            return np.zeros(nx * ny, np.float32)
+        return np.array([np.nan if x is None else x for x in by[k]["data"]], np.float32)
+    u, v, q = arr("u"), arr("v"), arr("q")
+    ok = np.isfinite(u) & np.isfinite(v)
+    iy, ix = np.divmod(np.nonzero(ok)[0], nx)
+    la = h["la1"] - iy * h["dy"]
+    lo = h["lo1"] + ix * h["dx"]
+    qq = np.nan_to_num(q[ok]).astype(int)
+    return [dict(la=float(a), lo=float(b), u=float(c), v=float(d), q=int(e))
+            for a, b, c, d, e in zip(la, lo, u[ok], v[ok], qq)]
+
+
 def _star_points(recs):
-    """Pass records [{la, lo, u, v, q}] -> arrays cropped to latitudes 15-70N, lon 0-360, speeds in knots."""
+    """Pass records -> arrays cropped to latitudes 15-70N, lon 0-360, speeds in knots. OSCAT-3 files are point
+    records [{la, lo, u, v, q}]; UHR ASCAT files are regular grids (see _star_grid), converted first."""
+    if recs and "header" in recs[0]:
+        recs = _star_grid(recs)
+    if not recs:
+        z = np.zeros(0, np.float32)
+        return dict(lat=z, lon=z, u_kt=z, v_kt=z, spd_kt=z, q=np.zeros(0, np.uint8))
     la = np.array([r["la"] for r in recs], np.float32)
     keep = np.nonzero((la >= _LAT_RANGE[0]) & (la <= _LAT_RANGE[1]))[0]
     recs = [recs[i] for i in keep]
