@@ -1,6 +1,6 @@
 """Desk column for check 3 (design.md): for each (basin, 12 UTC run, lead, ocean cell) the highest NDFD oceanic wind
 (rk.desk, days 4-7 read) within 500 km of the cell at the valid time, from the desk issuance made from that run
-(rk.desk.issue_for). NaN where the issuance or the valid time is missing.
+(rk.desk.issue_for). NaN where the issuance or the valid time is missing or the posted file is unreadable.
 Writes CACHE/extra/hf-d5-7-checks/desk.parquet. Run after build.py and the desk fill: python3 desk_join.py
 """
 import sys
@@ -32,7 +32,11 @@ def main():
     for b in basins.BASINS:
         fp = footprints(b)
         for c, g in t[t.basin == b].groupby("cycle"):
-            r = desk.load(desk.issue_for(b, c.to_pydatetime()), desk.DAYS47)
+            try:
+                r = desk.load(desk.issue_for(b, c.to_pydatetime()), desk.DAYS47)
+            except Exception as e:      # a truncated posted file (2026022401): left out, counted below
+                print(b, c, "unreadable:", repr(e), flush=True)
+                continue
             if r is None:
                 continue
             valid = r[b]["valid"]
