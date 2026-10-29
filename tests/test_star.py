@@ -165,6 +165,18 @@ def test_live_pass_list():
         print("note: live STAR check skipped:", repr(e)[:60])
 
 
+def test_uhr_grid_layout():
+    """UHR files are leaflet-velocity grids: u (2), v (3), optional q, rows from la1 southward."""
+    hdr = dict(lo1=-40.0, la1=62.0, dx=0.5, dy=0.5, nx=2, ny=2)
+    recs = [dict(header=dict(hdr, parameterNumber=2), data=[30.0, None, 0.0, 40.0]),
+            dict(header=dict(hdr, parameterNumber=3), data=[40.0, None, 10.0, 30.0])]
+    c = truth._star_points(recs)
+    assert c["lat"].tolist() == [62.0, 61.5, 61.5], c["lat"]
+    assert np.allclose(c["lon"], [320.0, 320.0, 320.5])
+    assert np.allclose(c["spd_kt"], [50.0, 10.0, 50.0])
+    assert c["q"].tolist() == [0, 0, 0]
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
