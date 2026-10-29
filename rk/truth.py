@@ -3,6 +3,7 @@
 obs()    ship and buoy 10 m wind rebuilt from the GDAS first guess plus the O-B departure
 ascat()  RSS ASCAT v2.1 cells near the valid time, equivalent-neutral or real 10 m wind
 smap_day()  RSS SMAP v1.0 L3 daily winds (L-band radiometer), a second equivalent-neutral instrument
+star_day(), star()  NOAA STAR OSCAT-3 and coastal ultra-high-resolution ASCAT passes (kinds oscat, uhr)
 ascat_grid()  ascat() snapped to the basin grid (seen mask, max speed)
 hf_archive(), hf_fixes()  OPC hurricane-force low fixes from the jkrek17/hf-low archive
 era5()   any ERA5 single-level field at an hour, from the public ARCO zarr (a reanalysis: a proxy for the analysis,
@@ -15,6 +16,8 @@ is not posted. The hf-low archive is not in releases: hf_archive() reads it from
 import datetime as dt
 import functools
 import io
+import json
+import re
 import threading
 from pathlib import Path
 
@@ -373,6 +376,121 @@ def smap_day(day):
     c = _smap_cells(blob)
     truth_save("smap", None, day, final=np.array(final, np.uint8), **c)
     return c
+
+
+# ---- NOAA STAR passes (OSCAT-3, coastal UHR ASCAT) ----
+
+STAR_URL = "https://manati.star.nesdis.noaa.gov"
+STAR_LAYERS = {"oscat": ("oscat3_AS", "oscat3_DS"),
+               "uhr": ("UHR_METOP-B_AS", "UHR_METOP-B_DS", "UHR_METOP-C_AS", "UHR_METOP-C_DS")}
+_STAR_LIST = STAR_URL + "/product_src/info/oswtviewer/map_layers.php?date={ymd}&prefix={prefix}"
+_STAR_SAT = {"oscat3": 0, "UHR_METOP-B": 1, "UHR_METOP-C": 2}   # sat code by prefix without the node suffix
+_STAR_PASS_MIN = 100      # nominal pass length (one orbit), used for the last pass of a layer
+_STAR_CACHE_DAYS = 2      # a day younger than this is still gaining passes and is not cached
+_RE_DOY = re.compile(r"(\d{4})-(\d{3})T(\d{2})-(\d{2})-(\d{2})")
+_RE_YMD = re.compile(r"_(\d{8})T(\d{6})_")
+
+
+def _star_start(name):
+    """Pass start (naive UTC datetime) from a STAR pass file name: '..._2026-301T02-32-14_lite5.json' (year,
+    day of year, time; OSCAT-3) or '..._20261028T003525_73213_rev1of1_ec.json' (UHR ASCAT). ValueError if neither."""
+    m = _RE_DOY.search(name)
+    if m:
+        y, doy, h, mi, sec = (int(g) for g in m.groups())
+        return dt.datetime(y, 1, 1) + dt.timedelta(days=doy - 1, hours=h, minutes=mi, seconds=sec)
+    m = _RE_YMD.search(name)
+    if m:
+        return dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S")
+    raise ValueError("no pass start time in %r" % name)
+
+
+def star_passes(kind, day):
+    """Passes NOAA STAR lists for a UTC day -> [(prefix, url, start datetime)] sorted by (prefix, start); empty when
+    nothing is posted. The server keeps only about the last month."""
+    out = []
+    for prefix in STAR_LAYERS[kind]:
+        r = fetch.get(_STAR_LIST.format(ymd=day.strftime("%Y%m%d"), prefix=prefix))
+        if r is None:
+            continue
+        j = json.loads(r.content)
+        for u in j.get("json_urls") or []:
+            out.append((prefix, STAR_URL + u if u.startswith("/") else u, _star_start(u)))
+    return sorted(out, key=lambda x: (x[0], x[2]))
+
+
+def _star_points(recs):
+    """Pass records [{la, lo, u, v, q}] -> arrays cropped to latitudes 15-70N, lon 0-360, speeds in knots."""
+    la = np.array([r["la"] for r in recs], np.float32)
+    keep = np.nonzero((la >= _LAT_RANGE[0]) & (la <= _LAT_RANGE[1]))[0]
+    recs = [recs[i] for i in keep]
+    u = np.array([r["u"] for r in recs], np.float32)
+    v = np.array([r["v"] for r in recs], np.float32)
+    return dict(lat=la[keep], lon=(np.array([r["lo"] for r in recs], np.float32) % 360).astype(np.float32),
+                u_kt=u, v_kt=v, spd_kt=np.hypot(u, v).astype(np.float32),
+                q=np.array([r["q"] for r in recs], np.uint8))
+
+
+def star_day(kind, day):
+    """All points of the passes NOAA STAR lists under a UTC day, kind "oscat" (OSCAT-3, ~12.5 km) or "uhr" (coastal
+    ultra-high-resolution ASCAT, Metop-B and -C) -> dict or None when no pass is posted. Latitudes 15-70N, raw
+    points (land and ice not masked). Fields: lat, lon (float32, 0-360), u_kt, v_kt, spd_kt (float32; 10 m wind as
+    served by NOAA STAR, equivalent-neutral not confirmed, knots), q (uint8, quality flag from the source, 1 =
+    flagged, meaning undocumented, likely rain; kept), t_min (int16, pass START minute from 00 UTC of `day`, negative
+    when the pass started the previous day), t_end_min (int16, start of the next pass of the same layer, or start +
+    100 min for the last: a point's time is only bracketed, [t_min, t_end_min]), node (uint8, 0 ascending, 1
+    descending), sat (uint8, 0 OSCAT-3, 1 Metop-B, 2 Metop-C), pass_id (int16, index into the sorted pass list).
+    Cached as truth kind `kind` only when the day is at least 2 days old; the server keeps about a month."""
+    p = truth_locate(kind, None, day)
+    if p is not None:
+        with np.load(p) as z:
+            return {k: z[k] for k in z.files}
+    passes = star_passes(kind, day)
+    if not passes:
+        return None
+    midnight = dt.datetime.combine(day, dt.time())
+    parts = []
+    for i, (prefix, url, start) in enumerate(passes):
+        r = fetch.get(url)
+        if r is None:
+            continue
+        c = _star_points(json.loads(r.content))
+        n = c["lat"].size
+        nxt = [s for pf, _, s in passes if pf == prefix and s > start]
+        t0 = int(round((start - midnight).total_seconds() / 60))
+        t1 = int(round((min(nxt) - midnight).total_seconds() / 60)) if nxt else t0 + _STAR_PASS_MIN
+        c.update(t_min=np.full(n, t0, np.int16), t_end_min=np.full(n, t1, np.int16),
+                 node=np.full(n, 0 if prefix.endswith("_AS") else 1, np.uint8),
+                 sat=np.full(n, _STAR_SAT[prefix[:-3]], np.uint8), pass_id=np.full(n, i, np.int16))
+        parts.append(c)
+    if not parts:
+        return None
+    c = {k: np.concatenate([q[k] for q in parts]) for k in parts[0]}
+    age = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - midnight
+    if age >= dt.timedelta(days=_STAR_CACHE_DAYS):
+        truth_save(kind, None, day, **c)
+    return c
+
+
+def star(kind, lat_range, lon_range, t0, t1):
+    """star_day points inside the box (lat_range (lo, hi), lon_range (lo, hi) in 0-360, lo <= hi) whose pass bracket
+    [t_min, t_end_min] overlaps [t0, t1] (naive UTC datetimes) -> dict (star_day fields plus `day_min`, minutes from
+    t0 to 00 UTC of the file's day) or None when no day is posted. Points outside the window are dropped, not times
+    refined: a point's time is only known to lie in its bracket."""
+    d, last = (t0 - dt.timedelta(days=1, hours=2)).date(), (t1 + dt.timedelta(hours=2)).date()
+    parts = []
+    while d <= last:
+        c = star_day(kind, d)
+        if c is not None:
+            base = (dt.datetime.combine(d, dt.time()) - t0).total_seconds() / 60.0
+            win = (t1 - t0).total_seconds() / 60.0
+            ok = ((c["lat"] >= lat_range[0]) & (c["lat"] <= lat_range[1])
+                  & (c["lon"] >= lon_range[0]) & (c["lon"] <= lon_range[1])
+                  & (base + c["t_min"] <= win) & (base + c["t_end_min"] >= 0))
+            parts.append({k: v[ok] for k, v in c.items()} | {"day_min": np.full(int(ok.sum()), base, np.float32)})
+        d += dt.timedelta(days=1)
+    if not parts:
+        return None
+    return {k: np.concatenate([q[k] for q in parts]) for k in parts[0]}
 
 
 @functools.lru_cache(maxsize=64)
