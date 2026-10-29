@@ -127,6 +127,16 @@ def brier_skill(p, y, w=None):
     return float("nan") if ref == 0 else float(1 - (w * (p - y) ** 2).sum() / sw / ref)
 
 
+def fair_brier(k, m, y):
+    """Fair Brier score per case (Ferro 2014): the expected Brier score of an ensemble with unlimited members
+    from the same system, estimated from k of m members forecasting the event. (k/m - y)^2 - k (m - k) / (m^2 (m - 1)).
+    k, m, y arrays (m >= 2); the mean over cases is the fair Brier score."""
+    k, m, y = np.asarray(k, float), np.asarray(m, float), np.asarray(y, float)
+    if np.any(m < 2):
+        raise ValueError("fair Brier needs at least 2 members")
+    return (k / m - y) ** 2 - k * (m - k) / (m ** 2 * (m - 1))
+
+
 def auc_from_hist(pos, neg):
     """ROC area from weighted histograms of the positives and negatives over probability bins ordered
     low to high (last axis; leading axes allowed, e.g. bootstrap draws). Ties within a bin count half."""

@@ -105,6 +105,24 @@ def test_brier_auc_reliability():
     assert score.reliability(np.array([1.0, 0.0]), np.array([1, 0]), bins=10).n.tolist() == [1] + [0] * 8 + [1]
 
 
+def test_fair_brier():
+    # an m-member ensemble drawn from a reliable p = 0.3: the fair score is unbiased for the
+    # unlimited-ensemble Brier, the plain score of the share is too high by p (1 - p) / m
+    rng = np.random.default_rng(1)
+    n, m, p = 200000, 4, 0.3
+    y = rng.random(n) < p
+    k = (rng.random((n, m)) < p).sum(1)
+    inf = np.mean((p - y) ** 2)
+    assert abs(score.fair_brier(k, m, y).mean() - inf) < 0.003
+    assert np.mean((k / m - y) ** 2) - inf > 0.04
+    assert abs(score.fair_brier([1], [2], [0])[0] - 0.0) < 1e-12
+    try:
+        score.fair_brier([0], [1], [0])
+        raise AssertionError("one member must be refused")
+    except ValueError:
+        pass
+
+
 def test_paired_counts():
     rng = np.random.default_rng(2)
     days = pd.date_range("2025-11-01", periods=140, freq="D")

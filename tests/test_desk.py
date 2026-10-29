@@ -107,6 +107,35 @@ def test_cache_version_stamp():
                 os.environ["RK_DESK"] = old
 
 
+def test_days47_cache():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        old = os.environ.get("RK_DESK")
+        os.environ["RK_DESK"] = tmp
+        try:
+            issue = dt.datetime(2026, 1, 15, 22)
+            assert desk._path("natl", issue, desk.DAYS47).name == "2026011522_d47.npz"
+            assert desk._path("natl", issue).name == "2026011522.npz"
+            for b in ("natl", "npac"):                                           # a days 4-7 file alone
+                _fake_cache(desk._path(b, issue, desk.DAYS47), reader_version=np.array(desk.READER_VERSION))
+            assert desk._read(issue) is None                                     # never stands in for a full read
+            assert set(desk.load(issue, desk.DAYS47)) == {"natl", "npac"}
+            for b in ("natl", "npac"):                                           # a full file serves a days 4-7 read
+                desk._path(b, issue, desk.DAYS47).unlink()
+                _fake_cache(desk._path(b, issue), reader_version=np.array(desk.READER_VERSION))
+            assert set(desk.load(issue, desk.DAYS47)) == {"natl", "npac"}
+            try:
+                desk.load(issue, ("YCYZ98",))
+                raise AssertionError("days 1-3 alone must be refused")
+            except ValueError:
+                pass
+        finally:
+            if old is None:
+                os.environ.pop("RK_DESK", None)
+            else:
+                os.environ["RK_DESK"] = old
+
+
 def test_net():
     if os.environ.get("RK_NET") != "1":
         print("note: RK_NET not set; network test skipped")
