@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Fill the truth files (rk.store.truth_*) for a run of days through the kit's own loaders: analyses and
 air-sea temperature difference (rk.store.analysis, rk.truth.airsea), ship and buoy winds (rk.truth.obs_points),
-ASCAT days (rk.truth.ascat_day) and SMAP days (rk.truth.smap_day). New files go to the local cache (RK_CACHE),
+ASCAT days (rk.truth.ascat_day), SMAP days (rk.truth.smap_day) and NOAA STAR scatterometer days (rk.truth.star_day: OSCAT-3
+"oscat", coastal ASCAT "uhr"; the server keeps only about a month, so every run re-covers the window). New files go to the local cache (RK_CACHE),
 marked unpublished; tools/publish_store.py sends them. A file already in the cache, the old RK_DATA/truth or
 a release is not built again.
 
   python3 tools/fill_truth.py [--back-from 16 --back-to 3] [--start YYYYMMDD --end YYYYMMDD]
-         [--hours 0,12] [--kinds analysis,airsea,obs,ascat,smap] [--dry-run]
+         [--hours 0,12] [--kinds analysis,airsea,obs,ascat,smap,oscat,uhr] [--dry-run]
 
 Default window: from 16 to 3 days before today (UTC). ASCAT and SMAP lag the day by about 2 days, so a day
 less than 3 days old is not tried; a day whose ASCAT has only one satellite and is under a week old is not
@@ -21,7 +22,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # make the repo importable
 
-KINDS = ("analysis", "airsea", "obs", "ascat", "smap")
+DAILY = ("ascat", "smap", "oscat", "uhr")   # one file per day, both basins
+KINDS = ("analysis", "airsea", "obs", "ascat", "smap", "oscat", "uhr")
 
 
 def main(argv=None):
@@ -52,8 +54,10 @@ def main(argv=None):
 
     def day_job(kind, day):
         """Stems (valid times or the day) and the call that builds one of them."""
-        if kind in ("ascat", "smap"):
-            return [(None, day)], {"ascat": truth.ascat_day, "smap": truth.smap_day}[kind]
+        if kind in DAILY:
+            return [(None, day)], {"ascat": truth.ascat_day, "smap": truth.smap_day,
+                                   "oscat": lambda d: truth.star_day("oscat", d),
+                                   "uhr": lambda d: truth.star_day("uhr", d)}[kind]
         valids = [dt.datetime.combine(day, dt.time(h)) for h in hours]
         build = {"analysis": lambda v: store.analysis("natl", v), "airsea": lambda v: truth.airsea("natl", v),
                  "obs": lambda v: truth.obs_points("natl", v)}[kind]   # each builds both basins at once
@@ -80,7 +84,7 @@ def main(argv=None):
                     print("%s %s: %s: %s" % (kind, t, type(e).__name__, e), file=sys.stderr)
                     ok = False
                 done.add((kind, t))
-                for bb in ([b] if b else [None]) if kind in ("ascat", "smap") else list(BASINS):
+                for bb in ([b] if b else [None]) if kind in DAILY else list(BASINS):
                     if store.truth_exists(kind, bb, t):
                         new += 1
                     else:
