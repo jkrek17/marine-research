@@ -5,7 +5,8 @@
     python3 tools/check_repo.py --staged   # only staged added/copied/modified files
 
 Checks: file size, data file types, hardcoded session paths in .py/.sh,
-secret-looking strings, and a design.md in every study folder.
+secret-looking strings, Series.dt.to_pydatetime() in code (its result can come back re-indexed and
+pair rows with the wrong times when assigned back; hf-d5-7-checks, 2026-10-29), and a design.md in every study folder.
 Exits 1 with one message per problem.
 """
 import re
@@ -21,6 +22,7 @@ DATA_EXT = {".npz", ".npy", ".nc", ".grib2", ".grb2", ".parquet", ".zarr"}
 # Built from pieces so this file does not flag itself.
 PATH_RE = re.compile(r"""["'][^"'\n]*(/ho""" + r"""me/|/t""" + r"""mp/)""")
 ALLOWED_PATH_LINE = "/mnt/project-files/research-data"
+PYDT = ".dt.to_" + "pydatetime()"
 SECRETS = ["gh" + "p_", "github_" + "pat_", "AK" + "IA", "BEGIN " + "PRIVATE KEY"]
 
 
@@ -60,6 +62,9 @@ def main():
             for n, line in enumerate(text.splitlines(), 1):
                 if ALLOWED_PATH_LINE in line and rel == "rk/paths.py":
                     continue
+                if PYDT in line.split("#")[0] and rel != "tools/check_repo.py":
+                    errors.append(f"{rel}:{n}: Series.dt.to_pydatetime() can return a re-indexed result that pairs "
+                                  "rows with the wrong times; keep datetime64 or use .tolist()")
                 if PATH_RE.search(line):
                     errors.append(f"{rel}:{n}: hardcoded absolute session path in a string; "
                                   "find the repo from __file__ and data from rk.paths")

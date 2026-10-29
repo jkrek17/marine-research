@@ -52,8 +52,12 @@ def cache_dir():
     return data("desk", "x").parent
 
 
-def _path(basin, issue):
-    return cache_dir() / basin / (tag(issue) + ".npz")
+DAYS47 = ("YCYZ97",)      # days 4-7 only: a read that skips the ~30 MB YCYZ98 (studies of days 5-7)
+
+
+def _path(basin, issue, products=PRODUCTS):
+    """Full reads are cached as {tag}.npz; a days 4-7-only read as {tag}_d47.npz, so it never stands in for a full one."""
+    return cache_dir() / basin / (tag(issue) + ("_d47" if tuple(products) == DAYS47 else "") + ".npz")
 
 
 def _cached_ok(path):
@@ -218,10 +222,10 @@ def _fetch_product(day, hour, product):
             os.unlink(tmp)
 
 
-def _read(issue):
+def _read(issue, products=PRODUCTS):
     out = {}
     for b in BASINS:
-        p = _path(b, issue)
+        p = _path(b, issue, products)
         if not _cached_ok(p):
             return None
         with np.load(p) as z:
@@ -231,19 +235,25 @@ def _read(issue):
     return out
 
 
-def load(issue_dt):
-    """Desk wind grids for the 10Z or 22Z issuance -> {basin: {...}} or None (see CONTRACT)."""
+def load(issue_dt, products=PRODUCTS):
+    """Desk wind grids for the 10Z or 22Z issuance -> {basin: {...}} or None (see CONTRACT).
+    products=DAYS47 reads YCYZ97 alone (days 4-7; a cached full read is used when there is one)."""
     issue = dt.datetime(issue_dt.year, issue_dt.month, issue_dt.day, issue_dt.hour)
     if issue.hour not in HOURS:
         raise ValueError("desk full updates are at %s UTC, got %02dZ" % (HOURS, issue.hour))
-    got = _read(issue)
+    products = tuple(products)
+    if products not in (PRODUCTS, DAYS47):
+        raise ValueError("products must be PRODUCTS or DAYS47, got %s" % (products,))
+    got = _read(issue, products)
+    if got is None and products == DAYS47:
+        got = _read(issue)
     if got is not None:
         return got
     day = issue.replace(hour=0)
     parts = []
-    for product in PRODUCTS:
+    for product in products:
         r = _fetch_product(day, issue.hour, product)
-        if r is None and product == PRODUCTS[0]:
+        if r is None and product == products[0]:
             return None
         parts.append((product, r))
     for b in BASINS:
@@ -261,12 +271,13 @@ def load(issue_dt):
                       refs=np.array([tag(merged[v][1]) for v in valid]),
                       ref=np.array(tag(parts[0][1][1])),
                       reader_version=np.array(READER_VERSION))
-        _save(str(_path(b, issue)), **arrays)
-    return _read(issue)
+        _save(str(_path(b, issue, products)), **arrays)
+    return _read(issue, products)
 
 
-def fill(start, end, hours=HOURS, workers=3, log=None):
+def fill(start, end, hours=HOURS, workers=3, log=None, products=PRODUCTS):
     """Load every issuance from start to end (dates, inclusive); cached ones (written by the current READER_VERSION) are skipped; older ones are re-decoded.
+    products=DAYS47 fills the days 4-7-only files (a full cached file counts as cached).
     Returns counts {'ok','missing','failed','partial','cached'} plus 'failed_tags' and 'partial_tags'."""
     rep = {"ok": 0, "missing": 0, "failed": 0, "partial": 0, "cached": 0, "failed_tags": [], "partial_tags": []}
     jobs = []
@@ -274,7 +285,8 @@ def fill(start, end, hours=HOURS, workers=3, log=None):
     while d <= dt.datetime(end.year, end.month, end.day):
         for h in hours:
             issue = d.replace(hour=h)
-            if all(_cached_ok(_path(b, issue)) for b in BASINS):
+            if all(_cached_ok(_path(b, issue)) for b in BASINS) or \
+                    all(_cached_ok(_path(b, issue, products)) for b in BASINS):
                 rep["cached"] += 1
             else:
                 jobs.append(issue)
@@ -282,12 +294,13 @@ def fill(start, end, hours=HOURS, workers=3, log=None):
 
     def run(issue):
         try:
-            r = load(issue)
+            r = load(issue, products)
         except Exception as e:   # one bad file must not stop a long fill
             return issue, "failed", repr(e)
         if r is None:
             return issue, "missing", ""
-        return issue, ("ok" if "YCYZ97" in r["natl"]["product"] else "partial"), ""
+        full = tuple(products) == PRODUCTS
+        return issue, ("ok" if not full or "YCYZ97" in r["natl"]["product"] else "partial"), ""
 
     with ThreadPoolExecutor(workers) as ex:
         for issue, what, msg in ex.map(run, jobs):
