@@ -211,13 +211,15 @@ DRILL = {"PRMSL:mean sea level": "msl", "HGT:1000 mb": "z1000", "HGT:850 mb": "z
          "HGT:250 mb": "z250", "TMP:850 mb": "t850", "TMP:500 mb": "t500", "UGRD:850 mb": "u850",
          "VGRD:850 mb": "v850", "UGRD:500 mb": "u500", "VGRD:500 mb": "v500", "UGRD:250 mb": "u250",
          "VGRD:250 mb": "v250", "ABSV:500 mb": "vort500", "TMP:surface": "tsfc", "TMP:2 m above ground": "t2",
-         "LAND:surface": "land", "ICEC:surface": "ice"}
+         "LAND:surface": "land", "ICEC:surface": "ice",
+         "UGRD:925 mb": "u925", "VGRD:925 mb": "v925", "TMP:925 mb": "t925", "RH:850 mb": "rh850",
+         "PWAT:entire atmosphere (considered as a single layer)": "pwat"}
 
 
 def gfs_global(cycle, step, want):
     """GFS records by name, whole globe 0.25 deg [721, 1440] (lat 90..-90, lon 0..359.75) -> {name: grid} or
     None if not posted. `want` maps GRIB keys to names, e.g. DRILL (the pattern drill's maps: MSLP Pa,
-    heights m, temperatures K, winds m/s, ABSV 1/s, LAND and ICEC fractions)."""
+    heights m, temperatures K, winds m/s, ABSV 1/s, RH %, PWAT kg/m2, LAND and ICEC fractions)."""
     wait_for_quiet()
     return nwp.ncep(gfs_url(cycle, step), want)
 

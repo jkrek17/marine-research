@@ -34,6 +34,8 @@ import ingredients as I  # noqa: E402
 DEAD = 5.0                       # kt: smaller peak changes count as held
 EDGES = np.array([34.0, 48.0, 64.0])
 KEYS = I.ING
+# On the page (Jason 2026-11-05: of the extra ingredients only 925 mb wind); the rest are scored on file only.
+PAGE = ["eady", "jet", "pva", "tilt", "warm_adv", "thk_grad", "sea_air", "dry", "dp_prev", "wind925"]
 RNG = np.random.default_rng(7)
 DRAWS = 2000
 FOLDS = 10
@@ -247,15 +249,17 @@ def main():
                         "decay": round(100 * d["decayed"][m].mean(), 1), "dp": round(float(np.nanmean(d["dp"][m])), 1),
                         "grow_same_mix": round(100 * adj, 1) if np.isfinite(adj) else None}
     # chance models on the ingredients with a real signal
-    gfeat = [r["key"] for r in out if r["grow"]["verdict"] != "none"]
-    dfeat = [r["key"] for r in out if r["decay"]["verdict"] != "none"]
+    shown = [r for r in out if r["key"] in PAGE]
+    gfeat = [r["key"] for r in shown if r["grow"]["verdict"] != "none"]
+    dfeat = [r["key"] for r in shown if r["decay"]["verdict"] != "none"]
     rows_g = np.where(cat0 <= 2)[0]
     rows_d = np.where(cat0 >= 1)[0]
     p_g, mg = model(d, d["grew"], rows_g, gfeat, "gap_up", days, by_day)
     p_d, md = model(d, d["decayed"], rows_d, dfeat, "gap_down", days, by_day)
     res = {"version": 2, "n": n, "days": len(days), "dead_band_kt": DEAD,
            "base_grow": round(100 * d["grew"].mean(), 1), "base_decay": round(100 * d["decayed"].mean(), 1),
-           "persistence_exact": persist, "by_start": rates, "ingredients": out, "jet_pos": jp,
+           "persistence_exact": persist, "by_start": rates, "ingredients": shown,
+           "file_only": [r for r in out if r["key"] not in PAGE], "jet_pos": jp,
            "model_grow": mg, "model_decay": md}
     for p in (HERE / "ingredients.json", I.ROOT / "ingredients.json"):
         p.write_text(json.dumps(res, indent=1))

@@ -40,6 +40,8 @@ FIELDS = [
     ("t850", "850 hPa temperature", "C", -50.0, 0.4),
     ("tadv850", "850 hPa temperature advection", "C/day", -40.0, 0.32),
     ("sst_air", "Sea minus 2 m air temperature", "C", -10.0, 0.125),
+    ("wspd925", "925 hPa wind speed", "kt", 0.0, 0.5),
+    ("lapse925", "Sea minus 925 hPa temperature", "C", -10.0, 0.125),
 ]
 
 
@@ -75,11 +77,20 @@ def maps(g, lat_n, lon_w):
     }
     water = (c["land"] < 0.5) & (c["ice"] < 0.15)
     out["sst_air"] = np.where(water, diag.smooth(c["tsfc"] - c["t2"], 1.0), np.nan)
+    out["wspd925"] = np.hypot(diag.smooth(c["u925"], 1.0), diag.smooth(c["v925"], 1.0)) * KT
+    # low-level stability: sea surface minus 925 hPa temperature (about 10+ C = well mixed, strong winds reach the sea)
+    out["lapse925"] = np.where(water, diag.smooth(c["tsfc"] - c["t925"], 1.0), np.nan)
     land = ~water
     sl = (slice(MARGIN, -MARGIN), slice(MARGIN, -MARGIN))
     out = {k: diag.subsample(v[sl], 2) for k, v in out.items()}
     out["eady"] = np.where(np.isfinite(out["eady"]), out["eady"], 0.0)   # unstable layer: no baroclinic growth
     return out, diag.subsample(land[sl], 2)
+
+
+def bin_size():
+    """Bytes in one case file for the current FIELDS (two snapshots: fields + ASCAT speed, direction, land);
+    a file of another size was built with an older field list and is rebuilt."""
+    return 2 * (len(FIELDS) + 3) * NY * NX
 
 
 def quant(v, offset, scale):
@@ -194,7 +205,7 @@ def gfs(valid):
 
 def one(row, out):
     p = out / (row["id"] + ".bin")
-    if p.exists():
+    if p.exists() and p.stat().st_size == bin_size():
         satellite_for(row, out)
         return "skip"
     lat_n, lon_w = box_for(row)

@@ -45,6 +45,17 @@ def theta(t_k, p_hpa):
     return t_k * (1000.0 / p_hpa) ** KAPPA
 
 
+def theta_e(t_k, rh, p_hpa):
+    """Equivalent potential temperature (K) from temperature (K), relative humidity (%) and pressure (hPa),
+    Bolton (1980) eq. 43 with the mixing ratio from the Magnus saturation vapour pressure."""
+    t = np.asarray(t_k, float)
+    tc = t - 273.15
+    e = np.clip(np.asarray(rh, float), 1.0, 100.0) / 100.0 * 6.112 * np.exp(17.67 * tc / (tc + 243.5))
+    r = 0.622 * e / (p_hpa - e)
+    tl = 2840.0 / (3.5 * np.log(t) - np.log(e) - 4.805) + 55.0
+    return t * (1000.0 / p_hpa) ** (0.2854 * (1 - 0.28 * r)) * np.exp((3.376 / tl - 0.00254) * r * 1000.0 * (1 + 0.81 * r))
+
+
 def eady(u_lo, v_lo, z_lo, t_lo, p_lo, u_hi, v_hi, z_hi, t_hi, p_hi, lats, n2_min=None):
     """Maximum Eady growth rate 0.31 |f| |dV/dz| / N (1/s) for the layer between two pressure levels
     (lo = lower, e.g. 850 hPa; hi = upper, e.g. 500 hPa). dV/dz and N come from the two levels' winds,

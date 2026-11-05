@@ -17,6 +17,9 @@
   var LAND_RGB = [221, 224, 228];
   var LEVELS = [['Trainee', 0], ['Watch', 500], ['Gale', 1500], ['Storm', 3500], ['Hurricane Force', 7000]];
   var STORE_KEY = 'pdrill-session-1';
+  var BENCH_KEY = 'pdrill-bench-1';   // localStorage: benchmark history, this device only
+  var CH_NAMES = ['Decay', 'Hold', 'Grow'], CH_OBS = ['decayed', 'held', 'grew'];   // index = change + 1
+  var NM_PER_KM = 1 / 1.852;
 
   function thkColor(v) {
     // blue at and below 540 dam, red above
@@ -66,6 +69,13 @@
       contours: [{ key: 'msl', step: 4, width: 0.8, color: 'rgba(30,30,30,.65)', label: false }],
       legend: [{ title: 'Sea minus 2 m air (K): red = sea warmer, more mixing', levels: [-4, -2, 0, 2, 4, 6, 8, 12] }],
       note: 'Thin: MSLP every 4 hPa.' },
+    { id: 'w925', label: '925 mb wind', name: '925 mb wind + low-level stability', needs: 'wspd925',
+      fill: { key: 'wspd925', levels: [20, 25, 30, 34, 41, 48, 56, 64],
+              colors: [null, '#9fbbd9', '#7aa0c9', '#5683b5', '#f7e68a', '#f2a93b', '#d4531f', '#9e1f1f', '#5c0f45'] },
+      contours: [{ key: 'lapse925', step: 4, dash: [4, 3], width: 1.2, color: '#6a1b9a', label: true, fmt: f0, minGap: 150 },
+                 { key: 'msl', step: 4, width: 0.8, color: 'rgba(30,30,30,.6)', label: false }],
+      legend: [{ title: '925 mb wind speed (kt)', levels: [20, 25, 30, 34, 41, 48, 56, 64] }],
+      note: 'Dashed purple: sea surface minus 925 mb temperature every 4 C (10+ = well mixed). Thin: MSLP every 4 hPa.' },
     { id: 'ir', label: 'IR', name: 'Infrared (11 \u00b5m)', sat: 'ir', legend: [],
       noData: 'No infrared for this time',
       note: 'Cold cloud tops white. Brightness temperature, 11 \u00b5m.' },
@@ -73,7 +83,7 @@
       noData: 'No GOES view of this area at this time',
       note: 'Red-orange: dry, ozone-rich air from a lowered tropopause (the upper-level PV anomaly). Green: warm moist air mass. Blue/purple: cold air mass. White: thick high cloud.' }
   ];
-  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 1,004 lows; read it with the 500 mb vorticity."};
+  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "w925": "the best single clue to how strong it is now. Over 1,004 lows ASCAT's peak ran about 85% of the strongest 925 mb wind near the low where the sea was under 2 C warmer than the 2 m air, and about all of it where the sea was 8+ C warmer. Read it with the Sea - air tab.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 1,004 lows; read it with the 500 mb vorticity."};
   var REVEAL_TAB = { id: 'reveal', label: 'ASCAT', name: 'ASCAT wind over MSLP', reveal: true };
 
   // ------------------------------------------------------------------ helpers
@@ -89,6 +99,7 @@
   // ------------------------------------------------------------------ session (in memory + sessionStorage)
   var session = { records: [], played: { now: {}, fc: {} } };
   try { var raw = window.sessionStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.records && s.played) session = s; } } catch (e) { /* storage may be blocked */ }
+  session.pairs = session.pairs || []; session.played.pair = session.played.pair || {};
   function saveSession() { try { window.sessionStorage.setItem(STORE_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ } }
 
   function score(c, o) {
@@ -98,13 +109,31 @@
     if (c > o) return (c - o) === 1 ? 50 : 10;
     return (o - c) === 1 ? 25 : 0;
   }
+  // Change call (forecast game): -1 decay, 0 hold, 1 grow, relative to the ASCAT category now. Same rule as the
+  // ingredient statistics: the category moved AND the peak moved by the dead band (5 kt) or more; anything else is Hold.
+  function deadBand() { return manifest && manifest.ingredients && manifest.ingredients.dead_band_kt || 5; }
+  function obsChange(c) {
+    var d = c.ing && c.ing.dpeak != null ? c.ing.dpeak : c.t24.peak - c.t0.peak, b = deadBand();
+    if (c.t24.cat > c.t0.cat && d >= b) return 1;
+    if (c.t24.cat < c.t0.cat && d <= -b) return -1;
+    return 0;
+  }
+  // Right 60; wrong direction 0; Hold when it moved 15; moved when it held 25 (a missed growth costs more than a false alarm).
+  function changeScore(call, obs) {
+    if (call === null || call === undefined) return 0;
+    if (call === obs) return 60;
+    if (call === 0) return 15;
+    if (obs === 0) return 25;
+    return 0;
+  }
+  function isRight(r) { return r.chObs !== undefined ? r.chCalled === r.chObs : r.called === r.obs; }
   function levelFor(p) { var k = 0; for (var i = 0; i < LEVELS.length; i++) if (p >= LEVELS[i][1]) k = i; return k; }
   function totals(recs) {
     var t = { n: recs.length, exact: 0, within1: 0, pts: 0, time: 0, best: 0, cur: 0 };
     var run = 0;
     recs.forEach(function (r) {
       t.pts += r.pts; t.time += r.t;
-      if (r.called === r.obs) { t.exact++; run++; if (run > t.best) t.best = run; } else run = 0;
+      if (isRight(r)) { t.exact++; run++; if (run > t.best) t.best = run; } else run = 0;
       if (r.called >= 0 && Math.abs(r.called - r.obs) <= 1) t.within1++;
     });
     t.cur = run;
@@ -224,9 +253,9 @@
   }
   function pickCase(game, useWeak) {
     var played = session.played[game];
-    var pool = manifest.cases.filter(function (c) { return !played[c.id] && pairsFor(game, c).length; });
+    var pool = manifest.cases.filter(function (c) { return !played[c.id] && !benchSet[c.id] && pairsFor(game, c).length; });
     if (!pool.length) return null;
-    var recs = session.records.filter(function (r) { return r.game === game; });
+    var recs = session.records.filter(function (r) { return r.game === game && !r.skip; });
     if (useWeak && recs.length >= WEAK_MIN && Math.random() < 2 / 3) {
       var w = weakestCat(recs);
       if (w >= 0) {
@@ -250,6 +279,29 @@
     var dl = (((lon - g.lon0) % 360) + 540) % 360 - 180;
     return [dl / g.res * g.cw / (g.nx - 1), (g.lat0 - lat) / g.res * g.ch / (g.ny - 1)];
   }
+
+  function unproj(g, x, y) {   // canvas px (CSS) -> lat, lon
+    return { lat: g.lat0 - y / g.ch * (g.ny - 1) * g.res, lon: (((g.lon0 + x / g.cw * (g.nx - 1) * g.res) % 360) + 360) % 360 };
+  }
+  function distKm(la1, lo1, la2, lo2) {
+    var r = Math.PI / 180, dla = (la2 - la1) * r, dlo = (lo2 - lo1) * r;
+    var a = Math.sin(dla / 2) * Math.sin(dla / 2) + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dlo / 2) * Math.sin(dlo / 2);
+    return 12742 * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+  // The cell that sets the answer. Offline it is the 3rd-highest real-wind cell within 500 km that is nearer this low than
+  // any other; here, the 3rd-highest valid ASCAT cell inside the 500 km ring (fewer than 3 cells: the lowest there is).
+  function peakCell(g, snap, low) {
+    var cells = [];
+    for (var j = 0; j < g.ny; j++) for (var i = 0; i < g.nx; i++) {
+      var s = snap.spd[j * g.nx + i]; if (s === 255) continue;
+      var la = g.lat0 - j * g.res, lo = g.lon0 + i * g.res;
+      if (distKm(low.lat, low.lon, la, lo) <= RING_KM) cells.push({ s: s, lat: la, lon: lo });
+    }
+    if (!cells.length) return null;
+    cells.sort(function (a, b) { return b.s - a.s; });
+    return cells[Math.min(2, cells.length - 1)];
+  }
+  function median(a) { var s = a.slice().sort(function (x, y) { return x - y; }), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; }
 
   // ------------------------------------------------------------------ contouring (marching squares)
   function contourSegs(F, nx, ny, L) {
@@ -438,6 +490,30 @@
     ctx.restore();
     halo(ctx, 'L', p[0], p[1] + 0.5, '800 ' + Math.round(r * 1.05) + 'px system-ui,sans-serif', '#d00018');
   }
+  function drawTap(ctx, g, tap) {   // the trainee's tap: blue cross in a ring, white halo
+    var p = proj(g, tap.lat, tap.lon);
+    ctx.save(); ctx.lineCap = 'round'; ctx.setLineDash([]);
+    [[5, 'rgba(255,255,255,.95)'], [2.2, '#0b4fa8']].forEach(function (s) {
+      ctx.lineWidth = s[0]; ctx.strokeStyle = s[1];
+      ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, 7); ctx.moveTo(p[0] - 12, p[1]); ctx.lineTo(p[0] + 12, p[1]); ctx.moveTo(p[0], p[1] - 12); ctx.lineTo(p[0], p[1] + 12); ctx.stroke();
+    });
+    ctx.restore();
+    halo(ctx, 'you', p[0], Math.min(g.ch - 8, p[1] + 21), '700 11px system-ui,sans-serif', '#0b4fa8');
+  }
+  function drawPeak(ctx, g, pk, tap) {   // ring on the ASCAT cell that set the answer, line from the tap
+    var p = proj(g, pk.lat, pk.lon), r = Math.max(8, g.cw / (g.nx - 1) * 1.1);
+    ctx.save(); ctx.setLineDash([]); ctx.lineCap = 'round';
+    if (tap) {
+      var q = proj(g, tap.lat, tap.lon);
+      ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(p[0], p[1]);
+      ctx.lineWidth = 3.4; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = '#0b4fa8'; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.lineWidth = 5.5; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.stroke();
+    ctx.lineWidth = 2.6; ctx.strokeStyle = '#000'; ctx.stroke();
+    ctx.restore();
+    halo(ctx, Math.round(pk.s) + ' kt', p[0], Math.max(9, p[1] - r - 9), '700 11px system-ui,sans-serif', '#000');
+  }
   function drawTrack(ctx, g, a, b) {
     var p = proj(g, a.lat, a.lon), q = proj(g, b.lat, b.lon);
     var d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < 4) return;
@@ -464,6 +540,7 @@
       ctx.fillStyle = '#44505f'; ctx.font = '600 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(tab.noData, g.cw / 2, g.ch / 2);
       drawGrid(ctx, g); drawLow(ctx, g, extra.low.lat, extra.low.lon);
+      if (extra.tap) drawTap(ctx, g, extra.tap);
       return;
     }
     var cx = g.cw / (g.nx - 1), cy = g.ch / (g.ny - 1);   // image covers cell edges: half a cell beyond the centres
@@ -480,6 +557,7 @@
       drawContours(ctx, g, snap.f.msl, sp[0], none);
     });
     drawLow(ctx, g, extra.low.lat, extra.low.lon);
+    if (extra.tap) drawTap(ctx, g, extra.tap);
   }
   function renderMap(canvas, g, snap, tab, extra) {
     var dpr = g.dpr, ctx = canvas.getContext('2d');
@@ -494,15 +572,18 @@
       drawRing(ctx, g, extra.low.lat, extra.low.lon, RING_KM);
       if (extra.track) drawTrack(ctx, g, extra.track[0], extra.track[1]);
       drawLow(ctx, g, extra.low.lat, extra.low.lon);
+      if (extra.peak) drawPeak(ctx, g, extra.peak, extra.tap);
+      if (extra.tap) drawTap(ctx, g, extra.tap);
     } else {
       tab.contours.forEach(function (c) { if (snap.f[c.key]) drawContours(ctx, g, snap.f[c.key], c, labels); });
       drawLow(ctx, g, extra.low.lat, extra.low.lon);
+      if (extra.tap) drawTap(ctx, g, extra.tap);
     }
   }
 
   // ------------------------------------------------------------------ legend
-  function buildLegend(tab) {
-    var box = $('legend'); box.innerHTML = '';
+  function buildLegend(tab, boxEl) {
+    var box = boxEl || $('legend'); box.innerHTML = '';
     if (tab.reveal) {
       var lg = el('div', 'lg'); lg.appendChild(el('div', 'lgt', 'ASCAT 10 m wind (kt); ticks show direction the wind blows toward'));
       var bar = el('div', 'lgbar');
@@ -532,24 +613,25 @@
   // ------------------------------------------------------------------ game state / UI
   var opts = { game: 'now', mode: 'practice', weak: false, hints: true };
   try { if (window.sessionStorage.getItem('pdrill-hints') === '0') opts.hints = false; } catch (e) { /* ignore */ }
+  var lastEnd = 'blitz', bench = null, benchIds = null, benchSet = {}, pairsData = null, pair = null, ptabIdx = 0, ptabList = null;
   var cur = null, blitz = null, geom = null, tabIdx = 0, tabList = TABS, timerId = null;
 
   var lastScreen = 'start';
   function show(id) {
     if (id !== 'ingr') lastScreen = id;
-    ['start', 'play', 'end', 'ingr'].forEach(function (s) { $(s).hidden = s !== id; });
+    ['start', 'play', 'end', 'ingr', 'pairs'].forEach(function (s) { $(s).hidden = s !== id; });
     $('loadMsg').hidden = true;
     $('leaveBanner').hidden = true;
     window.scrollTo(0, 0);
     syncTimer();
   }
   function focusPlay() {   // keyboard focus: the result once answered, else the first answer button
-    var t = cur && cur.answered && !$('result').hidden ? $('result') : $('answers').querySelector('.ans');
+    var t = cur && cur.answered && !$('result').hidden ? $('result') : $('answers').querySelector('.ans:not(:disabled)');
     if (t && !t.closest('[hidden]')) { try { t.focus({ preventScroll: true }); } catch (e) { t.focus(); } }
   }
   function chromeH() {   // sticky header (+ sticky map tabs on narrow screens)
     var h = document.querySelector('header.top').offsetHeight;
-    if (window.innerWidth <= 720) h += $('tabs').offsetHeight;
+    if (window.innerWidth <= 720) h += ($('pairs').hidden ? $('tabs') : $('prTabs')).offsetHeight;
     return h;
   }
   function updateTop() {
@@ -565,6 +647,10 @@
     });
   }
 
+  function availTabs() {   // a tab whose field is not in this deck (an older build) is left out
+    var have = {}; (manifest && manifest.fields || []).forEach(function (f) { have[f.key] = 1; });
+    return TABS.filter(function (t) { return !t.needs || have[t.needs]; });
+  }
   function buildTabs() {
     var t = $('tabs'); t.innerHTML = '';
     tabList.forEach(function (tb, i) {
@@ -599,11 +685,12 @@
     var tab = tabList[tabIdx];
     $('cap').textContent = tab.name + (tab.reveal && cur.game === 'fc' ? ' (+24 h)' : '');
     buildLegend(tab);
-    var hb = $('hint'); hb.hidden = !(opts.hints && !tab.reveal && HINTS[tab.id]);
+    var hb = $('hint'); hb.hidden = !(opts.hints && !cur.bench && !tab.reveal && HINTS[tab.id]);
     hb.textContent = hb.hidden ? '' : 'Look for: ' + HINTS[tab.id];
     var snapIdx = cur.game === 'fc' && tab.reveal ? 1 : (cur.snap === 't24' && cur.game === 'now' ? 1 : 0);
     var info = cur.game === 'fc' && tab.reveal ? cur.c.t24 : cur.c[cur.snap];
-    var extra = { low: info };
+    var extra = { low: info, tap: cur.tap || null };
+    if (tab.reveal && cur.peak) extra.peak = cur.peak;
     if (tab.reveal && cur.game === 'fc') extra.track = [cur.c.t0, cur.c.t24];
     if (tab.sat) {
       var token = cur, tg = geom;
@@ -619,28 +706,41 @@
 
   function startGame() {
     $('startMsg').textContent = '';
+    lastEnd = 'blitz'; bench = null;
+    if (opts.mode === 'pairs') return startPairs();
     blitz = opts.mode === 'blitz' ? { n: 0, recs: [] } : null;
-    tabList = TABS;
+    tabList = availTabs();
+    show('play');
+    nextCase();
+  }
+  function startBench() {   // fixed 20 cases, forecast game, no hints, no feedback until the summary
+    if (!benchIds || !benchIds.length) return;
+    $('startMsg').textContent = '';
+    lastEnd = 'bench'; blitz = null; pair = null;
+    bench = { n: 0, ids: benchIds.slice(), recs: [], t: Date.now() };
+    tabList = availTabs();
     show('play');
     nextCase();
   }
   function nextCase() {
     clearTimer();
     if (blitz && blitz.n >= BLITZ_N) return endBlitz();
-    var pick = pickCase(opts.game, opts.weak);
+    if (bench && bench.n >= bench.ids.length) return endBench();
+    var pick = bench ? { c: manifest.byId[bench.ids[bench.n]], snap: 't0' } : pickCase(opts.game, opts.weak);
     if (!pick) {
       $('startMsg').textContent = 'You have seen every case in this game this session. Pick the other game or close the tab to reset.';
       if (blitz && blitz.recs.length) return endBlitz();
       goHome(); return;
     }
-    cur = { game: opts.game, c: pick.c, snap: pick.snap, data: null, answered: false, t0: 0 };
-    session.played[opts.game][pick.c.id] = 1; saveSession();
-    tabList = TABS; buildTabs();
+    var game = bench ? 'fc' : opts.game;
+    cur = { game: game, c: pick.c, snap: pick.snap, data: null, answered: false, t0: 0, bench: !!bench, stage: game === 'fc' ? 'change' : null, chCalled: null, tap: null, peak: null };
+    if (!bench) { session.played[opts.game][pick.c.id] = 1; saveSession(); }
+    tabList = availTabs(); buildTabs();
     $('result').hidden = true; $('debrief').hidden = true; $('nextBtn').hidden = true; $('answers').hidden = false;
     $('mapLoad').hidden = false; $('mapLoad').textContent = 'Loading case...';
     var played = session.records.filter(function (r) { return r.game === opts.game; }).length;
-    $('pCase').textContent = blitz ? 'Case ' + (blitz.n + 1) + ' of ' + BLITZ_N : 'Case ' + (played + 1);
-    $('pGame').textContent = opts.game === 'now' ? 'Right now' : 'Forecast +24 h';
+    $('pCase').textContent = bench ? 'Benchmark ' + (bench.n + 1) + ' of ' + bench.ids.length : blitz ? 'Case ' + (blitz.n + 1) + ' of ' + BLITZ_N : 'Case ' + (played + 1);
+    $('pGame').textContent = game === 'now' ? 'Right now' : 'Forecast +24 h';
     $('pBasin').textContent = pick.c.basin === 'natl' ? 'N Atlantic' : pick.c.basin === 'npac' ? 'N Pacific' : pick.c.basin;
     $('timerbar').hidden = $('pTimer').hidden = !blitz;
     buildQuestion();
@@ -656,22 +756,69 @@
     }).catch(function (e) {
       $('mapLoad').textContent = 'Could not load this case (' + e.message + '). Tap Next.';
       $('nextBtn').hidden = false; $('answers').hidden = true;
-      cur.failed = true; $('nextBtn').focus({ preventScroll: true });
+      cur.failed = true; if (bench) bench.n++; $('nextBtn').focus({ preventScroll: true });
     });
   }
   function buildQuestion() {
-    var now = cur.game === 'now';
-    $('question').textContent = now ? 'Peak wind around the circled low right now?' : 'Peak wind around this low in 24 h?';
+    var now = cur.game === 'now', fc = !now, st = cur.stage;
+    $('question').textContent = now ? 'Tap where the strongest wind is, then pick the category.'
+      : st === 'change' ? 'Will the peak wind grow, hold or decay over the next 24 h?' : 'Optional: which category in 24 h?';
     var nl = $('nowline');
-    if (!now) { var t = cur.c.t0; nl.hidden = false; nl.textContent = 'ASCAT now: ' + CATS[t.cat] + ' (' + Math.round(t.peak) + ' kt)'; } else nl.hidden = true;
-    $('catNote').hidden = session.records.length > 0;   // legend note on the first case of a session
-    var a = $('answers'); a.innerHTML = '';
-    var names = ['None', 'Gale', 'Storm', 'HF'];
-    names.forEach(function (n, i) {
+    if (fc) { var t = cur.c.t0; nl.hidden = false; nl.textContent = 'ASCAT now: ' + CATS[t.cat] + ' (' + Math.round(t.peak) + ' kt)' + (st === 'change' ? '. Under ' + deadBand() + ' kt of change counts as Hold.' : '. You called ' + CH_NAMES[cur.chCalled + 1] + '.'); } else nl.hidden = true;
+    $('catNote').hidden = !(now ? session.records.length === 0 : st === 'cat' && !cur.bench && session.records.length < 3);   // legend note early in a session
+    $('tapNote').hidden = !(now && !cur.answered);
+    $('mapbox').classList.toggle('tappable', now && !cur.answered);
+    updateTapNote();
+    renderAnswers();
+  }
+  function renderAnswers() {
+    var a = $('answers'); a.innerHTML = ''; a.hidden = false;
+    var s0 = cur.c.t0.cat;
+    if (cur.game === 'fc' && cur.stage === 'change') {
+      a.className = 'answers ch3';
+      var bd = deadBand();
+      [[1, 'Grow', 'up ' + bd + '+ kt'], [0, 'Hold', 'within ' + bd + ' kt'], [-1, 'Decay', 'down ' + bd + '+ kt']].forEach(function (x, i) {
+        var b = el('button', 'ans', '<b>' + x[1] + ' <kbd>' + (i + 1) + '</kbd></b><span>' + x[2] + '</span>');
+        b.type = 'button'; b.dataset.ch = x[0];
+        if ((x[0] === 1 && s0 === 3) || (x[0] === -1 && s0 === 0)) {
+          b.disabled = true; b.title = x[0] === 1 ? 'A low already at HF cannot grow a category' : 'A low below gale cannot decay a category';
+          b.querySelector('span').textContent = 'not possible';
+        }
+        b.addEventListener('click', function () { changeCall(x[0]); });
+        a.appendChild(b);
+      });
+      return;
+    }
+    a.className = 'answers' + (cur.game === 'fc' ? ' cat5' : '');
+    ['None', 'Gale', 'Storm', 'HF'].forEach(function (n, i) {
       var b = el('button', 'ans', '<b>' + n + ' <kbd>' + (i + 1) + '</kbd></b><span>' + CAT_RANGE[i] + '</span>');
       b.type = 'button'; b.dataset.c = i; b.addEventListener('click', function () { answer(i); });
       a.appendChild(b);
     });
+    if (cur.game === 'fc') {
+      var sk = el('button', 'ans skip', '<b>Skip <kbd>5</kbd></b><span>no category</span>');
+      sk.type = 'button'; sk.addEventListener('click', function () { answer(-1, 'skip'); });
+      a.appendChild(sk);
+    }
+  }
+  function changeCall(v) {   // forecast game, first tap: the change call; the category is an optional second tap
+    if (!cur || cur.answered || !cur.data || cur.stage !== 'change') return;
+    var s0 = cur.c.t0.cat;
+    if ((v === 1 && s0 === 3) || (v === -1 && s0 === 0)) return;
+    cur.chCalled = v; cur.stage = 'cat';
+    buildQuestion(); focusPlay();
+  }
+  function updateTapNote() {
+    var n = $('tapNote'); if (n.hidden) return;
+    n.innerHTML = cur.tap ? 'Tap placed. Tap the map again to move it, or <button type="button" class="linkbtn" id="tapClear">clear it</button>. Then pick the category.'
+      : 'Optional: tap the map where you think the strongest wind is. You can also just pick the category.';
+  }
+  function mapTap(e) {
+    if (!cur || cur.game !== 'now' || cur.answered || !cur.data || !geom) return;
+    var r = $('map').getBoundingClientRect();
+    var x = (e.clientX - r.left) * geom.cw / r.width, y = (e.clientY - r.top) * geom.ch / r.height;
+    var p = unproj(geom, x, y); cur.tap = { lat: p.lat, lon: p.lon };
+    updateTapNote(); draw();
   }
 
   // Blitz clock: timerLeft = ms remaining (null = no clock). It runs only while the play screen is
@@ -682,7 +829,7 @@
     timerLeft = left;
     tm.textContent = s + ' s'; tm.classList.toggle('low', s <= 10); bar.classList.toggle('low', s <= 10);
     bar.firstElementChild.style.width = (left / (BLITZ_SECS * 10)) + '%';
-    if (left <= 0) { clearTimer(); answer(-1); }
+    if (left <= 0) { clearTimer(); answer(-1, 'time'); }
   }
   function startTimer() { timerLeft = BLITZ_SECS * 1000; pausedAt = Date.now(); syncTimer(); }
   function clearTimer() { if (timerId) { clearInterval(timerId); timerId = null; } timerLeft = null; }
@@ -709,6 +856,7 @@
     thk_grad: 'Thickness gradient near the low: how sharp the baroclinic zone is.',
     sea_air: 'Sea minus air temperature: cold air over warm sea mixes strong winds down.',
     dry: 'Dry upper air (red/orange, not white cloud) on the rear side of the low in the air-mass image.',
+    wind925: 'Strongest 925 mb wind over water near the low (upper part of the 500 km disc): the wind waiting to mix down.',
     dp_prev: 'Central pressure change in the 12 h before (negative = deepening). Not on the maps; on the desk you would have the previous analysis.'
   };
   var SNAME = ['none', 'gale', 'storm', 'HF'], LEVEL = ['low', 'middling', 'high'];
@@ -734,7 +882,7 @@
     if (cur.game === 'fc') {
       var c1 = c.t24.cat, dpk = ing.dpeak, rows = '';
       var held = c1 !== c0 && Math.abs(dpk) < M.dead_band_kt;
-      var out = 'ASCAT peak ' + Math.round(c.t0.peak) + ' to ' + Math.round(c.t24.peak) + ' kt (' + (dpk >= 0 ? '+' : '') + Math.round(dpk) + ' kt).';
+      var out = 'Observed: <b>' + CH_OBS[obsChange(c) + 1] + '</b>. ASCAT peak ' + Math.round(c.t0.peak) + ' to ' + Math.round(c.t24.peak) + ' kt (' + (dpk >= 0 ? '+' : '') + Math.round(dpk) + ' kt).';
       if (held) out += ' It crossed a category line by less than ' + M.dead_band_kt + ' kt: borderline, close to ASCAT noise.';
       var br = M.by_start[sname], ch = '';
       if (ing.p_grow != null && c0 < 3) ch += '<b>' + ing.p_grow + '%</b> chance of growing';
@@ -812,31 +960,57 @@
     b.onclick = function (e) { var t = e.target.closest('[data-ist]'); if (!t) return; ingStart = +t.getAttribute('data-ist'); b.innerHTML = ingredientsHTML(); };
   }
 
-  function answer(called) {
+  function answer(called, why) {   // called: category 0-3, or -1 (skipped, or time up)
     if (!cur || cur.answered || !cur.data) return;
     cur.answered = true; clearTimer();
-    var obsInfo = cur.game === 'now' ? cur.c[cur.snap] : cur.c.t24;
+    var fc = cur.game === 'fc';
+    var obsInfo = fc ? cur.c.t24 : cur.c[cur.snap];
     var o = obsInfo.cat, secs = Math.min((Date.now() - cur.t0) / 1000, 600);
-    if (called < 0) secs = BLITZ_SECS;
-    var pts = score(called, o);
-    var rec = { game: cur.game, called: called, obs: o, start: cur.c.t0.cat, pts: pts, t: Math.round(secs * 10) / 10, mode: opts.mode };
+    var timeUp = why === 'time';
+    if (timeUp) secs = BLITZ_SECS;
+    var skipped = fc && cur.chCalled !== null && called < 0;   // the category is optional once the change is called
+    var cpts = skipped ? 0 : score(called, o);
+    var chObs = fc ? obsChange(cur.c) : undefined, chPts = fc ? changeScore(cur.chCalled, chObs) : 0;
+    var pts = cpts + chPts;
+    var rec = { id: cur.c.id, game: cur.game, called: called, obs: o, start: cur.c.t0.cat, pts: pts, cpts: cpts, t: Math.round(secs * 10) / 10, mode: cur.bench ? 'bench' : opts.mode };
+    if (fc) { rec.chCalled = cur.chCalled; rec.chObs = chObs; rec.chPts = chPts; rec.skip = skipped; }
+    if (!fc) {
+      var low = cur.c[cur.snap];
+      cur.peak = peakCell(geom, cur.data[cur.snap === 't24' ? 1 : 0], low);
+      if (cur.tap && cur.peak) { cur.tapNm = distKm(cur.tap.lat, cur.tap.lon, cur.peak.lat, cur.peak.lon) * NM_PER_KM; rec.tapNm = Math.round(cur.tapNm); }
+    }
+    if (cur.bench) {   // benchmark: no feedback, no session records; the summary comes at the end
+      bench.recs.push(rec); bench.n++; $('mapbox').classList.remove('tappable');
+      return nextCase();
+    }
     session.records.push(rec); saveSession();
     if (blitz) { blitz.recs.push(rec); blitz.n++; }
     var tt = totals(session.records);
     updateTop();
+    $('tapNote').hidden = true; $('mapbox').classList.remove('tappable');
     // result card
-    var cls = called === o ? 'good' : (called >= 0 && Math.abs(called - o) === 1 && pts > 0) ? 'ok' : 'bad';
-    var head = called < 0 ? 'Time up: observed ' + CATS[o] : called === o ? 'Exact: ' + CATS[o]
-      : 'You called ' + CATS[called] + ', observed ' + CATS[o];
-    var h = '<div class="rhead">' + head + '</div><div class="rpts">' + (pts > 0 ? '+' : '') + pts + ' pts</div>';
-    if (cur.game === 'now') {
-      h += '<div class="rline">ASCAT peak ' + Math.round(obsInfo.peak) + ' kt (' + CATS[o] + ')</div>';
-      h += '<div class="rline">Low centre about ' + Math.round(cur.c[cur.snap].hpa) + ' hPa</div>';
+    var cls, head;
+    if (fc) {
+      cls = chPts === 60 ? 'good' : chPts > 0 ? 'ok' : 'bad';
+      head = cur.chCalled === null ? 'Time up: it ' + CH_OBS[chObs + 1] : cur.chCalled === chObs ? 'Right: it ' + CH_OBS[chObs + 1]
+        : 'You called ' + CH_NAMES[cur.chCalled + 1] + ', it ' + CH_OBS[chObs + 1];
     } else {
+      cls = called === o ? 'good' : (called >= 0 && Math.abs(called - o) === 1 && pts > 0) ? 'ok' : 'bad';
+      head = called < 0 ? 'Time up: observed ' + CATS[o] : called === o ? 'Exact: ' + CATS[o] : 'You called ' + CATS[called] + ', observed ' + CATS[o];
+    }
+    var h = '<div class="rhead">' + head + '</div><div class="rpts">' + (pts > 0 ? '+' : '') + pts + ' pts</div>';
+    if (fc) {
+      h += '<div class="rline">Change call: ' + (chPts > 0 ? '+' : '') + chPts + ' (peak ' + Math.round(cur.c.t0.peak) + ' to ' + Math.round(obsInfo.peak) + ' kt)</div>';
+      h += '<div class="rline">Category: ' + (skipped ? 'skipped' : called < 0 ? 'no answer, observed ' + CATS[o] : called === o ? 'exact, ' + CATS[o] : 'called ' + CATS[called] + ', observed ' + CATS[o]) +
+        (skipped ? '' : ' (' + (cpts > 0 ? '+' : '') + cpts + ')') + '. ASCAT at +24 h: ' + CATS[o] + '.</div>';
       var d = cur.c.t0.hpa - cur.c.t24.hpa, dd = Math.round(Math.abs(d));
-      h += '<div class="rline">ASCAT peak at +24 h: ' + Math.round(obsInfo.peak) + ' kt (' + CATS[o] + ')</div>';
       h += '<div class="rline">' + (dd === 0 ? 'No pressure change' : (d > 0 ? 'Deepened ' : 'Filled ') + dd + ' hPa') +
         ' (' + Math.round(cur.c.t0.hpa) + ' to ' + Math.round(cur.c.t24.hpa) + ' hPa)</div>';
+    } else {
+      h += '<div class="rline">ASCAT peak ' + Math.round(obsInfo.peak) + ' kt (' + CATS[o] + ')</div>';
+      h += '<div class="rline">Low centre about ' + Math.round(cur.c[cur.snap].hpa) + ' hPa</div>';
+      if (cur.peak) h += '<div class="rline">' + (cur.tap ? 'Your tap was <b>' + Math.round(cur.tapNm) + ' nm</b> from the cell that set the peak (ringed, ' + Math.round(cur.peak.s) + ' kt).'
+        : 'The ringed cell on the ASCAT tab set the peak (' + Math.round(cur.peak.s) + ' kt).') + '</div>';
     }
     h += '<div class="rstats">Streak ' + tt.cur + ' &middot; Total ' + tt.pts + ' pts &middot; Best streak ' + tt.best + '</div>';
     var res = $('result'); res.className = 'result ' + cls; res.innerHTML = h; res.hidden = false;
@@ -845,7 +1019,7 @@
     var nb = $('nextBtn'); nb.hidden = false;
     nb.textContent = blitz && blitz.n >= BLITZ_N ? 'See results' : 'Next case';
     // reveal tab
-    tabList = TABS.concat([REVEAL_TAB]); buildTabs(); setTab(TABS.length);
+    tabList = availTabs().concat([REVEAL_TAB]); buildTabs(); setTab(tabList.length - 1);
     focusPlay();
     if (window.innerWidth < 900) {   // result sits below the map on narrow screens: bring it up under the sticky bars
       var top = res.getBoundingClientRect().top + window.pageYOffset - chromeH() - 8;
@@ -863,11 +1037,11 @@
       for (var o = 0; o < 4; o++) { var n = conf.m[c][o]; h += '<td class="' + (c === o ? 'diag ' : '') + (n ? '' : 'zero') + '">' + n + '</td>'; }
       h += '</tr>';
     }
-    return h + '</table>' + (conf.un ? '<div class="fine">' + conf.un + ' unanswered (not in table)</div>' : '');
+    return h + '</table>' + (conf.un ? '<div class="fine">' + conf.un + ' unanswered or skipped (not in table)</div>' : '');
   }
   function kpiHTML(t) {
     var pct = function (x) { return t.n ? Math.round(100 * x / t.n) + '%' : '-'; };
-    var k = [[t.n, 'cases played'], [pct(t.exact), 'exact'], [pct(t.within1), 'within one'],
+    var k = [[t.n, 'cases played'], [pct(t.exact), 'right call'], [pct(t.within1), 'within one'],
              [t.best, 'best streak'], [t.n ? (t.time / t.n).toFixed(1) + ' s' : '-', 'mean time per case'], [t.pts, 'total points']];
     return '<div class="kpis">' + k.map(function (x) { return '<div class="kpi"><b>' + x[0] + '</b><span>' + x[1] + '</span></div>'; }).join('') + '</div>';
   }
@@ -915,26 +1089,29 @@
     var h = '<h3 class="gh">' + title + '</h3>';
     if (!recs.length) return h + '<div class="empty">No cases yet.</div>';
     var conf = confusion(recs);
-    return h + '<div class="read">' + readLine(conf) + '</div>' + (game === 'fc' ? persistHTML(recs) : '') + biasHTML(recs, game) + tableHTML(conf);
+    return h + (game === 'fc' ? changeHTML(recs) : tapHTML(recs)) + '<div class="read">' + readLine(conf) + '</div>' + (game === 'fc' ? persistHTML(recs) : '') + biasHTML(recs, game) + (game === 'fc' ? '<div class="bh2">Category (optional second call)</div>' : '') + tableHTML(conf);
   }
   // You vs persistence: what calling "no change" (the category now) would have scored on the same cases.
   function persistHTML(recs) {
     var n = recs.length, you = 0, yp = 0, pe = 0, pp = 0;
-    recs.forEach(function (r) { if (r.called === r.obs) you++; yp += r.pts; if (r.start === r.obs) pe++; pp += score(r.start, r.obs); });
+    recs = recs.filter(function (r) { return !r.skip; });   // category part only: a skipped category is not scored
+    n = recs.length; if (!n) return '';
+    recs.forEach(function (r) { if (r.called === r.obs) you++; yp += r.cpts !== undefined ? r.cpts : r.pts; if (r.start === r.obs) pe++; pp += score(r.start, r.obs); });
     var beat = yp > pp ? 'You are beating no change.' : yp === pp ? 'Level with no change.' : 'No change is ahead: look harder for growth and decay.';
-    return '<div class="persist"><b>You vs calling no change</b><span>You: ' + Math.round(100 * you / n) + '% exact, ' + yp + ' pts. ' +
+    return '<div class="persist"><b>Category: you vs calling no change</b><span>You: ' + Math.round(100 * you / n) + '% exact, ' + yp + ' pts. ' +
       'No change: ' + Math.round(100 * pe / n) + '% exact, ' + pp + ' pts. ' + beat + '</span></div>';
   }
   function openStats() {
     var all = session.records, t = totals(all);
     var h = levelHTML(t.pts) + kpiHTML(t);
-    if (all.filter(function (r) { return r.called >= 0; }).length < 5) {
+    if (all.filter(function (r) { return r.called >= 0 || r.chCalled != null; }).length < 5) {
       h += '<div class="statsempty"><p><b>Play 5 cases to see your bias</b></p><p class="fine">The bias tracker and confusion table need a few answered cases first.</p>' +
         '<button type="button" class="btn small" id="statsNext">Next case</button></div>';
     } else {
       h += gameSection('Right now', all.filter(function (r) { return r.game === 'now'; }), 'now');
       h += gameSection('Forecast +24 h', all.filter(function (r) { return r.game === 'fc'; }), 'fc');
     }
+    h += pairsStatHTML() + benchHistHTML(null);
     statsOpener = document.activeElement;
     $('statsBody').innerHTML = h; $('drawer').hidden = false;
     $('closeStats').focus();
@@ -952,8 +1129,9 @@
     if (!$('play').hidden && cur) { if (cur.answered || cur.failed) nextCase(); else focusPlay(); }
     else startGame();
   }
-  function leaveBlitz() { return blitz && !$('play').hidden && blitz.n < BLITZ_N; }
+  function leaveBlitz() { return !$('play').hidden && ((blitz && blitz.n < BLITZ_N) || (bench && bench.n < bench.ids.length)); }
   function askLeave(on) {
+    $('leaveTxt').textContent = bench ? 'Leave the benchmark? This run will not be saved.' : 'Leave blitz? Your progress in this blitz will be lost.';
     $('leaveBanner').hidden = !on; syncTimer();
     if (on) $('leaveNo').focus({ preventScroll: true }); else if (!$('play').hidden) focusPlay();
   }
@@ -963,11 +1141,275 @@
     var pct = t.n ? Math.round(100 * t.exact / t.n) : 0;
     var h = '<div class="level"><b>' + t.pts + ' pts</b><span>' + pct + '% exact &middot; best streak ' + t.best + '</span></div>';
     h += levelHTML(totals(session.records).pts);
+    if (blitz.recs.length && blitz.recs[0].game === 'fc') h += changeHTML(blitz.recs);
     h += '<div class="read">' + readLine(conf) + '</div>' + biasHTML(blitz.recs, blitz.recs.length && blitz.recs[0].game) + tableHTML(conf);
-    $('endBody').innerHTML = h; show('end');
+    $('endTitle').textContent = 'Blitz done'; $('endBody').innerHTML = h; show('end');
   }
-  function goHome() { clearTimer(); cur = null; show('start'); }
+  function goHome() { clearTimer(); cur = null; pair = null; show('start'); }
   // startMsg is cleared whenever a game starts (see startGame)
+
+  // ------------------------------------------------------------------ keys, change-call stats
+  function pressKey(k) {   // number keys press the nth answer button; s or 0 skips the optional category
+    if (/^[sS0]$/.test(k)) { var sk = $('answers').querySelector('.skip'); if (sk) sk.click(); return; }
+    var b = $('answers').querySelectorAll('.ans')[+k - 1];
+    if (b && !b.disabled) b.click();
+  }
+  var CHORD = [1, 0, -1];   // table order: Grow, Hold, Decay
+  function changeHTML(recs) {   // 3x3 called vs observed, and you vs calling no change (Hold)
+    var rs = recs.filter(function (r) { return r.chObs !== undefined; });
+    if (!rs.length) return '';
+    var m = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], un = 0, you = 0, yp = 0, pp = 0, pe = 0, grew = 0, caught = 0, fa = 0;
+    rs.forEach(function (r) {
+      if (r.chCalled === null) un++; else m[r.chCalled + 1][r.chObs + 1]++;
+      if (r.chCalled === r.chObs) you++;
+      yp += r.chPts; pp += changeScore(0, r.chObs); if (r.chObs === 0) pe++;
+      if (r.chObs === 1) { grew++; if (r.chCalled === 1) caught++; }
+      if (r.chCalled === 1 && r.chObs !== 1) fa++;
+    });
+    var n = rs.length, pc = function (x) { return Math.round(100 * x / n) + '%'; };
+    var beat = yp > pp ? 'You are beating no change.' : yp === pp ? 'Level with no change.' : 'No change is ahead: look harder for growth and decay.';
+    var h = '<div class="bh2">Change call: grow, hold or decay</div>' +
+      '<div class="persist"><b>You vs calling no change (Hold every time)</b><span>You: ' + pc(you) + ' right, ' + yp + ' pts over ' + n + ' cases. No change: ' + pc(pe) + ' right, ' + pp + ' pts. ' + beat + '</span></div>' +
+      '<div class="fine chnote">' + (grew ? 'Growth caught: ' + caught + ' of ' + grew + '. ' : 'No growth cases yet. ') + 'False alarms of growth: ' + fa + '. (A missed growth costs more than a false alarm.)</div>';
+    h += '<table class="conf"><tr><th class="corner">Called<br>&darr; / Observed &rarr;</th>';
+    CHORD.forEach(function (v) { h += '<th>' + CH_NAMES[v + 1] + '</th>'; });
+    h += '</tr>';
+    CHORD.forEach(function (c) {
+      h += '<tr><th>' + CH_NAMES[c + 1] + '</th>';
+      CHORD.forEach(function (o) { var k = m[c + 1][o + 1]; h += '<td class="' + (c === o ? 'diag ' : '') + (k ? '' : 'zero') + '">' + k + '</td>'; });
+      h += '</tr>';
+    });
+    return h + '</table>' + (un ? '<div class="fine">' + un + ' with no change call (time up)</div>' : '');
+  }
+  function tapHTML(recs) {
+    var d = recs.filter(function (r) { return r.tapNm != null; }).map(function (r) { return r.tapNm; });
+    if (!d.length) return '';
+    return '<div class="persist"><b>Where the strongest wind is</b><span>Median miss ' + Math.round(median(d)) + ' nm over ' + d.length + ' tap' + (d.length > 1 ? 's' : '') +
+      ' (to the ringed cell: the 3rd-highest ASCAT cell within 500 km).</span></div>';
+  }
+  function pairsStatHTML() {
+    var ps = session.pairs; if (!ps.length) return '';
+    var right = ps.filter(function (p) { return p.right; }).length;
+    return '<h3 class="gh">Pairs</h3><div class="persist"><b>Which one grew?</b><span>' + right + ' of ' + ps.length + ' right (' + Math.round(100 * right / ps.length) + '%; guessing gets 50%).</span></div>';
+  }
+
+  // ------------------------------------------------------------------ benchmark: history on this device, summary, CSV
+  var benchHist = [], benchStored = true;
+  function loadBenchHist() {
+    try { var r = window.localStorage.getItem(BENCH_KEY), a = r && JSON.parse(r); if (Array.isArray(a)) benchHist = a; } catch (e) { benchStored = false; }
+  }
+  function saveBenchHist() { try { window.localStorage.setItem(BENCH_KEY, JSON.stringify(benchHist)); return true; } catch (e) { return false; } }
+  function runSummary(recs) {
+    var s = { n: recs.length, pts: 0, chRight: 0, chPts: 0, persPts: 0, catAns: 0, catExact: 0, secs: 0 };
+    recs.forEach(function (r) {
+      s.pts += r.pts; s.chPts += r.chPts; s.persPts += changeScore(0, r.chObs); s.secs += r.t;
+      if (r.chCalled === r.chObs) s.chRight++;
+      if (!r.skip && r.called >= 0) { s.catAns++; if (r.called === r.obs) s.catExact++; }
+    });
+    return s;
+  }
+  function shortDate(ts) { var d = new Date(ts); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); }
+  function benchHistHTML(hi) {
+    if (!benchHist.length) return '';
+    var h = '<h3 class="gh">Benchmark history (this device)</h3><table class="jt"><tr><th>Run</th><th>Change right</th><th>Change pts</th><th>No change pts</th><th>Category exact</th></tr>';
+    var from = Math.max(0, benchHist.length - 8);
+    benchHist.slice(from).forEach(function (r, i) {
+      var last = hi && from + i === benchHist.length - 1;
+      h += '<tr' + (last ? ' class="hl"' : '') + '><th>' + (from + i + 1) + '<div class="fine">' + shortDate(r.ts) + '</div></th><td>' + r.chRight + ' of ' + r.n + '</td><td>' + r.chPts + '</td><td>' + r.persPts + '</td><td>' + r.catExact + ' of ' + r.catAns + '</td></tr>';
+    });
+    return h + '</table>' + (benchStored ? '' : '<div class="fine">Storage is blocked in this browser: history lasts only while this page stays open.</div>');
+  }
+  function endBench() {
+    clearTimer();
+    var recs = bench.recs, run = runSummary(recs), prev = benchHist.length ? benchHist[benchHist.length - 1] : null;
+    run.ts = new Date().toISOString(); run.recs = recs.map(function (r) { return { id: r.id, start: r.start, chCalled: r.chCalled, chObs: r.chObs, called: r.called, obs: r.obs, pts: r.pts, chPts: r.chPts, t: r.t, skip: r.skip }; });
+    benchHist.push(run); if (benchHist.length > 30) benchHist.shift();
+    benchStored = saveBenchHist() && benchStored;
+    var sg = function (x) { return (x > 0 ? '+' : '') + x; };
+    var h = '<div class="level"><b>' + run.chRight + ' of ' + run.n + ' change calls right</b><span>' + run.pts + ' pts &middot; ' + (run.secs / run.n).toFixed(1) + ' s per case</span></div>';
+    h += prev ? '<div class="read">Against your previous run: ' + sg(run.chRight - prev.chRight) + ' right calls, ' + sg(run.chPts - prev.chPts) + ' change pts, ' + sg(run.pts - prev.pts) + ' total pts.</div>'
+      : '<div class="read">First benchmark run on this device. Come back later and run it again to compare.</div>';
+    h += changeHTML(recs);
+    h += '<div class="fine chnote">Category (optional): ' + run.catExact + ' exact of ' + run.catAns + ' answered.</div>';
+    h += benchHistHTML(true);
+    var rows = '';
+    recs.forEach(function (r, i) {
+      var c = manifest.byId[r.id];
+      rows += '<tr><th>' + (i + 1) + '</th><td>' + (c && c.basin === 'natl' ? 'Atl' : 'Pac') + '</td><td>' + CATS[r.start] + '</td><td>' + (r.chCalled === null ? '-' : CH_NAMES[r.chCalled + 1]) + '</td><td>' + CH_OBS[r.chObs + 1] +
+        '</td><td>' + CATS[r.obs] + '</td></tr>';
+    });
+    h += '<details class="dlite"><summary>The ' + recs.length + ' cases</summary><table class="jt"><tr><th>#</th><th>Basin</th><th>Start</th><th>You called</th><th>It</th><th>+24 h</th></tr>' + rows + '</table></details>';
+    $('endTitle').textContent = 'Benchmark done'; $('endBody').innerHTML = h;
+    lastEnd = 'bench'; bench = null; cur = null; show('end');
+  }
+  function csvCell(v) { var s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function exportCSV() {   // session records + benchmark runs + pairs, built here and saved through a Blob: nothing leaves the device
+    var cols = ['kind', 'run', 'when', 'game', 'mode', 'case', 'start_cat', 'called_change', 'observed_change', 'change_pts', 'called_cat', 'observed_cat', 'cat_pts', 'total_pts', 'secs', 'tap_miss_nm', 'pair_pick', 'pair_right'];
+    var rows = [cols];
+    var chn = function (v) { return v === null || v === undefined ? '' : CH_NAMES[v + 1]; };
+    var cat = function (v) { return v === null || v === undefined || v < 0 ? '' : CATS[v]; };
+    session.records.forEach(function (r, i) {
+      rows.push(['session', '', '', r.game === 'fc' ? 'forecast' : 'right_now', r.mode, r.id || '', cat(r.start), chn(r.chCalled), r.chObs === undefined ? '' : CH_OBS[r.chObs + 1], r.chPts, cat(r.called), cat(r.obs), r.cpts !== undefined ? r.cpts : r.pts, r.pts, r.t, r.tapNm, '', '']);
+    });
+    benchHist.forEach(function (run, k) {
+      (run.recs || []).forEach(function (r) {
+        rows.push(['benchmark', k + 1, run.ts, 'forecast', 'bench', r.id, cat(r.start), chn(r.chCalled), CH_OBS[r.chObs + 1], r.chPts, cat(r.called), cat(r.obs), r.pts - r.chPts, r.pts, r.t, '', '', '']);
+      });
+    });
+    session.pairs.forEach(function (p) { rows.push(['pair', '', '', 'forecast', 'pairs', p.a + '|' + p.b, '', '', '', '', '', '', '', '', p.t, '', p.pick.toUpperCase(), p.right ? 1 : 0]); });
+    var csv = rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n') + '\r\n';
+    var a = document.createElement('a'), url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.href = url; a.download = 'pattern-drill-results.csv'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    var msg = rows.length - 1 + ' rows saved to pattern-drill-results.csv.';
+    $('startMsg').textContent = msg; $('exportMsg').textContent = msg;
+  }
+
+  // ------------------------------------------------------------------ pairs: two similar lows, one grew
+  function pairKey(p) { return p.a + '|' + p.b; }
+  function pairsPool() {
+    return (pairsData || []).filter(function (p) { return !session.played.pair[pairKey(p)] && !benchSet[p.a] && !benchSet[p.b]; });
+  }
+  function startPairs() {
+    if (!pairsData) return;
+    if (!pairsPool().length) { $('startMsg').textContent = 'You have seen every pair this session. Close the tab to reset.'; return; }
+    blitz = null; bench = null; cur = null; show('pairs'); nextPair();
+  }
+  function buildPTabs() {
+    var t = $('prTabs'); t.innerHTML = '';
+    ptabList.forEach(function (tb, i) {
+      var b = el('button', 'tab' + (tb.reveal ? ' reveal' : ''), tb.label);
+      b.type = 'button'; b.setAttribute('role', 'tab'); b.addEventListener('click', function () { setPTab(i); });
+      t.appendChild(b);
+    });
+  }
+  function sizePairs() {
+    ['a', 'b'].forEach(function (s) {
+      var g = pair.g[s], col = $('prCol' + s.toUpperCase()), w = col.clientWidth;
+      if (window.innerWidth >= 900) w = Math.min(w, Math.max(300, (window.innerHeight - 330) * g.aspect));
+      w = Math.floor(w);
+      var h = Math.round(w / g.aspect), dpr = Math.min(window.devicePixelRatio || 1, 2);
+      g.cw = w; g.ch = h; g.dpr = dpr;
+      var cv = $('prMap' + s.toUpperCase()); cv.style.width = w + 'px'; cv.style.height = h + 'px';
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      $('prBox' + s.toUpperCase()).style.width = w + 'px';
+    });
+  }
+  function drawPairs() {
+    if (!pair || !pair.d.a) return;
+    var tab = ptabList[ptabIdx], token = pair;
+    ['a', 'b'].forEach(function (s) {
+      var c = s === 'a' ? pair.ca : pair.cb, g = pair.g[s], cv = $('prMap' + s.toUpperCase()), d = pair.d[s];
+      var extra = { low: tab.reveal ? c.t24 : c.t0 };
+      if (tab.reveal) extra.track = [c.t0, c.t24];
+      if (tab.sat) {
+        if (!c.t0[tab.sat]) { renderSat(cv, g, d[0], tab, extra, null); return; }
+        loadImage(satUrl(c, 't0', tab.sat)).then(function (img) {
+          if (pair !== token || ptabList[ptabIdx] !== tab) return;
+          renderSat(cv, g, d[0], tab, extra, img);
+        });
+        return;
+      }
+      renderMap(cv, g, d[tab.reveal ? 1 : 0], tab, extra);
+    });
+  }
+  function setPTab(i) {
+    ptabIdx = (i + ptabList.length) % ptabList.length;
+    var tab = ptabList[ptabIdx];
+    [].forEach.call($('prTabs').children, function (b, k) {
+      b.classList.toggle('on', k === ptabIdx); b.setAttribute('aria-selected', k === ptabIdx);
+      if (k === ptabIdx && b.scrollIntoView) { try { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* old browsers */ } }
+    });
+    $('prCap').textContent = tab.name + (tab.reveal ? ' (+24 h), both lows' : ', both lows');
+    buildLegend(tab, $('prLegend'));
+    var hb = $('prHint'); hb.hidden = !(opts.hints && !tab.reveal && HINTS[tab.id]);
+    hb.textContent = hb.hidden ? '' : 'Look for: ' + HINTS[tab.id];
+    drawPairs();
+  }
+  function basinName(c) { return c.basin === 'natl' ? 'N Atlantic' : c.basin === 'npac' ? 'N Pacific' : c.basin; }
+  function nextPair() {
+    var pool = pairsPool();
+    if (!pool.length) { $('startMsg').textContent = 'You have seen every pair this session. Close the tab to reset.'; goHome(); return; }
+    var p = pool[rand(pool.length)];
+    session.played.pair[pairKey(p)] = 1; saveSession();
+    var token = pair = { p: p, ca: manifest.byId[p.a], cb: manifest.byId[p.b], d: {}, g: {}, answered: false, t0: 0 };
+    ptabList = availTabs(); ptabIdx = 0; buildPTabs();
+    $('prResult').hidden = true; $('prDebrief').hidden = true; $('prNext').hidden = true;
+    var an = $('prAnswers'); an.hidden = false; an.innerHTML = '';
+    ['a', 'b'].forEach(function (s) {
+      var b = el('button', 'ans', '<b>' + s.toUpperCase() + ' grew <kbd>' + (s === 'a' ? 1 : 2) + '</kbd></b><span>' + (s === 'a' ? 'left map' : 'right map') + '</span>');
+      b.type = 'button'; b.dataset.side = s; b.addEventListener('click', function () { answerPair(s); });
+      an.appendChild(b);
+    });
+    $('prLoad').hidden = false; $('prLoad').textContent = 'Loading pair...';
+    $('prCase').textContent = 'Pair ' + (session.pairs.length + 1);
+    $('prStart').textContent = 'Both lows started ' + (p.start === 0 ? 'below gale' : 'at ' + SNAME[p.start]) + ' in ASCAT';
+    ['a', 'b'].forEach(function (s) {
+      var c = s === 'a' ? pair.ca : pair.cb;
+      $('prLab' + s.toUpperCase()).innerHTML = '<b>' + s.toUpperCase() + '</b> <span>ASCAT now ' + CATS[c.t0.cat] + ' (' + Math.round(c.t0.peak) + ' kt) &middot; ' + basinName(c) + '</span>';
+    });
+    window.scrollTo(0, 0);
+    Promise.all([loadCase(p.a), loadCase(p.b)]).then(function (ds) {
+      if (pair !== token) return;
+      pair.d.a = ds[0]; pair.d.b = ds[1]; pair.g.a = makeGeom(pair.ca); pair.g.b = makeGeom(pair.cb);
+      sizePairs(); $('prLoad').hidden = true; setPTab(0); pair.t0 = Date.now();
+      [pair.ca, pair.cb].forEach(function (c) { ['ir', 'am'].forEach(function (k) { if (c.t0[k]) loadImage(satUrl(c, 't0', k)); }); });
+      var f = $('prAnswers').querySelector('.ans'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } }
+    }).catch(function (e) {
+      if (pair !== token) return;
+      $('prLoad').textContent = 'Could not load this pair (' + e.message + '). Tap Next.';
+      $('prAnswers').hidden = true; $('prNext').hidden = false;
+    });
+  }
+  function answerPair(side) {
+    if (!pair || pair.answered || !pair.d.a) return;
+    pair.answered = true;
+    var P = pair.p, right = side === P.grew, secs = Math.round(Math.min((Date.now() - pair.t0) / 1000, 600) * 10) / 10;
+    session.pairs.push({ a: P.a, b: P.b, pick: side, right: right, t: secs }); saveSession();
+    var rt = session.pairs.filter(function (p) { return p.right; }).length;
+    var h = '<div class="rhead">' + (right ? 'Right: ' + P.grew.toUpperCase() + ' grew' : 'It was ' + P.grew.toUpperCase() + ' that grew') + '</div>';
+    ['a', 'b'].forEach(function (s) {
+      var c = s === 'a' ? pair.ca : pair.cb, ch = obsChange(c);
+      h += '<div class="rline"><b>' + s.toUpperCase() + '</b>: ' + CH_OBS[ch + 1] + '. ASCAT peak ' + Math.round(c.t0.peak) + ' to ' + Math.round(c.t24.peak) + ' kt (' + CATS[c.t0.cat] + ' to ' + CATS[c.t24.cat] + '), ' +
+        Math.round(c.t0.hpa) + ' to ' + Math.round(c.t24.hpa) + ' hPa.</div>';
+    });
+    h += '<div class="rstats">Pairs this session: ' + rt + ' of ' + session.pairs.length + ' right</div>';
+    var res = $('prResult'); res.className = 'result ' + (right ? 'good' : 'bad'); res.innerHTML = h; res.hidden = false;
+    var rows = '';
+    P.diff.forEach(function (d) {
+      var hi = d.z > 0 ? 'A higher' : 'B higher';
+      rows += '<div class="drow"><span class="nm">' + d.name + '</span><span class="vl">A ' + nf(d.a) + ', B ' + nf(d.b) + ' ' + d.units + '</span><span class="pill">' + hi + '</span></div>';
+    });
+    var db = $('prDebrief');
+    db.innerHTML = '<h3>What differed</h3><div class="dbase">These two lows had nearly the same ingredient profile. The three ingredients that differed most (in units of their spread across the deck):</div>' + rows +
+      '<div class="ikey">The differences are small by design, so read them as odds, not rules. Open Ingredients for how each one has behaved over 1,004 lows.</div>';
+    db.hidden = false; $('prAnswers').hidden = true; $('prNext').hidden = false;
+    ptabList = availTabs().concat([REVEAL_TAB]); buildPTabs(); setPTab(ptabList.length - 1);
+    try { res.setAttribute('tabindex', '-1'); res.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    if (window.innerWidth < 900) {
+      var top = res.getBoundingClientRect().top + window.pageYOffset - chromeH() - 8;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
+  }
+  function pairsKey(e) {
+    var onBtn = e.target.closest && e.target.closest('button');
+    if ((e.key === 'Enter' || e.key === ' ') && onBtn && onBtn !== $('prNext')) return;
+    if (e.key === 'ArrowRight') { setPTab(ptabIdx + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { setPTab(ptabIdx - 1); e.preventDefault(); }
+    else if (pair && !pair.answered && /^[1aA]$/.test(e.key)) answerPair('a');
+    else if (pair && !pair.answered && /^[2bB]$/.test(e.key)) answerPair('b');
+    else if ((e.key === 'Enter' || e.key === ' ') && !$('prNext').hidden) { e.preventDefault(); nextPair(); }
+  }
+  function loadOptional() {   // bench.json and pairs.json are optional: without them the Benchmark button and Pairs mode stay hidden
+    var jf = function (u) { return fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+    return Promise.all([jf('deck/bench.json'), jf('deck/pairs.json')]).then(function (r) {
+      var b = r[0], p = r[1];
+      if (b && b.ids) { benchIds = b.ids.filter(function (id) { return manifest.byId[id]; }); benchIds.forEach(function (id) { benchSet[id] = 1; }); if (!benchIds.length) benchIds = null; }
+      if (p && p.pairs) { pairsData = p.pairs.filter(function (x) { return manifest.byId[x.a] && manifest.byId[x.b]; }); if (!pairsData.length) pairsData = null; }
+      $('benchBtn').hidden = !benchIds; $('modePairs').hidden = !pairsData;
+    });
+  }
 
   // ------------------------------------------------------------------ events
   function bind() {
@@ -979,16 +1421,23 @@
     });
     $('weak').addEventListener('change', function (e) { opts.weak = e.target.checked; });
     $('startBtn').addEventListener('click', startGame);
-    $('againBtn').addEventListener('click', startGame);
+    $('againBtn').addEventListener('click', function () { if (lastEnd === 'bench') startBench(); else startGame(); });
     $('endHomeBtn').addEventListener('click', goHome);
     $('homeBtn').addEventListener('click', function () { if (leaveBlitz()) askLeave(true); else goHome(); });
-    $('leaveYes').addEventListener('click', function () { $('leaveBanner').hidden = true; blitz = null; goHome(); });
+    $('leaveYes').addEventListener('click', function () { $('leaveBanner').hidden = true; blitz = null; bench = null; goHome(); });
     $('leaveNo').addEventListener('click', function () { askLeave(false); });
     $('statsBody').addEventListener('click', function (e) { if (e.target.id === 'statsNext') statsNext(); });
     new MutationObserver(syncTimer).observe($('drawer'), { attributes: true, attributeFilter: ['hidden'] });   // pause the blitz clock under the drawer
     var setHdr = function () { document.documentElement.style.setProperty('--hdr', document.querySelector('header.top').offsetHeight + 'px'); };
     setHdr(); window.addEventListener('resize', setHdr); window.addEventListener('load', setHdr);
     $('nextBtn').addEventListener('click', nextCase);
+    $('prNext').addEventListener('click', nextPair);
+    $('benchBtn').addEventListener('click', startBench);
+    $('exportBtn').addEventListener('click', exportCSV);
+    $('statsExport').addEventListener('click', exportCSV);
+    $('map').addEventListener('click', mapTap);
+    $('tapNote').addEventListener('click', function (e) { if (e.target.id === 'tapClear' && cur && !cur.answered) { cur.tap = null; updateTapNote(); draw(); } });
+    var prt; window.addEventListener('resize', function () { clearTimeout(prt); prt = setTimeout(function () { if (pair && pair.d.a && !$('pairs').hidden) { sizePairs(); drawPairs(); } }, 120); });
     $('ingBtn').addEventListener('click', openIngredients);
     $('statsIng').addEventListener('click', openIngredients);
     $('ingBack').addEventListener('click', function () { show(lastScreen); });
@@ -998,12 +1447,13 @@
     document.addEventListener('keydown', function (e) {
       if (!$('drawer').hidden) { if (e.key === 'Escape') closeStats(); return; }
       if (!$('leaveBanner').hidden) { if (e.key === 'Escape') askLeave(false); return; }
+      if (!$('pairs').hidden) return pairsKey(e);
       if ($('play').hidden) return;
       var onBtn = e.target.closest && e.target.closest('button');
       if ((e.key === 'Enter' || e.key === ' ') && onBtn && onBtn !== $('nextBtn')) return;   // let the focused button act
       if (e.key === 'ArrowRight') { setTab(tabIdx + 1); e.preventDefault(); }
       else if (e.key === 'ArrowLeft') { setTab(tabIdx - 1); e.preventDefault(); }
-      else if (/^[1-4]$/.test(e.key) && cur && !cur.answered) answer(+e.key - 1);
+      else if (/^[0-9sS]$/.test(e.key) && cur && !cur.answered && cur.data) pressKey(e.key);
       else if ((e.key === 'Enter' || e.key === ' ') && !$('nextBtn').hidden) { e.preventDefault(); nextCase(); }
     });
     var tx = 0, ty = 0, mb = $('mapbox');
@@ -1015,8 +1465,8 @@
     var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (geom && cur && cur.data && !$('play').hidden) { sizeCanvas(); draw(); } }, 120); });
   }
 
-  bind(); updateTop();
-  loadManifest().then(function () { show('start'); }).catch(function (e) {
+  bind(); updateTop(); loadBenchHist();
+  loadManifest().then(loadOptional).then(function () { show('start'); }).catch(function (e) {
     $('loadMsg').textContent = 'Could not load the case deck (' + e.message + ').';
   });
 })();

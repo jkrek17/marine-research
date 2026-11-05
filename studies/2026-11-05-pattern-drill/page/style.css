@@ -196,3 +196,38 @@ table.jt th{background:#f1f4f7}
 .seg{min-height:40px;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
 .seg.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .persist{display:flex;flex-direction:column;gap:2px;margin:8px 0;padding:8px 10px;border-radius:8px;background:#eef4fb;font-size:13px}
+
+/* change call, tap, pairs, benchmark */
+.policy{margin:6px 0 0;padding:8px 12px;border-left:3px solid var(--storm);background:#fff6ef;font-size:14px;font-weight:600}
+.answers.ch3{grid-template-columns:repeat(3,1fr)}
+.ans:disabled{opacity:.4;cursor:not-allowed}
+.ans[data-ch="1"]{border-left-color:var(--storm)}
+.ans[data-ch="0"]{border-left-color:var(--none)}
+.ans[data-ch="-1"]{border-left-color:var(--accent)}
+.ans.skip{grid-column:1/-1;border-left-color:var(--line);background:#f1f4f7}
+.answers.two{grid-template-columns:1fr 1fr}
+.tapnote{font-size:13px;color:var(--ink2);margin:0 0 4px}
+.linkbtn{background:none;border:0;padding:0 2px;color:var(--accent);text-decoration:underline;font-size:inherit;min-height:0}
+.mapbox.tappable canvas{cursor:crosshair}
+.fine.chnote{margin:4px 0 8px}
+tr.hl th,tr.hl td{background:#eef4fb}
+table.jt th .fine{font-weight:400;font-size:11px}
+.pgrid{display:grid;grid-template-columns:1fr;gap:12px}
+.pcol{min-width:0}
+.plab{font-size:14px;margin:4px 0}
+.plab span{color:var(--ink2);font-size:13px}
+.pright{margin-top:8px}
+@media (min-width:900px){
+  .pgrid{grid-template-columns:1fr 1fr;gap:16px}
+}
+@media (max-width:720px){
+  .answers.cat5{grid-template-columns:repeat(4,1fr) .9fr}
+  .answers.ch3{grid-template-columns:repeat(3,1fr)}
+  .answers.two{grid-template-columns:1fr 1fr}
+  .ans.skip{grid-column:auto;background:#f1f4f7}
+  .ans[data-ch]{border-top-width:5px;border-left-width:2px}
+  .ans[data-ch="1"]{border-top-color:var(--storm)}.ans[data-ch="0"]{border-top-color:var(--none)}.ans[data-ch="-1"]{border-top-color:var(--accent)}
+  .ans.skip{border-top-color:var(--line)}
+  #pairs{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+  #prNext:not([hidden]){position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;margin:0;z-index:6;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+}

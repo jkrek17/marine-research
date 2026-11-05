@@ -27,6 +27,9 @@ od.mkdir(exist_ok=True)
 m = json.loads((deck / "manifest.json").read_text())
 m["encoding"] = "base64"
 (od / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
+for extra in ("pairs.json", "bench.json"):   # optional game files, plain JSON like the manifest (the page hides what is absent)
+    if (deck / extra).exists():
+        (od / extra).write_text(json.dumps(json.loads((deck / extra).read_text()), separators=(",", ":")))
 for c in m["cases"]:
     img = {}
     for snap in ("t0", "t24"):

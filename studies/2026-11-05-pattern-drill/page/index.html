@@ -15,7 +15,7 @@
   </div>
 </header>
 <div id="leaveBanner" class="leave" role="alertdialog" aria-label="Leave blitz?" hidden>
-  <span>Leave blitz? Your progress in this blitz will be lost.</span>
+  <span id="leaveTxt">Leave blitz? Your progress in this blitz will be lost.</span>
   <span class="leavebtns"><button id="leaveYes" class="btn small" type="button">Yes</button><button id="leaveNo" class="btn small primary" type="button">No</button></span>
 </div>
 
@@ -24,18 +24,20 @@
 
   <section id="start" class="screen" hidden>
     <h1>Pick the pattern, call the wind</h1>
-    <p class="lead">Look at the model maps around a circled low. Call the peak wind that ASCAT saw within 500 km. Many cases, quick feedback. Stats last for this session only.</p>
+    <p class="lead">Look at the model maps around a circled low. Call the peak wind that ASCAT saw within 500 km. Many cases, quick feedback. Session stats clear when you close the tab; benchmark history stays on this device.</p>
+    <p class="policy" id="policy">Scoring leans to over-calling on purpose: a miss costs more than a false alarm, as on the desk.</p>
 
     <h2>Game</h2>
     <div class="choice" id="gameChoice" role="radiogroup" aria-label="Game">
       <button type="button" role="radio" data-v="now" class="opt on" aria-checked="true"><b>Right now</b><span>Maps at the time of an ASCAT pass. What did it show?</span></button>
-      <button type="button" role="radio" data-v="fc" class="opt" aria-checked="false"><b>Forecast +24 h</b><span>Maps now plus ASCAT now. Call the peak 24 h later.</span></button>
+      <button type="button" role="radio" data-v="fc" class="opt" aria-checked="false"><b>Forecast +24 h</b><span>Maps now plus ASCAT now. Will the peak grow, hold or decay?</span></button>
     </div>
 
     <h2>Mode</h2>
     <div class="choice" id="modeChoice" role="radiogroup" aria-label="Mode">
       <button type="button" role="radio" data-v="practice" class="opt on" aria-checked="true"><b>Practice</b><span>Endless, no clock.</span></button>
       <button type="button" role="radio" data-v="blitz" class="opt" aria-checked="false"><b>Blitz</b><span>10 cases, 60 s each. No answer is a miss.</span></button>
+      <button type="button" role="radio" data-v="pairs" class="opt" id="modePairs" aria-checked="false" hidden><b>Pairs</b><span>Forecast game: two similar lows side by side. Which one grew?</span></button>
     </div>
 
     <label class="toggle"><input type="checkbox" id="weak"> <span><b>Weak spots</b> <small>After 8 cases, about 2 in 3 cases come from the observed category you miss most.</small></span></label>
@@ -44,11 +46,15 @@
 
     <p id="startMsg" class="fine" role="status"></p>
     <button id="startBtn" class="btn primary big" type="button">Start</button>
+    <button id="benchBtn" class="btn big" type="button" hidden>Benchmark: 20 fixed cases, no hints, no feedback until the end</button>
     <button id="ingBtn" class="btn big" type="button">Ingredients: what favours growth</button>
+    <button id="exportBtn" class="btn big" type="button">Export results (CSV)</button>
+    <p id="exportMsg" class="fine" role="status"></p>
 
     <div class="points">
       <h2>Points</h2>
-      <p>Exact call 100. Over-call by one 50, by two or more 10. Under-call by one 25, by two or more 0. Missing an observed HF -25.</p>
+      <p><b>Forecast game, change call</b> (grow, hold or decay against the ASCAT category now; under 5 kt of change counts as hold): right 60. Hold when it moved 15. Grow or decay when it held 25. Wrong direction 0. The category after it is optional and scored as below.</p>
+      <p><b>Category call</b>: exact 100. Over-call by one 50, by two or more 10. Under-call by one 25, by two or more 0. Missing an observed HF -25.</p>
       <p class="fine">Categories: none under 34 kt, gale 34-47, storm 48-63, HF 64+. Truth is ASCAT 10 m wind within 500 km of the low (3rd highest cell). Maps are GFS analyses. Dates are hidden.</p>
     </div>
   </section>
@@ -65,6 +71,7 @@
         <div id="timerbar" class="timerbar" hidden><i></i></div>
         <div class="tabs" id="tabs" role="tablist" aria-label="Map"></div>
         <div class="cap" id="cap"></div>
+        <div class="tapnote" id="tapNote" hidden></div>
         <div class="mapbox" id="mapbox"><canvas id="map" aria-label="Map"></canvas><div id="mapLoad" class="maploading">Loading case...</div></div>
         <div class="hint" id="hint" hidden></div>
         <div class="legend" id="legend"></div>
@@ -82,13 +89,38 @@
     </div>
   </section>
 
+  <section id="pairs" class="screen" hidden>
+    <div class="playgrid">
+    <div class="left">
+    <div class="statusbar"><span id="prCase"></span><span id="prStart" class="chip"></span></div>
+    <div class="tabs" id="prTabs" role="tablist" aria-label="Map"></div>
+    <div class="cap" id="prCap"></div>
+    <div class="pgrid">
+      <div class="pcol" id="prColA"><div class="plab" id="prLabA"></div><div class="mapbox" id="prBoxA"><canvas id="prMapA" aria-label="Map, low A"></canvas></div></div>
+      <div class="pcol" id="prColB"><div class="plab" id="prLabB"></div><div class="mapbox" id="prBoxB"><canvas id="prMapB" aria-label="Map, low B"></canvas></div></div>
+    </div>
+    <div id="prLoad" class="note">Loading pair...</div>
+    <div class="hint" id="prHint" hidden></div>
+    <div class="legend" id="prLegend"></div>
+    </div>
+    <div class="right pright">
+      <h2 class="q">Which one grew?</h2>
+      <p class="catnote">Same starting category, similar ingredients. One grew over 24 h; the other held or decayed.</p>
+      <div id="prAnswers" class="answers two"></div>
+      <div id="prResult" class="result" tabindex="-1" aria-live="polite" hidden></div>
+      <div id="prDebrief" class="debrief" hidden></div>
+      <button id="prNext" class="btn primary big" type="button" hidden>Next pair</button>
+    </div>
+    </div>
+  </section>
+
   <section id="ingr" class="screen" hidden>
     <button id="ingBack" class="btn small" type="button">Back</button>
     <div id="ingBody"></div>
   </section>
 
   <section id="end" class="screen" hidden>
-    <h1>Blitz done</h1>
+    <h1 id="endTitle">Blitz done</h1>
     <div id="endBody"></div>
     <div class="row">
       <button id="againBtn" class="btn primary big" type="button">Play again</button>
@@ -102,7 +134,8 @@
     <div class="sheethead"><h2>Session stats</h2><button id="closeStats" class="btn small" type="button">Close</button></div>
     <div id="statsBody"></div>
     <button id="statsIng" class="btn small" type="button">Ingredients reference</button>
-    <p class="fine">Stats live in this browser tab only and clear when you close it.</p>
+    <button id="statsExport" class="btn small" type="button">Export results (CSV)</button>
+    <p class="fine">Stats stay on this device. Session stats live in this browser tab and clear when you close it; benchmark history is kept in this browser's local storage. Nothing is sent anywhere.</p>
   </div>
 </div>
 

@@ -34,6 +34,13 @@ def test_warm_advection_sign():
     assert (adv > 0).all()
 
 
+def test_theta_e_textbook():
+    # 850 hPa, 15 C saturated: r about 12.7 g/kg, theta 302 K, theta-e about 337 K; dry air is close to theta
+    te = diag.theta_e(288.15, 100.0, 850.0)
+    assert 333.0 < te < 342.0
+    assert abs(diag.theta_e(288.15, 1.0, 850.0) - diag.theta(288.15, 850.0)) < 1.5
+
+
 def test_eady_textbook_value():
     # 850 -> 500 hPa, 20 m/s shear over 4000 m, N about 0.0115 /s at 45N: sigma ~ 0.31 f 0.005 / N
     shp = (3, 3)

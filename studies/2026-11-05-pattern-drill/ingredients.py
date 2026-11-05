@@ -20,6 +20,13 @@ quadrants bounded around the streak. Ingredients (P90 = 90th percentile over the
   sea_air    P90 sea minus 2 m air temperature (C) over open water within 500 km
   dry        share of the rear (west) half of the 500 km disc where the air-mass RGB shows dry upper air:
              WV6.2 - WV7.3 > -6 K and IR10.3 warmer than 250 K (cold cloud tops pass the WV test too)
+  thetae     P90 850 hPa equivalent potential temperature within 500 km (K): warm, moist inflow (diabatic fuel)
+  pwat       P90 precipitable water within 500 km (mm)
+  trough_dist  distance to the strongest 500 hPa vorticity maximum WEST of the low within 1200 km (km)
+  trough_app   500 hPa wind at that maximum toward the low (kt; positive = the trough is closing in)
+  thk_anom   1000-500 thickness within 150 km of the low minus the 400-600 km ring mean (dam; negative = the
+             low sits in cold air, occluded)
+  wind925    P90 925 hPa wind speed over water within 500 km (kt): wind available to mix down
   dp_prev    GFS central pressure change over the previous 12 h (hPa; negative = deepening), from the
              analysed lows 6 and 12 h before, each the nearest within 700 km
   peak0, cat0, hpa0  the low as it is now (ASCAT peak kt, category, GFS central pressure)
@@ -49,12 +56,18 @@ SIGMA = 5.0                   # smoothing, 0.25 deg cells (about 1.25 deg)
 N2_MIN = 2.5e-5               # floor on N^2 for the Eady rate (s^-2)
 PCT = 90                      # percentile over an area instead of the single highest cell
 CACHE = "ingredients2"        # per-time cache folder under ROOT (version 1 lives in ingredients/)
-ING = ["eady", "jet", "pva", "tilt", "warm_adv", "thk_grad", "sea_air", "dry", "dp_prev"]
+EXTRA = ["thetae", "pwat", "trough_dist", "trough_app", "thk_anom", "wind925"]
+ING = ["eady", "jet", "pva", "tilt", "warm_adv", "thk_grad", "sea_air", "dry", "dp_prev"] + EXTRA
+EXTRA_WANT = {k: v for k, v in fetch.DRILL.items() if v in ("z1000", "z500", "u500", "v500", "vort500", "t850",
+                                                            "rh850", "pwat", "u925", "v925", "land", "ice")}
 NAMES = {"eady": ("Eady growth", "per day"), "jet": ("250 mb jet speed", "kt"),
          "pva": ("500 mb vorticity advection", "1e-9 /s2"), "tilt": ("Distance to the 500 mb vorticity max", "km"),
          "warm_adv": ("850 mb warm advection", "C/day"), "thk_grad": ("Thickness gradient", "dam/100 km"),
          "sea_air": ("Sea minus air", "C"), "dry": ("Dry air behind the low", "share of rear half"),
          "dp_prev": ("Pressure change last 12 h", "hPa"),
+         "thetae": ("850 mb theta-e", "K"), "pwat": ("Precipitable water", "mm"),
+         "trough_dist": ("Distance to the upstream trough", "km"), "trough_app": ("Upstream trough closing speed", "kt"),
+         "thk_anom": ("Thickness at the centre vs around", "dam"), "wind925": ("925 mb wind", "kt"),
          "peak0": ("Wind now (ASCAT)", "kt"), "hpa0": ("Central pressure now", "hPa")}
 
 
@@ -137,6 +150,32 @@ def measure_low(g, am, lat, lon):
     return out
 
 
+def measure_extra(g, lat, lon):
+    c, lats, lons = crop(g, lat, lon)
+    sm = {k: diag.smooth(c[k], SIGMA) for k in ("z1000", "z500", "u500", "v500", "vort500", "t850", "rh850", "pwat")}
+    d = km_grid(lat, lon, lats, lons)
+    near = d <= RADIUS_KM
+    out = {"thetae": pct(diag.theta_e(sm["t850"], sm["rh850"], 850.0), near), "pwat": pct(sm["pwat"], near)}
+    west = (lons[None, :] < lon) & (d <= 1200.0) & (d > 150.0)
+    vf = np.where(west, sm["vort500"], -np.inf)
+    if np.isfinite(vf).any() and vf.max() > -np.inf:
+        k = np.unravel_index(np.argmax(vf), vf.shape)
+        out["trough_dist"] = float(d[k])
+        dx = (lon - lons[k[1]]) * 111.2 * np.cos(np.radians(lats[k[0]]))
+        dy = (lat - lats[k[0]]) * 111.2
+        n = np.hypot(dx, dy)
+        out["trough_app"] = float((sm["u500"][k] * dx + sm["v500"][k] * dy) / n * KT)
+    else:
+        out["trough_dist"] = out["trough_app"] = float("nan")
+    thk = (sm["z500"] - sm["z1000"]) / 10.0
+    ring = (d >= 400) & (d <= 600)
+    out["thk_anom"] = float(np.nanmean(thk[d <= 150]) - np.nanmean(thk[ring]))
+    water = (c["land"] < 0.5) & (c["ice"] < 0.15)
+    w925 = np.hypot(diag.smooth(c["u925"], 2.0), diag.smooth(c["v925"], 2.0)) * KT
+    out["wind925"] = pct(w925, near & water)
+    return out
+
+
 def dp_prev(rec, basin, t0, lat, lon, hpa0):
     """Central pressure change over the previous 12 h, following the analysed lows back in 6 h steps."""
     la, lo = lat, lon
@@ -166,7 +205,16 @@ def measure(workers):
     def one(t):
         p = cache / (t.strftime("%Y%m%d%H") + ".json")
         if p.exists():
-            return json.loads(p.read_text())
+            rows = json.loads(p.read_text())
+            if not rows or all(k in rows[0] for k in EXTRA):
+                return rows
+            g = fetch.gfs_global(t, 0, EXTRA_WANT)
+            if g is None:
+                return rows
+            for r in rows:
+                r.update(measure_extra(g, r["lat"], r["lon"]))
+            p.write_text(json.dumps(rows))
+            return rows
         g = fetch.gfs_global(t, 0, fetch.DRILL)
         if g is None:
             return []
@@ -180,6 +228,7 @@ def measure(workers):
                 except Exception:
                     ams[b] = None
             r = measure_low(g, ams[b], x["r0"]["lat"], x["r0"]["lon"])
+            r.update(measure_extra(g, x["r0"]["lat"], x["r0"]["lon"]))
             r["dp_prev"] = dp_prev(rec, b, t, x["r0"]["lat"], x["r0"]["lon"], x["r0"]["hpa"])
             r.update(basin=b, t0=t.strftime("%Y%m%d%H"), lat=x["r0"]["lat"], lon=x["r0"]["lon"],
                      hpa0=x["r0"]["hpa"], peak0=x["r0"]["peak3"], cat0=x["c0"], hpa24=x["r1"]["hpa"],
