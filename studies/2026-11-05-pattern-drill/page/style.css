@@ -295,3 +295,4 @@ table.conf td.diag{background:var(--navytint)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 .playgrid>.left,.pgrid>.pcol{min-width:0}
 @media (min-width:900px){.tabs{flex-wrap:wrap;overflow-x:visible}}
+.credits{margin-top:32px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3);max-width:72ch}
