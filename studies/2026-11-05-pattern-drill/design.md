@@ -35,6 +35,7 @@
             "t0": {"lat": .., "lon": .., "hpa": .., "cat": 2, "peak": 51.0, "cover": 0.7},
             "t24": {"lat": .., "lon": .., "hpa": .., "cat": 1, "peak": 42.0, "cover": 0.6}}, ...]}
 ```
+Version 2 adds `"truth": "scene"` and per snapshot `plat`, `plon` (the ASCAT cell that set the answer); `t0`/`t24` `lat`, `lon` are the circled low snapped to the drawn MSLP minimum within 200 km, and the box is centred on the low at T.
 `cat`: 0 none, 1 gale, 2 storm, 3 HF. Valid times are not in the manifest (dates hidden); a separate `key.csv` beside it, not published, maps ids to times.
 
 `deck/<id>.bin`: two snapshots (t0 then t24), each = for every field in `fields` order a `ny x nx` uint8 array (row 0 = north, value = offset + scale x byte, 255 = missing), then ASCAT speed (kt, 1 kt steps, 255 = not seen; highest cell in each 0.5 deg box), ASCAT direction (meteorological degrees / 2, 255 = not seen), land (1 land or ice, 0 water).

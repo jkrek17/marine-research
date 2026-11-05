@@ -1,16 +1,16 @@
 ingredient,units,n,grow_signal_pts,grow_ci99_lo,grow_ci99_hi,grow_verdict,decay_signal_pts,decay_ci99_lo,decay_ci99_hi,decay_verdict,grow_natl,grow_npac,decay_natl,decay_npac
-Eady growth,per day,1004,22.4,13.3,31.7,strong,-31.8,-44.8,-15.9,strong,27.2,10.7,-30.2,-24.6
-250 mb jet speed,kt,1004,14.1,5.5,22.8,weak,-2.2,-17.8,9.9,none,18.4,10.8,-7.8,-6.7
-500 mb vorticity advection,1e-9 /s2,1004,25.4,17.2,33.4,strong,-28.6,-41.3,-15.6,strong,34.0,16.1,-35.8,-20.5
-Distance to the 500 mb vorticity max,km,1004,6.2,-1.7,14.3,none,-13.2,-26.4,-0.1,weak,9.7,2.4,-7.8,-23.3
-850 mb warm advection,C/day,1004,14.7,5.8,22.7,weak,-20.9,-34.1,-8.2,strong,15.9,11.9,-21.8,-19.2
-Thickness gradient,dam/100 km,1004,18.7,9.6,28.0,strong,-35.2,-49.5,-20.9,strong,22.7,8.3,-35.8,-34.2
-Sea minus air,C,1004,11.7,2.6,20.1,weak,-19.2,-32.4,-7.0,strong,9.0,5.4,-12.6,-22.0
-Dry air behind the low,share of rear half,993,8.2,-0.7,17.1,none,-11.0,-23.6,1.2,none,12.0,9.2,-15.1,-9.4
-Pressure change last 12 h,hPa,847,-15.4,-27.3,-4.5,strong,25.1,13.2,40.7,strong,-21.1,-9.7,27.7,28.2
-850 mb theta-e,K,1004,12.0,3.0,20.0,weak,-18.2,-30.8,-4.3,strong,5.9,9.5,-24.6,1.4
-Precipitable water,mm,1004,13.5,5.8,21.2,weak,-19.3,-33.7,-6.1,strong,7.7,10.7,-28.4,-4.1
-Distance to the upstream trough,km,1004,8.6,0.1,16.1,weak,-7.2,-19.0,9.1,none,10.3,5.4,-2.3,-13.7
-Upstream trough closing speed,kt,1004,12.9,3.6,21.8,weak,-9.9,-24.1,3.6,none,16.5,7.8,-13.5,-8.2
-Thickness at the centre vs around,dam,1004,3.7,-4.9,10.4,none,-12.1,-25.6,1.1,none,9.0,-3.0,-12.5,-9.6
-925 mb wind,kt,1004,11.1,3.0,18.3,weak,-14.4,-29.0,-2.0,weak,8.4,10.7,-21.8,-4.1
+Eady growth,per day,916,19.1,10.0,28.4,strong,-33.5,-44.9,-20.4,strong,19.6,13.9,-26.9,-35.2
+250 mb jet speed,kt,916,8.5,-0.1,17.3,none,-10.2,-23.5,2.1,none,11.9,9.5,-11.3,-14.1
+500 mb vorticity advection,1e-9 /s2,916,20.8,12.3,29.7,strong,-28.3,-40.5,-16.7,strong,19.6,17.5,-36.1,-25.4
+Distance to the 500 mb vorticity max,km,916,8.2,-1.8,16.0,none,1.6,-12.0,14.3,none,6.8,6.6,3.5,-1.4
+850 mb warm advection,C/day,916,19.7,10.6,28.4,strong,-25.2,-35.7,-12.1,strong,18.4,19.7,-28.6,-14.1
+Thickness gradient,dam/100 km,916,19.1,9.4,27.5,strong,-32.9,-45.9,-22.2,strong,16.4,12.4,-32.7,-32.4
+Sea minus air,C,916,5.8,-3.6,15.9,none,-16.4,-26.7,-3.3,strong,7.4,4.5,-14.6,-15.5
+Dry air behind the low,share of rear half,904,4.2,-4.6,12.2,none,-9.1,-20.3,4.5,none,4.8,8.8,-8.9,-12.8
+Pressure change last 12 h,hPa,778,-18.7,-28.9,-7.7,strong,29.3,17.3,43.7,strong,-21.8,-15.0,31.1,28.6
+850 mb theta-e,K,916,14.3,5.9,23.2,weak,-12.8,-25.8,0.6,none,8.0,14.6,-18.8,-1.4
+Precipitable water,mm,916,17.4,8.0,25.2,strong,-14.4,-28.8,-0.4,weak,10.0,13.9,-20.4,-1.4
+Distance to the upstream trough,km,916,8.9,-0.6,16.5,none,-5.9,-16.6,8.0,none,3.6,11.7,-2.2,-9.9
+Upstream trough closing speed,kt,916,16.7,6.0,25.5,strong,-17.0,-28.7,-4.6,strong,20.9,12.5,-17.1,-12.7
+Thickness at the centre vs around,dam,916,10.6,1.9,19.4,weak,-13.3,-25.7,-0.4,weak,17.7,2.3,-17.9,-5.6
+925 mb wind,kt,916,13.6,3.9,22.3,weak,-23.2,-35.2,-11.7,strong,13.2,5.9,-30.4,-12.7

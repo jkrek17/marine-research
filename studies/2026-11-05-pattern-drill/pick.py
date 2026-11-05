@@ -34,6 +34,7 @@ from rk.storm_read import follow, km  # noqa: E402
 storm_read.STEP_KM = 500.0   # stricter than the storm read's 800 km per 6 h, so a track never jumps lows
 
 COVER, COVER_STRONG, MIN_SEEN = 0.5, 0.25, 30
+LAND_HPA = 1000.0    # scene mode: a centre over land shallower than this is a heat or lee low and is dropped
 ROOT = paths.data("extra", "pattern-drill")
 
 
@@ -133,15 +134,28 @@ def main():
     if a.scene:
         # version 2: the answer is the scene's strongest wind, and the followed low must be the deepest in the box
         sc = json.loads((ROOT / "scene.json").read_text())
+        from rk import fetch
+        from rk.basins import grid
+        mask = fetch.gfs_mask(dt.datetime(2025, 1, 1))   # land does not move; one analysis is enough
+
+        def heat_low(basin, r):
+            """Centre over land (3 x 3 cells of 0.25 deg, mostly land) and not deep: a heat or lee low, not a storm."""
+            lats, lons = grid(basin)
+            iy, ix = int(np.argmin(abs(lats - r["lat"]))), int(np.argmin(abs(lons - r["lon"])))
+            land = mask[basin]["land"][max(0, iy - 1):iy + 2, max(0, ix - 1):ix + 2]
+            return land.mean() > 0.5 and r["hpa"] > LAND_HPA
+
         keep = []
         for x in cands:
+            if heat_low(x["basin"], x["r0"]) or heat_low(x["basin"], x["r1"]):
+                continue
             v = sc.get("%s|%s|%.2f|%.2f" % (x["basin"], x["t0"].strftime("%Y%m%d%H"), x["r0"]["lat"], x["r0"]["lon"]))
             if not v or not (v["deep_0"] and v["deep_24"]) or v["peak_0"] is None or v["peak_24"] is None:
                 continue
             x["scene"] = v
             x["c0"], x["c1"] = cat(v["peak_0"]), cat(v["peak_24"])
             keep.append(x)
-        print("candidates", len(cands), "-> deepest low in the scene at both times:", len(keep))
+        print("candidates", len(cands), "-> deepest low in the scene at both times, no heat lows:", len(keep))
         cands = keep
     kept, next_id = [], 1
     if a.keep:
