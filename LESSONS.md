@@ -26,6 +26,8 @@ Anything that made us change a result we had treated as finished, or cost a stud
 - **Models already place the core.** 60 synoptic and conceptual clues (fronts, jets, quadrant, storm type, pressure gradient) added ~0.01 BSS beyond the models' and members' own winds; test a new clue against that baseline before building on it.
 - **Set each hazard line from its own hit-versus-area curve, and show real cases.** Reusing the storm-core score for the HF line made a huge HF area; Jason wants lines that follow the probabilities, unpadded.
 - **Check a live port against the research table at matched cells.** The storm-core model's live features matched the study within r >= 0.994 before it shipped; do this for any exported model.
+- **Take the desk grid from the settled snapshot.** The Atlantic's ~10Z/22Z NDFD file still held part of the previous update in 6 of 149 winter issuances; use the 13Z/01Z file. *`rk.desk.issue_settled`.*
+- **A wider gale area is not a better gale forecast.** The desk catches 10 points more ASCAT gale than the blend at 34 kt only by drawing 1.4-1.8x the area; the blend drawn 2 kt lower catches more over less. Compare catch at equal area (desk value beyond storm, 2026-11-05).
 - **Don't overstate one score.** "AIFS for track" was claimed from one metric and walked back; check position, depth and misses together.
 
 - **Count the chances' sample in weeks, and check the cycles with an event.** Hundreds of thousands of cells came from 14 held-out cycles per basin; 64 kt had 1-4 cycles with an event. State it before any curve. *Counts in `studies/2026-10-16-chance-calibration/` results.csv.*

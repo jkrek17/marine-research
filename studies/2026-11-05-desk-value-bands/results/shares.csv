@@ -1,0 +1,113 @@
+basin,truth,situation,band,n,tot,share
+natl,anl,all,20-33,5201505,12008231,0.4332
+natl,anl,all,34-47,898924,12008231,0.0749
+natl,anl,all,48+,18211,12008231,0.0015
+natl,anl,all,<20,5889591,12008231,0.4905
+natl,anl,away from lows,20-33,4365535,12008231,0.3635
+natl,anl,away from lows,34-47,597460,12008231,0.0498
+natl,anl,away from lows,48+,5562,12008231,0.0005
+natl,anl,away from lows,<20,5400027,12008231,0.4497
+natl,anl,coastal,20-33,934205,12008231,0.0778
+natl,anl,coastal,34-47,143403,12008231,0.0119
+natl,anl,coastal,48+,4349,12008231,0.0004
+natl,anl,coastal,<20,1235022,12008231,0.1028
+natl,anl,cold air,20-33,2783026,12008231,0.2318
+natl,anl,cold air,34-47,614111,12008231,0.0511
+natl,anl,cold air,48+,16002,12008231,0.0013
+natl,anl,cold air,<20,2687985,12008231,0.2238
+natl,anl,near low,20-33,835970,12008231,0.0696
+natl,anl,near low,34-47,301464,12008231,0.0251
+natl,anl,near low,48+,12649,12008231,0.0011
+natl,anl,near low,<20,489564,12008231,0.0408
+natl,anl,open ocean,20-33,4267300,12008231,0.3554
+natl,anl,open ocean,34-47,755521,12008231,0.0629
+natl,anl,open ocean,48+,13862,12008231,0.0012
+natl,anl,open ocean,<20,4654569,12008231,0.3876
+natl,anl,stable,20-33,1188092,12008231,0.0989
+natl,anl,stable,34-47,126963,12008231,0.0106
+natl,anl,stable,48+,438,12008231,0.0000
+natl,anl,stable,<20,1109690,12008231,0.0924
+natl,ascat,all,20-33,2356461,5274658,0.4468
+natl,ascat,all,34-47,441716,5274658,0.0837
+natl,ascat,all,48+,7789,5274658,0.0015
+natl,ascat,all,<20,2468692,5274658,0.4680
+natl,ascat,away from lows,20-33,2008068,5274658,0.3807
+natl,ascat,away from lows,34-47,303379,5274658,0.0575
+natl,ascat,away from lows,48+,1912,5274658,0.0004
+natl,ascat,away from lows,<20,2262705,5274658,0.4290
+natl,ascat,coastal,20-33,263762,5274658,0.0500
+natl,ascat,coastal,34-47,38342,5274658,0.0073
+natl,ascat,coastal,48+,801,5274658,0.0002
+natl,ascat,coastal,<20,286486,5274658,0.0543
+natl,ascat,cold air,20-33,1198133,5274658,0.2271
+natl,ascat,cold air,34-47,306757,5274658,0.0582
+natl,ascat,cold air,48+,6685,5274658,0.0013
+natl,ascat,cold air,<20,1029516,5274658,0.1952
+natl,ascat,near low,20-33,348393,5274658,0.0661
+natl,ascat,near low,34-47,138337,5274658,0.0262
+natl,ascat,near low,48+,5877,5274658,0.0011
+natl,ascat,near low,<20,205987,5274658,0.0391
+natl,ascat,open ocean,20-33,2092699,5274658,0.3967
+natl,ascat,open ocean,34-47,403374,5274658,0.0765
+natl,ascat,open ocean,48+,6988,5274658,0.0013
+natl,ascat,open ocean,<20,2182206,5274658,0.4137
+natl,ascat,stable,20-33,570461,5274658,0.1082
+natl,ascat,stable,34-47,56254,5274658,0.0107
+natl,ascat,stable,48+,90,5274658,0.0000
+natl,ascat,stable,<20,475034,5274658,0.0901
+npac,anl,all,20-33,7091388,20034378,0.3540
+npac,anl,all,34-47,494601,20034378,0.0247
+npac,anl,all,48+,1232,20034378,0.0001
+npac,anl,all,<20,12447157,20034378,0.6213
+npac,anl,away from lows,20-33,6165577,20034378,0.3077
+npac,anl,away from lows,34-47,371833,20034378,0.0186
+npac,anl,away from lows,48+,159,20034378,0.0000
+npac,anl,away from lows,<20,11627792,20034378,0.5804
+npac,anl,coastal,20-33,809562,20034378,0.0404
+npac,anl,coastal,34-47,58366,20034378,0.0029
+npac,anl,coastal,48+,638,20034378,0.0000
+npac,anl,coastal,<20,2038033,20034378,0.1017
+npac,anl,cold air,20-33,2006474,20034378,0.1002
+npac,anl,cold air,34-47,246363,20034378,0.0123
+npac,anl,cold air,48+,295,20034378,0.0000
+npac,anl,cold air,<20,2618353,20034378,0.1307
+npac,anl,near low,20-33,925811,20034378,0.0462
+npac,anl,near low,34-47,122768,20034378,0.0061
+npac,anl,near low,48+,1073,20034378,0.0001
+npac,anl,near low,<20,819365,20034378,0.0409
+npac,anl,open ocean,20-33,6281826,20034378,0.3136
+npac,anl,open ocean,34-47,436235,20034378,0.0218
+npac,anl,open ocean,48+,594,20034378,0.0000
+npac,anl,open ocean,<20,10409124,20034378,0.5196
+npac,anl,stable,20-33,2362396,20034378,0.1179
+npac,anl,stable,34-47,100583,20034378,0.0050
+npac,anl,stable,48+,143,20034378,0.0000
+npac,anl,stable,<20,4217657,20034378,0.2105
+npac,ascat,all,20-33,1818250,5669344,0.3207
+npac,ascat,all,34-47,89499,5669344,0.0158
+npac,ascat,all,48+,69,5669344,0.0000
+npac,ascat,all,<20,3761526,5669344,0.6635
+npac,ascat,away from lows,20-33,1595223,5669344,0.2814
+npac,ascat,away from lows,34-47,68141,5669344,0.0120
+npac,ascat,away from lows,48+,41,5669344,0.0000
+npac,ascat,away from lows,<20,3566174,5669344,0.6290
+npac,ascat,coastal,20-33,182530,5669344,0.0322
+npac,ascat,coastal,34-47,13457,5669344,0.0024
+npac,ascat,coastal,48+,43,5669344,0.0000
+npac,ascat,coastal,<20,508281,5669344,0.0897
+npac,ascat,cold air,20-33,496660,5669344,0.0876
+npac,ascat,cold air,34-47,38688,5669344,0.0068
+npac,ascat,cold air,48+,35,5669344,0.0000
+npac,ascat,cold air,<20,657742,5669344,0.1160
+npac,ascat,near low,20-33,223027,5669344,0.0393
+npac,ascat,near low,34-47,21358,5669344,0.0038
+npac,ascat,near low,48+,28,5669344,0.0000
+npac,ascat,near low,<20,195352,5669344,0.0345
+npac,ascat,open ocean,20-33,1635720,5669344,0.2885
+npac,ascat,open ocean,34-47,76042,5669344,0.0134
+npac,ascat,open ocean,48+,26,5669344,0.0000
+npac,ascat,open ocean,<20,3253245,5669344,0.5738
+npac,ascat,stable,20-33,601700,5669344,0.1061
+npac,ascat,stable,34-47,25291,5669344,0.0045
+npac,ascat,stable,48+,30,5669344,0.0000
+npac,ascat,stable,<20,1383738,5669344,0.2441

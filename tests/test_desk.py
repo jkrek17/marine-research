@@ -56,6 +56,17 @@ def test_pick_window_logic():
         desk.issuances = real
 
 
+def test_issue_settled():
+    assert desk.issue_settled(dt.datetime(2026, 1, 20, 0)) == dt.datetime(2026, 1, 20, 13)
+    assert desk.issue_settled(dt.datetime(2026, 1, 31, 12)) == dt.datetime(2026, 2, 1, 1)
+    try:
+        desk.issue_settled(dt.datetime(2026, 1, 20, 6))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("06Z cycle accepted")
+
+
 def test_issue_for():
     c0, c12 = dt.datetime(2026, 1, 20, 0), dt.datetime(2026, 1, 20, 12)
     assert desk.issue_for("natl", c0) == dt.datetime(2026, 1, 20, 10)
