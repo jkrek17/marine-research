@@ -9,6 +9,7 @@
   var CAT_OBS = ['quiet (under 34 kt)', 'gale', 'storm', 'HF'];
   var BLITZ_N = 10, BLITZ_SECS = 60, WEAK_MIN = 8;
   var RING_KM = 500;
+  var SCENE = function () { return !!(manifest && manifest.truth === 'scene'); };   // answer = strongest wind in the whole box
   // Wind colours: rk/style.py WIND_LEVELS / WIND_COLORS / WIND_OVER (light-background version).
   var WIND_LEVELS = [0, 10, 15, 20, 25, 30, 34, 41, 48, 56, 64, 80];
   var WIND_COLORS = ['#f4f6f8', '#dde6ef', '#c3d4e6', '#9fbbd9', '#7aa0c9', '#5683b5',
@@ -291,6 +292,8 @@
   // The cell that sets the answer. Offline it is the 3rd-highest real-wind cell within 500 km that is nearer this low than
   // any other; here, the 3rd-highest valid ASCAT cell inside the 500 km ring (fewer than 3 cells: the lowest there is).
   function peakCell(g, snap, low) {
+    // scene decks (version 2): the answer is the strongest wind anywhere in the box; the cell that set it comes with the case
+    if (low.plat != null) return { s: low.peak, lat: low.plat, lon: low.plon < g.lon0 ? low.plon + 360 : low.plon };
     var cells = [];
     for (var j = 0; j < g.ny; j++) for (var i = 0; i < g.nx; i++) {
       var s = snap.spd[j * g.nx + i]; if (s === 255) continue;
@@ -569,7 +572,7 @@
     if (tab.reveal) {
       drawAscat(ctx, g, snap);
       drawContours(ctx, g, snap.f.msl, { step: 4, width: function (l) { return l % 20 === 0 ? 1.5 : 1; }, color: 'rgba(0,0,0,.82)', label: true, fmt: f0, minGap: 120 }, labels);
-      drawRing(ctx, g, extra.low.lat, extra.low.lon, RING_KM);
+      if (!SCENE()) drawRing(ctx, g, extra.low.lat, extra.low.lon, RING_KM);
       if (extra.track) drawTrack(ctx, g, extra.track[0], extra.track[1]);
       drawLow(ctx, g, extra.low.lat, extra.low.lon);
       if (extra.peak) drawPeak(ctx, g, extra.peak, extra.tap);
@@ -594,7 +597,7 @@
         bar.appendChild(d);
       });
       lg.appendChild(bar); box.appendChild(lg);
-      box.appendChild(el('div', 'lgnote', 'Thin black outline: 48 kt and over; thick black outline: 64 kt and over. Black contours: MSLP every 4 hPa. Dashed ring: 500 km around the low. The peak counts only cells inside it that are nearer this low than any other, and is the 3rd-highest cell, so one stray cell does not set it. Rain-flagged cells are left out.'));
+      box.appendChild(el('div', 'lgnote', 'Thin black outline: 48 kt and over; thick black outline: 64 kt and over. Black contours: MSLP every 4 hPa. ' + (SCENE() ? 'The answer is the strongest wind anywhere on the map (the 3rd-highest cell, so one stray cell does not set it); it is ringed.' : 'Dashed ring: 500 km around the low. The peak counts only cells inside it that are nearer this low than any other, and is the 3rd-highest cell, so one stray cell does not set it.') + ' Rain-flagged cells are left out.'));
       return;
     }
     tab.legend.forEach(function (L) {
@@ -1185,7 +1188,7 @@
     var d = recs.filter(function (r) { return r.tapNm != null; }).map(function (r) { return r.tapNm; });
     if (!d.length) return '';
     return '<div class="persist"><b>Where the strongest wind is</b><span>Median miss ' + Math.round(median(d)) + ' nm over ' + d.length + ' tap' + (d.length > 1 ? 's' : '') +
-      ' (to the ringed cell: the 3rd-highest ASCAT cell within 500 km).</span></div>';
+      (SCENE() ? ' (to the ringed cell: the 3rd-highest ASCAT cell on the map).' : ' (to the ringed cell: the 3rd-highest ASCAT cell within 500 km).') + '</span></div>';
   }
   function pairsStatHTML() {
     var ps = session.pairs; if (!ps.length) return '';

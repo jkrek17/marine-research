@@ -1,13 +1,14 @@
 """Pattern drill, step 1: every GFS-analysed low (< 1012 hPa) in both basins at 00/06/12/18 UTC over a
-period, with what ASCAT saw within 500 km of it.
+period, with what ASCAT saw in its own circulation.
 
-One small JSON per valid time under rk.paths.data("extra", "pattern-drill", "find"); a time already
+One small JSON per valid time under rk.paths.data("extra", "pattern-drill", "find2") (version 1, 500 km nearest-low, is in "find"); a time already
 written is skipped, so the run resumes after an interruption.
 
     python3 find_cases.py 2025-11-01 2026-03-31 [--workers 6]
 
-Per low: lat, lon, hpa (GFS f000 PRMSL), cover (share of its open water that ASCAT saw: water within RADIUS_KM
-that is nearer this low than any other low found, so a neighbour's winds are not counted;
+Per low: lat, lon, hpa (GFS f000 PRMSL), cover (share of its open water that ASCAT saw: its own pressure
+basin - the cells whose smoothed MSLP falls toward this low, rk.score.pressure_basins - within RADIUS_KM, so a
+neighbour's winds are not counted and a big low keeps its whole circulation;
 +-90 min, rain dropped), n (seen cells), peak3 (3rd highest seen cell, kt, real 10 m wind, B/C
 intercalibrated: the category speed, so one noisy cell does not set it), vmax (highest cell).
 """
@@ -24,9 +25,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from rk import fetch, paths, score, truth  # noqa: E402
 from rk.basins import BASINS, grid  # noqa: E402
 
-RADIUS_KM = 500.0
+RADIUS_KM = 1000.0     # version 2 (Jason 2026-11-05): own pressure basin up to 1000 km; version 1 was 500 km nearest-low
 BELOW = 1012.0
-OUT = paths.data("extra", "pattern-drill", "find")
+OUT = paths.data("extra", "pattern-drill", "find2")
 
 
 def km_from(lat0, lon0, lats, lons):
@@ -55,12 +56,14 @@ def one(valid):
         if a is not None and water is not None:
             g, _ = truth.ascat_to_grid(b, a["lat"], a["lon"], a["spd_kt"])
         rows = []
-        dist = [km_from(r.lat, r.lon, lats, lons) for _, r in lows.iterrows()]
-        nearest = np.argmin(np.stack(dist), axis=0) if dist else None
+        # all minima (no depth or edge cut) own their basins, so a weak neighbour still keeps its winds
+        every = score.find_lows(msl, b, below=1030.0)
+        own = score.pressure_basins(msl, lats, lons, list(every.itertuples()), max_km=RADIUS_KM)
         for i, (_, r) in enumerate(lows.iterrows()):
             row = {"lat": float(r.lat), "lon": float(r.lon), "hpa": round(float(r.hpa), 1)}
             if g is not None:
-                disc = (dist[i] <= RADIUS_KM) & (nearest == i) & water
+                k = int(np.argmin(score._km(r.lat, r.lon, every.lat.values, every.lon.values)))
+                disc = (own == k) & water
                 seen = disc & np.isfinite(g)
                 nw, ns = int(disc.sum()), int(seen.sum())
                 v = np.sort(g[seen])[::-1]

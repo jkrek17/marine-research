@@ -21,7 +21,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
-from rk import KT, diag, fetch, paths, truth  # noqa: E402
+from rk import KT, diag, fetch, paths, score, truth  # noqa: E402
 
 ROOT = paths.data("extra", "pattern-drill")
 RES, NY, NX = 0.5, 51, 81          # 25 x 40 deg
@@ -190,13 +190,36 @@ def satellite_for(row, out):
 
 
 def box_for(row):
-    """North-west cell centre of the box: centred between the low at T and T+24 h (lon 0-360)."""
-    la = (float(row["lat0"]) + float(row["lat24"])) / 2
-    l0, l1 = float(row["lon0"]), float(row["lon24"])
-    lo = (l0 + ((l1 - l0 + 180) % 360 - 180) / 2) % 360
-    lat_n = round(min(max(la + (NY - 1) * RES / 2, 25.0 + (NY - 1) * RES), 85.0) * 2) / 2
-    lon_w = round(((lo - (NX - 1) * RES / 2) % 360) * 2) / 2
+    """North-west cell centre of the box (lon 0-360). Version 2 (Jason 2026-11-05, "be better about the low
+    placement"): centred on the low at T, moved only as far as needed to keep the low at T + 24 h at least
+    EDGE_DEG inside the box. Version 1 centred between the two, so the circled low sat a median 250 km
+    (up to 900 km) off centre."""
+    la0, l0 = float(row["lat0"]), float(row["lon0"])
+    la1 = float(row["lat24"])
+    dl = (float(row["lon24"]) - l0 + 180) % 360 - 180
+    hy, hx = (NY - 1) * RES / 2 - EDGE_DEG, (NX - 1) * RES / 2 - EDGE_DEG
+    cy = la0 + max(0.0, la1 - la0 - hy) + min(0.0, la1 - la0 + hy)
+    cx = l0 + max(0.0, dl - hx) + min(0.0, dl + hx)
+    lat_n = round(min(max(cy + (NY - 1) * RES / 2, 25.0 + (NY - 1) * RES), 85.0) * 2) / 2
+    lon_w = round(((cx - (NX - 1) * RES / 2) % 360) * 2) / 2
     return lat_n, lon_w
+
+
+EDGE_DEG = 5.0
+
+
+def snap_low(msl, lat_n, lon_w, lat, lon, km_max=200.0):
+    """The circled low moved onto the lowest pressure of the map as drawn (smoothed, 0.5 deg) within km_max
+    -> (lat, lon). The analysed low comes from the unsmoothed 0.25 deg grid, so it can sit a cell or two off."""
+    la = lat_n - np.arange(NY) * RES
+    lo = lon_w + np.arange(NX) * RES
+    LA, LO = np.meshgrid(la, lo, indexing="ij")
+    d = score._km(lat, lon, LA, LO)
+    f = np.where((d <= km_max) & np.isfinite(msl), msl, np.inf)
+    k = np.unravel_index(np.argmin(f), f.shape)
+    if not np.isfinite(f[k]):
+        return lat, lon
+    return float(LA[k]), float(LO[k] % 360)
 
 
 def gfs(valid):
@@ -233,18 +256,30 @@ def manifest(rows, out):
         if not (out / (r["id"] + ".bin")).exists():
             continue
         lat_n, lon_w = box_for(r)
+        n = NY * NX
+        u = np.frombuffer((out / (r["id"] + ".bin")).read_bytes(), np.uint8)
+        per = len(u) // 2
+        pos = {}
+        for j, s in enumerate(("0", "24")):
+            q = u[j * per:j * per + n].reshape(NY, NX).astype(float)
+            msl = np.where(q == 255, np.nan, FIELDS[0][3] + FIELDS[0][4] * q)
+            pos[s] = snap_low(msl, lat_n, lon_w, float(r["lat" + s]), float(r["lon" + s]))
         sat = {}
         for k in ("t0", "t24"):
             f = out / ("%s_%s.sat" % (r["id"], k))
             v = f.read_text().split() if f.exists() else ["0", "0"]
             sat[k] = {"ir": v[0] == "1", "am": v[1] == "1"}
-        snap = lambda s: {"lat": float(r["lat" + s]), "lon": float(r["lon" + s]), "hpa": float(r["hpa" + s]),
+        snap = lambda s: {"lat": pos[s][0], "lon": pos[s][1], "hpa": float(r["hpa" + s]),
                           "cat": int(r["cat" + s]), "peak": float(r["peak" + s]), "cover": float(r["cover" + s]),
+                          **({"plat": float(r["plat" + s]), "plon": float(r["plon" + s])} if r.get("plat" + s) else {}),
                           **sat["t0" if s == "0" else "t24"]}
         cases.append({"id": r["id"], "basin": r["basin"], "lat0": lat_n, "lon0": lon_w,
                       "t0": snap("0"), "t24": snap("24")})
-    m = {"version": 1, "res": RES, "ny": NY, "nx": NX,
-         "source": "GFS analysis maps; ASCAT (RSS, Metop-B/C) truth within 500 km of the low",
+    scene = all("plat" in c["t0"] for c in cases)
+    m = {"version": 2 if scene else 1, "res": RES, "ny": NY, "nx": NX, "truth": "scene" if scene else "low",
+         "source": ("GFS analysis maps; ASCAT (RSS, Metop-B/C) truth: the strongest wind anywhere in the map box "
+                    "(3rd highest cell); the circled low is the deepest in the box" if scene else
+                    "GFS analysis maps; ASCAT (RSS, Metop-B/C) truth within 500 km of the low"),
          "fields": [{"key": k, "name": n, "units": u, "offset": o, "scale": s} for k, n, u, o, s in FIELDS],
          "cases": cases}
     (out / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
