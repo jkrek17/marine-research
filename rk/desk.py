@@ -31,6 +31,18 @@ def issue_for(basin, cycle):
     day, hour = ISSUE_HOURS[basin][cycle.hour]
     d = dt.datetime(cycle.year, cycle.month, cycle.day) + dt.timedelta(days=day)
     return d.replace(hour=hour)
+
+
+def issue_settled(cycle):
+    """Snapshot holding both basins' full updates from the `cycle` (00 or 12Z) runs: 13Z the same day for 00Z, 01Z
+    the next day for 12Z. The Atlantic's ~10Z/22Z file sometimes still holds part of the previous update (6 of 149
+    issuances, 14 Jan-31 Mar 2026); this later file does not, though the desk may have seen the 06/18Z GFS."""
+    if cycle.hour not in (0, 12):
+        raise ValueError("model cycle must be 00 or 12Z, got %02dZ" % cycle.hour)
+    d = dt.datetime(cycle.year, cycle.month, cycle.day)
+    return d.replace(hour=13) if cycle.hour == 0 else d + dt.timedelta(days=1, hours=1)
+
+
 VALID_HOURS = (0, 6, 12, 18)
 # Stamp on every cached basin grid. Bump it whenever decoding or regridding changes (scan order, unit
 # conversion, box snapping, area mean, product merging): a cached file without it or with another value is
