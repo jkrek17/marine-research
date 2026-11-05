@@ -46,6 +46,7 @@ The interfaces every module in `rk/` keeps, so studies can rely on them. Change 
 - `low(model, cycle, step) -> {basin: {"t2","skt","u925","v925","t925","u850","v850"[, "land","ice"]}} | None` for model in `gfs`, `ifs`, `aifs` (temperatures K, winds m/s; `land` and `ice` 0-1, gfs only, from LAND and ICEC). Key maps `GFS_LOW`, `EC_LOW_SFC`, `EC_LOW_PL` copied from the marine wind page. None if not posted or any field is missing.
 - `members(ens, cycle, step, msl=True, wind=True) -> {basin: {"u": [n,y,x], "v": [n,y,x], "msl": [n,y,x]}} | None` for ens in `gefs` (c00 + p01..p30), `ens` (IFS ENS, `-ef`), `aifs-ens` (`-cf` + `-pf`). `wind=False` leaves u and v out (MSLP only, the bomb watch's lab job).
 - `gfs_pattern(cycle, step) -> {'z500' (m), 'msl' (Pa), 'u250', 'v250' (m/s)} | None`: whole-globe 0.25 deg [721, 1440] (lat 90..-90) GFS fields for Storm Twins (`PATTERN`).
+- `gfs_global(cycle, step, want) -> {name: [721, 1440]} | None`: any GFS records by GRIB key (`want` maps keys to names), whole globe 0.25 deg, lat 90..-90. `DRILL`: the pattern drill's map inputs (PRMSL, HGT 1000/850/500/250, TMP 850/500, UGRD/VGRD 850/500/250, ABSV 500, TMP surface and 2 m, LAND, ICEC; SI units as posted).
 - `gdas_background(valid) -> {basin: {"u": [7,y,x], "v": [7,y,x], "land"}}`: the previous GDAS cycle's f003..f009 10 m wind, for building ship and buoy winds.
 - GEFSv12 reforecast (2000-2019, 00 UTC, 5 members `REFORECAST_MEMBERS` = c00, p01..p04), S3 `noaa-gefs-retrospective`: `reforecast_url(day, member, var="pres_msl", days="1-10")`; `reforecast_index(url) -> {hour: (start, end)}` (end None for the last record); `gefs_reforecast(day, member, steps, var="pres_msl") -> {step: {basin: arr}} | None` (MSLP hPa on the basin grids; a step missing from the file is left out; None when the file is not there). One file holds every 3-hourly lead; each step is one byte-range read.
 
@@ -214,3 +215,9 @@ Pure numpy on already-pulled MSLP and wind; no network. Lows come from `rk.bomb.
 ## rk/classes.py (the marine wind page's routine / attention classes)
 - `RIDE, AGREE, FOCUS, HIGH = 0, 1, 2, 3`; `NAMES = ("ride", "agree", "focus", "high impact")`.
 - `classes(speeds) -> uint8 [y, x]` for `speeds` [3, y, x] kt (GFS, IFS, AIFS). The page rule (`focus_grid` in awips-tools `marine_wind/pipeline/build.py` at commit 3eb2ff5), copied and kept identical for basin boxes (reflect mode at the edges). If the page rule changes, this changes with it.
+
+## rk/diag.py (synoptic diagnostics on a lat-lon grid)
+- Grids: 2-D arrays with 1-D `lats` (either order) and `lons` (degrees). Winds m/s, temperatures K, heights m, pressures hPa; results per second (`DAY` = 86400 to convert).
+- `coriolis(lats)`, `ddx(a, lats, lons)`, `ddy(a, lats)` (centred differences on the sphere), `advection(s, u, v, lats, lons)` = -(V . grad s) (positive = warm advection for temperature), `theta(t, p)`.
+- `eady(u_lo, v_lo, z_lo, t_lo, p_lo, u_hi, v_hi, z_hi, t_hi, p_hi, lats)`: maximum Eady growth rate 0.31 |f| |dV/dz| / N for the layer between two levels (1/s); NaN where N^2 <= 0.
+- `smooth(a, sigma)` Gaussian (cells) ignoring NaN; `coarsen(a, k, how="mean"|"max")` block reduce; `subsample(a, k)` every k-th cell.

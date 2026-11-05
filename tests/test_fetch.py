@@ -36,6 +36,7 @@ def test_nwp_record_404_reports_not_posted():
         assert fetch.det("ifs", C, 24) is None
         assert fetch.det("aifs", C, 24) is None
         assert fetch.gfs_mask(C) is None
+        assert fetch.gfs_global(C, 0, {"LAND:surface": "land"}) is None
         assert fetch.gdas_background(C) is None
         assert fetch.members("gefs", C, 24) is None
         assert fetch.members("ens", C, 24) is None
