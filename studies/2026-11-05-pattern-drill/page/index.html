@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pattern drill</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <button id="homeBtn" class="brand" type="button" title="Back to start">Pattern drill</button>
+  <div class="topright">
+    <span id="topPts" class="pts" aria-live="polite">0 pts</span>
+    <button id="statsBtn" class="btn small" type="button">Stats</button>
+  </div>
+</header>
+
+<main>
+  <div id="loadMsg" class="note">Loading deck...</div>
+
+  <section id="start" class="screen" hidden>
+    <h1>Pick the pattern, call the wind</h1>
+    <p class="lead">Look at the model maps around a circled low. Call the peak wind that ASCAT saw within 500 km. Many cases, quick feedback. Stats last for this session only.</p>
+
+    <h2>Game</h2>
+    <div class="choice" id="gameChoice" role="radiogroup" aria-label="Game">
+      <button type="button" role="radio" data-v="now" class="opt on" aria-checked="true"><b>Right now</b><span>Maps at the time of an ASCAT pass. What did it show?</span></button>
+      <button type="button" role="radio" data-v="fc" class="opt" aria-checked="false"><b>Forecast +24 h</b><span>Maps now plus ASCAT now. Call the peak 24 h later.</span></button>
+    </div>
+
+    <h2>Mode</h2>
+    <div class="choice" id="modeChoice" role="radiogroup" aria-label="Mode">
+      <button type="button" role="radio" data-v="practice" class="opt on" aria-checked="true"><b>Practice</b><span>Endless, no clock.</span></button>
+      <button type="button" role="radio" data-v="blitz" class="opt" aria-checked="false"><b>Blitz</b><span>10 cases, 60 s each. No answer is a miss.</span></button>
+    </div>
+
+    <label class="toggle"><input type="checkbox" id="weak"> <span><b>Weak spots</b> <small>After 8 cases, about 2 in 3 cases come from the observed category you miss most.</small></span></label>
+
+    <p id="startMsg" class="fine" role="status"></p>
+    <button id="startBtn" class="btn primary big" type="button">Start</button>
+
+    <div class="points">
+      <h2>Points</h2>
+      <p>Exact call 100. Over-call by one 50, by two or more 10. Under-call by one 25, by two or more 0. Missing an observed HF -25.</p>
+      <p class="fine">Categories: none under 34 kt, gale 34-47, storm 48-63, HF 64+. Truth is ASCAT 10 m wind within 500 km of the low (3rd highest cell). Maps are GFS analyses. Dates are hidden.</p>
+    </div>
+  </section>
+
+  <section id="play" class="screen" hidden>
+    <div class="playgrid">
+      <div class="left">
+        <div class="statusbar">
+          <span id="pCase"></span>
+          <span id="pGame" class="chip"></span>
+          <span id="pBasin" class="chip"></span>
+          <span id="pTimer" class="timer" hidden></span>
+        </div>
+        <div id="timerbar" class="timerbar" hidden><i></i></div>
+        <div class="tabs" id="tabs" role="tablist" aria-label="Map"></div>
+        <div class="cap" id="cap"></div>
+        <div class="mapbox" id="mapbox"><canvas id="map" aria-label="Map"></canvas><div id="mapLoad" class="maploading">Loading case...</div></div>
+        <div class="legend" id="legend"></div>
+        <div class="swipehint" id="swipeHint">Swipe the map or use the tabs. Arrow keys also work.</div>
+      </div>
+      <div class="right">
+        <div id="nowline" class="nowline" hidden></div>
+        <h2 id="question" class="q"></h2>
+        <div id="answers" class="answers"></div>
+        <div id="result" class="result" hidden></div>
+        <button id="nextBtn" class="btn primary big" type="button" hidden>Next case</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="end" class="screen" hidden>
+    <h1>Blitz done</h1>
+    <div id="endBody"></div>
+    <div class="row">
+      <button id="againBtn" class="btn primary big" type="button">Play again</button>
+      <button id="endHomeBtn" class="btn big" type="button">Change game</button>
+    </div>
+  </section>
+</main>
+
+<div id="drawer" class="drawer" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Session stats">
+    <div class="sheethead"><h2>Session stats</h2><button id="closeStats" class="btn small" type="button">Close</button></div>
+    <div id="statsBody"></div>
+    <p class="fine">Stats live in this browser tab only and clear when you close it.</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
