@@ -293,3 +293,5 @@ h3{font-size:20px;font-weight:600;color:var(--navy)}
 table.conf td.diag{background:var(--navytint)}
 :focus-visible{outline-color:var(--oxblood)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+.playgrid>.left,.pgrid>.pcol{min-width:0}
+@media (min-width:900px){.tabs{flex-wrap:wrap;overflow-x:visible}}
