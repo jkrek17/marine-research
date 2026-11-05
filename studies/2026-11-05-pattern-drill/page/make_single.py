@@ -13,7 +13,7 @@ out.mkdir(parents=True, exist_ok=True)
 html = (here / "index.html").read_text()
 body = re.search(r"<body>(.*)</body>", html, re.S).group(1)
 body = body.replace('<script src="app.js"></script>', "<script>\n%s\n</script>" % (here / "app.js").read_text())
-page = ("<title>Pattern drill</title>\n<style>\n:root{color-scheme:light}\n%s\n</style>\n%s"
+page = ("<meta charset=\"utf-8\">\n<title>Pattern drill</title>\n<style>\n:root{color-scheme:light}\n%s\n</style>\n%s"
         % ((here / "style.css").read_text(), body))
 (out / "index.html").write_text(page)
 print(out / "index.html", len(page))

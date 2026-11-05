@@ -40,6 +40,7 @@
 
     <p id="startMsg" class="fine" role="status"></p>
     <button id="startBtn" class="btn primary big" type="button">Start</button>
+    <button id="ingBtn" class="btn big" type="button">Ingredients: what favours growth</button>
 
     <div class="points">
       <h2>Points</h2>
@@ -70,9 +71,15 @@
         <h2 id="question" class="q"></h2>
         <div id="answers" class="answers"></div>
         <div id="result" class="result" hidden></div>
+        <div id="debrief" class="debrief" hidden></div>
         <button id="nextBtn" class="btn primary big" type="button" hidden>Next case</button>
       </div>
     </div>
+  </section>
+
+  <section id="ingr" class="screen" hidden>
+    <button id="ingBack" class="btn small" type="button">Back</button>
+    <div id="ingBody"></div>
   </section>
 
   <section id="end" class="screen" hidden>
@@ -89,6 +96,7 @@
   <div class="sheet" role="dialog" aria-modal="true" aria-label="Session stats">
     <div class="sheethead"><h2>Session stats</h2><button id="closeStats" class="btn small" type="button">Close</button></div>
     <div id="statsBody"></div>
+    <button id="statsIng" class="btn small" type="button">Ingredients reference</button>
     <p class="fine">Stats live in this browser tab only and clear when you close it.</p>
   </div>
 </div>

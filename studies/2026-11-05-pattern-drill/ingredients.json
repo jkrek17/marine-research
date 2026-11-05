@@ -1,0 +1,304 @@
+{
+ "n": 1004,
+ "days": 276,
+ "base_grow": 20.1,
+ "base_decay": 27.1,
+ "ingredients": [
+  {
+   "key": "eady",
+   "name": "Eady growth",
+   "units": "per day",
+   "n": 1004,
+   "cuts": [
+    1.283,
+    1.736
+   ],
+   "grow": [
+    12.2,
+    21.6,
+    26.6
+   ],
+   "decay": [
+    27.2,
+    30.2,
+    23.9
+   ],
+   "dp": [
+    4.5,
+    0.5,
+    -1.9
+   ],
+   "signal": 22.1,
+   "lo": 14.9,
+   "hi": 27.5,
+   "verdict": "strong",
+   "favour": 1
+  },
+  {
+   "key": "jet",
+   "name": "250 mb jet speed",
+   "units": "kt",
+   "n": 1004,
+   "cuts": [
+    107.654,
+    136.586
+   ],
+   "grow": [
+    14.6,
+    20.1,
+    25.7
+   ],
+   "decay": [
+    23.0,
+    26.6,
+    31.6
+   ],
+   "dp": [
+    2.9,
+    1.0,
+    -0.8
+   ],
+   "signal": 13.8,
+   "lo": 8.7,
+   "hi": 20.7,
+   "verdict": "weak",
+   "favour": 1
+  },
+  {
+   "key": "pva",
+   "name": "500 mb vorticity advection",
+   "units": "1e-5/s per 6 h",
+   "n": 1004,
+   "cuts": [
+    47.777,
+    80.59
+   ],
+   "grow": [
+    14.0,
+    23.7,
+    22.7
+   ],
+   "decay": [
+    21.5,
+    27.8,
+    31.9
+   ],
+   "dp": [
+    2.5,
+    0.7,
+    -0.0
+   ],
+   "signal": 20.2,
+   "lo": 14.5,
+   "hi": 25.2,
+   "verdict": "strong",
+   "favour": 1
+  },
+  {
+   "key": "tilt",
+   "name": "Tilt to the 500 mb low",
+   "units": "km",
+   "n": 1004,
+   "cuts": [
+    491.03,
+    992.07
+   ],
+   "grow": [
+    11.9,
+    23.4,
+    25.1
+   ],
+   "decay": [
+    43.6,
+    19.8,
+    17.9
+   ],
+   "dp": [
+    6.7,
+    -1.2,
+    -2.5
+   ],
+   "signal": 5.6,
+   "lo": 0.7,
+   "hi": 11.9,
+   "verdict": "weak",
+   "favour": 1
+  },
+  {
+   "key": "warm_adv",
+   "name": "850 mb warm advection",
+   "units": "C/day",
+   "n": 1004,
+   "cuts": [
+    15.417,
+    33.642
+   ],
+   "grow": [
+    18.2,
+    23.4,
+    18.8
+   ],
+   "decay": [
+    17.0,
+    26.3,
+    37.9
+   ],
+   "dp": [
+    1.7,
+    0.7,
+    0.7
+   ],
+   "signal": 11.8,
+   "lo": 6.1,
+   "hi": 18.8,
+   "verdict": "weak",
+   "favour": 1
+  },
+  {
+   "key": "thk_grad",
+   "name": "Thickness gradient",
+   "units": "dam/100 km",
+   "n": 1004,
+   "cuts": [
+    3.983,
+    6.011
+   ],
+   "grow": [
+    16.1,
+    23.7,
+    20.6
+   ],
+   "decay": [
+    29.3,
+    28.1,
+    23.9
+   ],
+   "dp": [
+    3.6,
+    0.0,
+    -0.5
+   ],
+   "signal": 10.1,
+   "lo": 3.3,
+   "hi": 16.6,
+   "verdict": "weak",
+   "favour": 1
+  },
+  {
+   "key": "sea_air",
+   "name": "Sea minus air",
+   "units": "C",
+   "n": 1004,
+   "cuts": [
+    3.702,
+    6.522
+   ],
+   "grow": [
+    14.9,
+    23.7,
+    21.8
+   ],
+   "decay": [
+    30.7,
+    27.8,
+    22.7
+   ],
+   "dp": [
+    3.2,
+    1.0,
+    -1.1
+   ],
+   "signal": 9.8,
+   "lo": 4.1,
+   "hi": 15.8,
+   "verdict": "weak",
+   "favour": 1
+  },
+  {
+   "key": "dry",
+   "name": "Dry upper air (air mass)",
+   "units": "share of disc",
+   "n": 995,
+   "cuts": [
+    0.112,
+    0.264
+   ],
+   "grow": [
+    12.3,
+    20.5,
+    28.0
+   ],
+   "decay": [
+    22.6,
+    29.3,
+    29.5
+   ],
+   "dp": [
+    2.8,
+    2.0,
+    -1.7
+   ],
+   "signal": 24.2,
+   "lo": 18.0,
+   "hi": 30.1,
+   "verdict": "strong",
+   "favour": 1
+  },
+  {
+   "key": "peak0",
+   "name": "Wind now (ASCAT)",
+   "units": "kt",
+   "n": 1004,
+   "cuts": [
+    30.833,
+    39.5
+   ],
+   "grow": [
+    26.0,
+    24.3,
+    10.1
+   ],
+   "decay": [
+    0.0,
+    31.5,
+    49.7
+   ],
+   "dp": [
+    -1.1,
+    0.1,
+    4.1
+   ],
+   "signal": 14.1,
+   "lo": 7.8,
+   "hi": 18.8,
+   "verdict": "weak",
+   "favour": 1
+  }
+ ],
+ "jet_pos": {
+  "left exit": {
+   "n": 421,
+   "grow": 22.6,
+   "decay": 30.9,
+   "dp": 0.1
+  },
+  "right entrance": {
+   "n": 65,
+   "grow": 32.3,
+   "decay": 10.8,
+   "dp": -4.6
+  },
+  "other": {
+   "n": 265,
+   "grow": 19.2,
+   "decay": 29.1,
+   "dp": 1.9
+  },
+  "weak jet": {
+   "n": 253,
+   "grow": 13.8,
+   "decay": 22.9,
+   "dp": 3.1
+  }
+ }
+}

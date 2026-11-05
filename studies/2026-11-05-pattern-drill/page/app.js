@@ -520,8 +520,10 @@
   try { if (window.sessionStorage.getItem('pdrill-hints') === '0') opts.hints = false; } catch (e) { /* ignore */ }
   var cur = null, blitz = null, geom = null, tabIdx = 0, tabList = TABS, timerId = null;
 
+  var lastScreen = 'start';
   function show(id) {
-    ['start', 'play', 'end'].forEach(function (s) { $(s).hidden = s !== id; });
+    if (id !== 'ingr') lastScreen = id;
+    ['start', 'play', 'end', 'ingr'].forEach(function (s) { $(s).hidden = s !== id; });
     $('loadMsg').hidden = true;
     window.scrollTo(0, 0);
   }
@@ -609,7 +611,7 @@
     cur = { game: opts.game, c: pick.c, snap: pick.snap, data: null, answered: false, t0: 0 };
     session.played[opts.game][pick.c.id] = 1; saveSession();
     tabList = TABS; buildTabs();
-    $('result').hidden = true; $('nextBtn').hidden = true; $('answers').hidden = false;
+    $('result').hidden = true; $('debrief').hidden = true; $('nextBtn').hidden = true; $('answers').hidden = false;
     $('mapLoad').hidden = false; $('mapLoad').textContent = 'Loading case...';
     var played = session.records.filter(function (r) { return r.game === opts.game; }).length;
     $('pCase').textContent = blitz ? 'Case ' + (blitz.n + 1) + ' of ' + BLITZ_N : 'Case ' + (played + 1);
@@ -657,6 +659,75 @@
   }
   function clearTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
 
+  // ------------------------------------------------------------------ ingredients
+  var IMEANS = {
+    eady: 'How fast the baroclinic zone near the low can build it (850-500 mb).',
+    jet: '250 mb jet speed near the low; a low under a jet streak gets upper divergence.',
+    pva: 'Upper-level vorticity coming in (forcing for ascent).',
+    tilt: 'Distance to the 500 mb low: small means stacked (mature).',
+    warm_adv: 'Warm advection at 850 mb ahead of the low.',
+    thk_grad: 'Thickness gradient near the low: the baroclinic zone.',
+    sea_air: 'Sea minus air temperature: cold air over warm sea mixes strong winds down.',
+    dry: 'Dry upper air in the air-mass image.',
+    peak0: 'How strong it already is (ASCAT peak at the start).'
+  };
+  function nf(v) { var x = Math.abs(v); return String(parseFloat(v.toFixed(x < 2 ? 2 : x < 10 ? 1 : 0))); }
+  function ingList() { return (manifest && manifest.ingredients && manifest.ingredients.ingredients) || []; }
+  function ingFlag(it, t) {   // 1 growth, -1 decay, 0 neutral
+    if (t === 1) return 0;
+    return (t === 2) === (it.favour === 1) ? 1 : -1;
+  }
+  function debriefHTML() {
+    var c = cur.c, ing = c.ing, list = ingList();
+    if (!ing || !list.length) return '';
+    var jp = manifest.ingredients.jet_pos && manifest.ingredients.jet_pos[ing.jet_pos];
+    if (cur.game === 'fc') {
+      var g = 0, d = 0, rows = '';
+      list.forEach(function (it) {
+        if ((it.verdict !== 'strong' && it.verdict !== 'weak') || !ing[it.key] || it.key === 'peak0') return;
+        var v = ing[it.key], f = ingFlag(it, v[1]);
+        if (it.verdict === 'strong') { if (f > 0) g++; else if (f < 0) d++; }
+        rows += '<div class="drow"><span class="nm">' + it.name + '</span><span class="vl">' + nf(v[0]) + ' ' + it.units + '</span>' +
+          '<span class="pill ' + (f > 0 ? 'g' : f < 0 ? 'd' : '') + '">' + (f > 0 ? 'favours growth' : f < 0 ? 'favours decay' : 'neutral') + '</span>' +
+          '<span class="pill sig">' + it.verdict + ' signal</span></div>';
+      });
+      if (ing.jet_pos) rows += '<div class="drow"><span class="nm">Jet position</span><span class="vl">' + ing.jet_pos + '</span>' +
+        (jp ? '<span class="pill sig">' + Math.round(jp.grow) + '% grew, ' + Math.round(jp.decay) + '% decayed</span>' : '') + '</div>';
+      var diff = c.t24.cat - c.t0.cat;
+      var sum = 'Strong ingredients: ' + g + ' pointed to growth, ' + d + ' to decay. ';
+      var right = diff > 0 ? g > d : diff < 0 ? d > g : null, tie = g === d;
+      sum += diff === 0 ? 'It held.' : (diff > 0 ? 'It grew: ' : 'It decayed: ') +
+        (tie ? 'the ingredients were split.' : right ? 'the ingredients called it.' : 'the ingredients were misleading here.');
+      return '<h3>Why it went this way</h3>' + rows + '<div class="dsum">' + sum + '</div>';
+    }
+    if (cur.snap !== 't0') return '';
+    var rw = '';
+    list.forEach(function (it) { if (ing[it.key]) rw += '<div class="drow"><span class="nm">' + it.name + '</span><span class="vl">' + nf(ing[it.key][0]) + ' ' + it.units + '</span></div>'; });
+    if (ing.jet_pos) rw += '<div class="drow"><span class="nm">Jet position</span><span class="vl">' + ing.jet_pos + '</span></div>';
+    return '<details class="dlite"><summary>Ingredients at this time</summary>' + rw + '</details>';
+  }
+  function ingredientsHTML() {
+    var M = manifest.ingredients, list = ingList().slice();
+    if (!M || !list.length) return '<h1>Ingredients</h1><p class="lead">No ingredient statistics in this deck.</p>';
+    list = list.filter(function (it) { return it.key !== 'peak0'; });
+    list.sort(function (a, b) { return Math.abs(b.signal) - Math.abs(a.signal); });
+    var h = '<h1>Ingredients</h1><p class="lead">From ' + M.n + ' lows over two winters, judged by ASCAT. Overall ' + Math.round(M.base_grow) + '% grew and ' + Math.round(M.base_decay) + '% decayed in 24 h.</p>';
+    list.forEach(function (it) {
+      var c = it.cuts, lab = ['< ' + nf(c[0]), nf(c[0]) + '\u2013' + nf(c[1]), '> ' + nf(c[1])], bars = '';
+      for (var k = 0; k < 3; k++) bars += '<div>' + lab[k] + ' ' + it.units.replace(/^per day$/, '/day') + '</div><div class="bar2"><i class="gr" style="width:' + Math.min(100, it.grow[k]) + '%"></i><i class="dc" style="width:' + Math.min(100, it.decay[k]) + '%"></i><span>grew ' + Math.round(it.grow[k]) + '% &middot; decayed ' + Math.round(it.decay[k]) + '%</span></div>';
+      h += '<div class="icard"><div class="ihead"><b>' + it.name + '</b><span class="itag ' + it.verdict + '">' + it.verdict + (it.verdict === 'none' ? '' : ': ' + (it.favour > 0 ? 'high' : 'low') + ' favours growth') + '</span></div>' +
+        '<div class="imean">' + (IMEANS[it.key] || '') + ' Signal ' + (it.signal > 0 ? '+' : '') + Math.round(it.signal) + ' points (' + Math.round(it.lo) + ' to ' + Math.round(it.hi) + ').</div><div class="ibars">' + bars + '</div></div>';
+    });
+    h += '<div class="ikey">Blue bar: share that grew (category went up). Pink bar: share that decayed. Signal = growth share in the top third minus the bottom third, among lows of the same starting strength. Strong: 15+ points and clearly not zero. Only strong ingredients count in the case debrief. How strong the low is now is left out: lows near the top of a category tip over more often, but a low already at storm force has less room to grow, so it is not an ingredient.</div>';
+    if (M.jet_pos) {
+      h += '<h2>Jet position</h2><table class="jt"><tr><th></th><th>Lows</th><th>Grew</th><th>Decayed</th><th>Mean dp</th></tr>';
+      Object.keys(M.jet_pos).forEach(function (k) { var j = M.jet_pos[k]; h += '<tr><th>' + k + '</th><td>' + j.n + '</td><td>' + Math.round(j.grow) + '%</td><td>' + Math.round(j.decay) + '%</td><td>' + (j.dp > 0 ? '+' : '') + j.dp.toFixed(1) + ' hPa</td></tr>'; });
+      h += '</table>';
+    }
+    return h;
+  }
+  function openIngredients() { $('drawer').hidden = true; $('ingBody').innerHTML = ingredientsHTML(); show('ingr'); }
+
   function answer(called) {
     if (!cur || cur.answered || !cur.data) return;
     cur.answered = true; clearTimer();
@@ -686,6 +757,7 @@
     h += '<div class="rstats">Streak ' + tt.cur + ' &middot; Total ' + tt.pts + ' pts &middot; Best streak ' + tt.best + '</div>';
     var res = $('result'); res.className = 'result ' + cls; res.innerHTML = h; res.hidden = false;
     $('answers').hidden = true;
+    var db = $('debrief'), dh = debriefHTML(); db.innerHTML = dh; db.hidden = !dh;
     var nb = $('nextBtn'); nb.hidden = false;
     nb.textContent = blitz && blitz.n >= BLITZ_N ? 'See results' : 'Next case';
     // reveal tab
@@ -789,6 +861,9 @@
     $('endHomeBtn').addEventListener('click', goHome);
     $('homeBtn').addEventListener('click', goHome);
     $('nextBtn').addEventListener('click', nextCase);
+    $('ingBtn').addEventListener('click', openIngredients);
+    $('statsIng').addEventListener('click', openIngredients);
+    $('ingBack').addEventListener('click', function () { show(lastScreen); });
     $('statsBtn').addEventListener('click', openStats);
     $('closeStats').addEventListener('click', function () { $('drawer').hidden = true; });
     $('drawer').addEventListener('click', function (e) { if (e.target === $('drawer')) $('drawer').hidden = true; });

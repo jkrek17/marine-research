@@ -102,6 +102,42 @@ def sat_images(la0, lo0, low, depth, rng, kind):
     return Image.fromarray(arr.astype(np.uint8), "RGB")
 
 
+ING = [  # key, name, units, cuts, favour, signal, verdict
+    ("eady", "Eady growth", "per day", [0.8, 1.2], 1, 18.2, "strong"),
+    ("jet", "250 mb jet", "kt", [80, 110], 1, 12.0, "weak"),
+    ("pva", "Vorticity advection", "1e-9 /s2", [-2, 4], 1, 16.5, "strong"),
+    ("tilt", "Tilt to 500 mb low", "km", [150, 400], -1, 9.0, "weak"),
+    ("warm_adv", "Warm advection 850", "K/day", [1.5, 4], 1, 3.0, "none"),
+    ("thk_grad", "Thickness gradient", "dam/1000 km", [6, 10], 1, 14.1, "weak"),
+    ("sea_air", "Sea minus air", "K", [1, 4], 1, 17.0, "strong"),
+    ("dry", "Dry air-mass signal", "index", [0.2, 0.5], 1, 6.0, "none"),
+    ("peak0", "Peak wind now", "kt", [30, 45], -1, 20.0, "strong"),
+]
+
+
+def fake_ing(rng):
+    out = {"jet_pos": str(rng.choice(["left exit", "right entrance", "other", "weak jet"]))}
+    for k, _n, _u, cuts, _f, _s, _v in ING:
+        if k == "dry" and rng.random() < 0.3:
+            continue
+        t = int(rng.integers(0, 3))
+        v = [cuts[0] * 0.6, (cuts[0] + cuts[1]) / 2, cuts[1] * 1.4][t]
+        out[k] = [round(float(v), 2), t]
+    return out
+
+
+def fake_ingredients():
+    items = []
+    for k, n, u, cuts, fav, sig, ver in ING:
+        g = [28 - fav * sig / 2, 31, 28 + fav * sig / 2]
+        items.append({"key": k, "name": n, "units": u, "n": 1004, "cuts": cuts,
+                      "grow": [round(x, 1) for x in g], "decay": [round(55 - x, 1) for x in g],
+                      "dp": [round(-1 - fav * x / 10, 1) for x in (-1, 0, 1)],
+                      "signal": sig, "lo": sig - 8, "hi": sig + 8, "verdict": ver, "favour": fav})
+    jp = {n: {"n": 100 + 20 * i, "grow": 25 + 8 * i, "decay": 40 - 6 * i, "dp": -1.0 - i} for i, n in enumerate(["left exit", "right entrance", "other", "weak jet"])}
+    return {"n": 1004, "days": 300, "base_grow": 30.1, "base_decay": 25.0, "ingredients": items, "jet_pos": jp}
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(7)
@@ -138,11 +174,13 @@ def main():
                     sat_images(la0, lo0, lowpos, 1018 - hp, rng, kind).save(OUT / ("%s_%s_%s.jpg" % (cid, snap, kind)), quality=80)
                 fl[kind] = bool(ok)
             flags[snap] = fl
+        ing = fake_ing(rng) if i != 5 else None   # case 6 has no ing
         cases.append({"id": cid, "basin": b, "lat0": float(la0), "lon0": float(lo0),
                       "t0": {"lat": p0[0], "lon": p0[1], "hpa": h0, "cat": cat(k0), "peak": float(k0), "cover": 0.7, **flags["t0"]},
-                      "t24": {"lat": p24[0], "lon": p24[1], "hpa": h24, "cat": cat(k24), "peak": float(k24), "cover": 0.6, **flags["t24"]}})
+                      "t24": {"lat": p24[0], "lon": p24[1], "hpa": h24, "cat": cat(k24), "peak": float(k24), "cover": 0.6, **flags["t24"]}, **({"ing": ing} if ing else {})})
     man = {"version": 1, "res": RES, "ny": NY, "nx": NX,
            "fields": [{"key": k, "name": n, "units": u, "offset": o, "scale": s} for k, n, u, o, s in FIELDS],
+           "ingredients": fake_ingredients(),
            "cases": cases}
     (OUT / "manifest.json").write_text(json.dumps(man))
     print("wrote", len(cases), "cases to", OUT)
