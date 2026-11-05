@@ -40,6 +40,7 @@ LIFT_P, LIFT_KT, GALE_P, GALE_KT = 0.35, 5.0, 0.6, 34.0
 CAND_KT = 28.0
 THRS = (34, 48, 64)
 LS = tuple(range(0, 11))
+PICK_LS = tuple(range(3, 9))   # the design card's rival range, +3 to +8 kt
 GROUPS = {"d1": (24, 30), "d2": (48, 54), "d3": (72, 78), "d45": (96, 102, 120, 126)}
 STORM_AREA_CAP, GALE_AREA_CAP, GALE_CSI_TOL = 1.5, 1.3, 0.01
 MIN_PAIRS = 2000
@@ -250,7 +251,7 @@ def pooled(df, by):
 
 
 def passes(row, base):
-    return (row.area48 <= STORM_AREA_CAP and row.area34 <= GALE_AREA_CAP
+    return (row.area48 <= STORM_AREA_CAP and row.area34 <= max(GALE_AREA_CAP, base.area34 + 0.01)
             and row.csi34 >= base.csi34 - GALE_CSI_TOL)
 
 
@@ -262,7 +263,7 @@ def pick_L(summ, by_group):
         k = k[0] if len(keys) == 1 else k
         base = g[g["product"] == "base"].iloc[0]
         best = None
-        for L in LS:
+        for L in PICK_LS:
             r = g[g["product"] == "const%d" % L].iloc[0]
             if passes(r, base) and (best is None or r.pod48 > best[1] + 1e-12):
                 best = (L, r.pod48)
@@ -286,6 +287,8 @@ def paired(df, prods, baseline="base", by=("basin",), n_boot=2000):
                                       n_boot=n_boot, method_col="product",
                                       case_cols=["basin", "cycle", "step"])
             r["metric"] = mname
+            r["product"] = p
+            r["vs"] = baseline
             rows.append(r)
     return pd.concat(rows, ignore_index=True)
 
@@ -327,6 +330,14 @@ def main():
         summ_g.to_csv(res / "tune_summary_by_lead.csv", index=False)
         json.dump({"constL": {k: v for k, v in Lc.items()}, "leadL": lead}, open(res / "tune_picks.json", "w"),
                   indent=1)
+        sel = []
+        for b, g in summ.groupby("basin"):
+            base = g[g["product"] == "base"].iloc[0]
+            for _, r in g.iterrows():
+                sel.append({"basin": b, "product": r["product"], "passes_line": passes(r, base),
+                            "pod48_gain": r.pod48 - base.pod48, "area48": r.area48, "area34": r.area34,
+                            "csi34_change": r.csi34 - base.csi34})
+        pd.DataFrame(sel).to_csv(res / "tune_selection.csv", index=False)
         cols = ["basin", "product", "pod48", "far48", "csi48", "catch48", "area48", "csi34", "catch34", "area34",
                 "catch64", "area64", "acatch48", "aarea48"]
         print(summ[summ["product"].isin(["base", "const3", "const5", "const8", "const10", "leadL", "qmap",

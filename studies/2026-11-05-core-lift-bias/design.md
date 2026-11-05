@@ -1,6 +1,6 @@
 # Bias correction on Core Lifted: design card
 
-*Status: approved 2026-11-05 15:34Z ("try that and see what you find"): the three recommendations below.*
+*Status: done 2026-11-05 (findings.md); approved 15:34Z ("try that and see what you find"): the three recommendations below.*
 
 **Question** (Jason, 2026-11-05 15:21Z): "what about bias correction on the core lifted?"
 
@@ -56,4 +56,5 @@ Taken as the three recommendations: (1) frequency matching, average correction a
 - Candidate cells for the maps: open water with Core Lifted >= 28 kt (the saved cases do not keep the per-model maximum, so "any model 34+" is left out of the candidate rule).
 - The gale floor is applied on the whole basin grid (the page limits it to the OPC boxes; the basin grids sit inside them).
 - Port check: `build.py` with AIFS at full weight reproduces the retrain study's held-out grids (blend within 0.016 kt, float16; core likelihood within 0.0002; same lifted cells) on natl +24 h and npac +30 h of 2025-11-03 00Z.
-- Selection on the tune weeks, mechanical: a product passes when storm area <= 1.5x ASCAT, gale area <= 1.3x and gale-tile CSI >= Core Lifted - 0.01 (pooled, out of fold for fitted maps); constant and lead-by-lead lift sizes are the passing size with the highest storm-tile catch.
+- Selection on the tune weeks, mechanical: a product passes when storm area <= 1.5x ASCAT, gale area <= 1.3x, or no more than Core Lifted's own + 0.01 where Core Lifted already draws more (decided on a 50-case plumbing run before any tune result, because a lift in cores barely moves the gale area and Core Lifted itself sat near 1.35x), and gale-tile CSI >= Core Lifted - 0.01 (pooled, out of fold for fitted maps); constant and lead-by-lead lift sizes are the passing size with the highest storm-tile catch.
+- The store holds the lower-level fields (which the core model needs) at the 06/18Z-valid steps (+30/+54/+78/+102/+126 h) only for the held-out cycles, filled by the retrain study for its final score. So the maps and lift sizes are fitted on 00/12Z-valid steps only, and the held-out score uses every step and pass. In the Pacific this means tuning on roughly the third of its ASCAT cells that fall near 00/12Z; filling the missing steps would be a ~25 GB pull from AWS of 925/850 mb fields for ~240 tune cycles and was not made for a first answer.
