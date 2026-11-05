@@ -18,7 +18,7 @@ page = ("<title>Pattern drill</title>\n<style>\n:root{color-scheme:light}\n%s\n<
 (out / "index.html").write_text(page)
 print(out / "index.html", len(page))
 
-# The Artifact host does not serve .bin: copy the deck as base64 .txt files with "encoding" in the manifest.
+# The Artifact host does not serve .bin and caps a publish at 255 files: one base64 JSON per case, images inside, with "encoding" in the manifest.
 import base64
 import json
 deck = here / "deck"
@@ -28,5 +28,12 @@ m = json.loads((deck / "manifest.json").read_text())
 m["encoding"] = "base64"
 (od / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
 for c in m["cases"]:
-    (od / (c["id"] + ".txt")).write_text(base64.b64encode((deck / (c["id"] + ".bin")).read_bytes()).decode())
-print(len(m["cases"]), "cases as base64")
+    img = {}
+    for snap in ("t0", "t24"):
+        for kind in ("ir", "am"):
+            f = deck / ("%s_%s_%s.jpg" % (c["id"], snap, kind))
+            if f.exists():
+                img[snap + "_" + kind] = "data:image/jpeg;base64," + base64.b64encode(f.read_bytes()).decode()
+    rec = {"bin": base64.b64encode((deck / (c["id"] + ".bin")).read_bytes()).decode(), "img": img}
+    (od / (c["id"] + ".json")).write_text(json.dumps(rec, separators=(",", ":")))
+print(len(m["cases"]), "cases as base64 JSON (one file each, images inside)")

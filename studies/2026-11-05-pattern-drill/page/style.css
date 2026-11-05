@@ -132,3 +132,5 @@ table.conf .corner{font-size:11px;color:var(--ink2);font-weight:500}
 .lbar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--ink3)}
 .lbar i{position:absolute;top:0;bottom:0;border-radius:5px}
 .lbar i.pos{left:50%;background:var(--storm)}.lbar i.neg{right:50%;background:var(--accent)}
+
+.hint{margin-top:8px;padding:8px 10px;border-left:3px solid var(--accent);background:#eef4fb;color:var(--ink2);font-size:13px;line-height:1.35;border-radius:0 8px 8px 0}

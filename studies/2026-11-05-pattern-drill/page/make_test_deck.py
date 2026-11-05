@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Write a synthetic test deck (manifest + 12 .bin) into page/deck/ in the format of ../design.md.
 Fields are made up (a low with circular isobars, a jet, a trough); they are for testing the page only.
-Run: python3 make_test_deck.py   (writes next to this file, under deck/)"""
+Run: python3 make_test_deck.py [outdir]   (default: testdeck/ next to this file; NOT deck/, which is the real deck).
+To try the page, serve a copy of it whose deck/ is this folder."""
 import json
 from pathlib import Path
 import numpy as np
+try:
+    from PIL import Image
+except ImportError:  # no Pillow: the deck has no satellite images (flags false)
+    Image = None
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "deck"
+import sys
+OUT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else HERE / "testdeck"   # never page/deck/ (the real deck)
 NY, NX, RES = 51, 81, 0.5
 FIELDS = [  # key, name, units, offset, scale
     ("msl", "Mean sea level pressure", "hPa", 940.0, 0.5),
@@ -75,8 +81,29 @@ def snapshot(lat0, lon0, low, peak, depth, rng, land):
     return b"".join(a.tobytes() for a in out) + spdb.tobytes() + dirb.tobytes() + land.astype(np.uint8).tobytes()
 
 
+def sat_images(la0, lo0, low, depth, rng, kind):
+    """Synthetic satellite picture over the cell-edge extent (2x2 px per 0.5 deg cell), rows north to south."""
+    h, w = NY * 2, NX * 2
+    lat = la0 + RES / 2 - (np.arange(h)[:, None] + 0.5) * RES / 2 + 0 * np.arange(w)[None, :]
+    lon = lo0 - RES / 2 + (np.arange(w)[None, :] + 0.5) * RES / 2 + 0 * np.arange(h)[:, None]
+    dy = (lat - low[0]) * 111.2
+    dx = (lon - low[1]) * 111.2 * np.cos(np.radians(lat))
+    r = np.hypot(dx, dy) + 1
+    th = np.arctan2(dy, dx)
+    cloud = np.clip(0.5 + 0.5 * np.cos(2 * th - r / 250.0), 0, 1) * np.exp(-(r / (700 + 8 * depth)) ** 2)
+    cloud = np.clip(cloud + rng.normal(0, 0.04, cloud.shape), 0, 1)
+    if kind == "ir":
+        g = np.clip(60 + 190 * cloud, 0, 255)
+        arr = np.stack([g, g, g], -1)
+    else:
+        dry = np.exp(-(((lon - low[1]) + 6) * 111 * 0.65 / 500) ** 2) * np.exp(-((lat - low[0] + 2) / 5) ** 2)
+        arr = np.stack([60 + 180 * dry + 20 * cloud * 255 / 255, 150 - 80 * dry + 60 * cloud, 90 + 120 * (1 - dry) * (lat < low[0] - 6) + 60 * cloud], -1)
+        arr = np.clip(arr + 120 * cloud[..., None] * np.array([1, 1, 1]) * (cloud[..., None] > 0.8), 0, 255)
+    return Image.fromarray(arr.astype(np.uint8), "RGB")
+
+
 def main():
-    OUT.mkdir(exist_ok=True)
+    OUT.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(7)
     cases = []
     spec = [  # basin, lat0, lon0, low0(lat,lon), peak0, low24, peak24, hpa0, hpa24
@@ -102,9 +129,18 @@ def main():
         cid = "c%04d" % (i + 1)
         blob = snapshot(la0, lo0, p0, k0, 1018 - h0, rng, land) + snapshot(la0, lo0, p24, k24, 1018 - h24, rng, land)
         (OUT / (cid + ".bin")).write_bytes(blob)
+        flags = {}
+        for snap, lowpos, hp in (("t0", p0, h0), ("t24", p24, h24)):
+            fl = {}
+            for kind in ("ir", "am"):
+                ok = Image is not None and not (kind == "am" and i == 2) and not (kind == "ir" and i == 4 and snap == "t24")
+                if ok:
+                    sat_images(la0, lo0, lowpos, 1018 - hp, rng, kind).save(OUT / ("%s_%s_%s.jpg" % (cid, snap, kind)), quality=80)
+                fl[kind] = bool(ok)
+            flags[snap] = fl
         cases.append({"id": cid, "basin": b, "lat0": float(la0), "lon0": float(lo0),
-                      "t0": {"lat": p0[0], "lon": p0[1], "hpa": h0, "cat": cat(k0), "peak": float(k0), "cover": 0.7},
-                      "t24": {"lat": p24[0], "lon": p24[1], "hpa": h24, "cat": cat(k24), "peak": float(k24), "cover": 0.6}})
+                      "t0": {"lat": p0[0], "lon": p0[1], "hpa": h0, "cat": cat(k0), "peak": float(k0), "cover": 0.7, **flags["t0"]},
+                      "t24": {"lat": p24[0], "lon": p24[1], "hpa": h24, "cat": cat(k24), "peak": float(k24), "cover": 0.6, **flags["t24"]}})
     man = {"version": 1, "res": RES, "ny": NY, "nx": NX,
            "fields": [{"key": k, "name": n, "units": u, "offset": o, "scale": s} for k, n, u, o, s in FIELDS],
            "cases": cases}

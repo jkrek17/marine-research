@@ -6,6 +6,8 @@ deck/<id>.bin (format in design.md). Resumable: a case whose .bin exists is skip
 Maps: GFS analysis (f000) through rk.fetch.gfs_global, smoothed on the 0.25 deg grid, then every second
 cell (0.5 deg) in a 25 x 40 deg box centred between the low at T and at T+24 h. ASCAT: rk.truth.ascat
 (real 10 m wind, B/C intercalibrated, rain dropped), highest cell in each 0.5 deg box with its direction.
+Satellite: <id>_<snap>_ir.jpg (GridSat-B1 11 um) and _am.jpg (GOES air-mass RGB) over the box's cell-edge
+extent at 0.1 deg, through rk.satellite; <id>_<snap>.sat records which exist ("ir am", 1/0).
 """
 import argparse
 import csv
@@ -105,6 +107,77 @@ def ascat_box(basin, valid, lat_n, lon_w):
     return spd, dirn
 
 
+SAT_RES = 0.1     # satellite image pixel (deg)
+
+
+def _sat_grid(lat_n, lon_w):
+    """Pixel centres covering the box's cell-edge extent at SAT_RES -> (lat [ny], lon [nx] 0-360)."""
+    n_e, w_e = lat_n + RES / 2, lon_w - RES / 2
+    ny = int(round(((NY - 1) * RES + RES) / SAT_RES))
+    nx = int(round(((NX - 1) * RES + RES) / SAT_RES))
+    return n_e - (np.arange(ny) + 0.5) * SAT_RES, (w_e + (np.arange(nx) + 0.5) * SAT_RES) % 360
+
+
+def _sample(b, lat, lon, keys):
+    """Nearest pixel of a satellite box (rk.satellite SAT_BOX grid, lon continuous) -> {key: [ny, nx]} (NaN outside)."""
+    la, lo = b["lat"], b["lon"]
+    lon = np.where(lon < lo[0], lon + 360, lon)
+    iy = np.rint((la[0] - lat) / 0.07).astype(int)
+    ix = np.rint((lon - lo[0]) / 0.07).astype(int)
+    oky = (iy >= 0) & (iy < len(la))
+    okx = (ix >= 0) & (ix < len(lo))
+    IY, IX = np.meshgrid(np.clip(iy, 0, len(la) - 1), np.clip(ix, 0, len(lo) - 1), indexing="ij")
+    ok = oky[:, None] & okx[None, :]
+    return {k: np.where(ok, b[k][IY, IX], np.nan) for k in keys}
+
+
+GREY = 225
+
+
+def sat_images(basin, valid, lat_n, lon_w, stem, out):
+    """Infrared (GridSat-B1) and GOES air-mass RGB JPEGs over the box -> (ir written, am written)."""
+    from PIL import Image
+    from rk import satellite
+    lat, lon = _sat_grid(lat_n, lon_w)
+    ir = am = False
+    b = satellite.box(basin, valid)
+    if b is not None:
+        tb = _sample(b, lat, lon, ["tb"])["tb"]
+        if np.isfinite(tb).mean() > 0.2:
+            # cold tops white: 200 K -> 255, 300 K -> 0, a mild boost below 240 K
+            v = np.clip((300.0 - tb) / 100.0, 0, 1) ** 0.8 * 255
+            img = np.where(np.isfinite(tb), v, GREY).astype(np.uint8)
+            Image.fromarray(img, "L").save(out / (stem + "_ir.jpg"), quality=80)
+            ir = True
+    a = satellite.airmass_box(basin, valid)
+    if a is not None:
+        s = _sample(a, lat, lon, ["b08", "b10", "b12", "b13"])
+        rgb = satellite.airmass_rgb(s["b08"], s["b10"], s["b12"], s["b13"])
+        ok = np.isfinite(s["b08"]) & np.isfinite(s["b10"]) & np.isfinite(s["b12"]) & np.isfinite(s["b13"])
+        if ok.mean() > 0.3:
+            img = np.where(ok[..., None], np.nan_to_num(rgb) * 255, GREY).astype(np.uint8)
+            Image.fromarray(img, "RGB").save(out / (stem + "_am.jpg"), quality=80)
+            am = True
+    return ir, am
+
+
+def satellite_for(row, out):
+    """Satellite JPEGs for both snapshots of a case (skips files already written) -> {snap: (ir, am)}."""
+    lat_n, lon_w = box_for(row)
+    res = {}
+    for key in ("t0", "t24"):
+        stem = "%s_%s" % (row["id"], key)
+        if (out / (stem + ".sat")).exists():
+            f = (out / (stem + ".sat")).read_text().split()
+            res[key] = (f[0] == "1", f[1] == "1")
+            continue
+        valid = dt.datetime.strptime(row[key], "%Y%m%d%H")
+        ir, am = sat_images(row["basin"], valid, lat_n, lon_w, stem, out)
+        (out / (stem + ".sat")).write_text("%d %d" % (ir, am))
+        res[key] = (ir, am)
+    return res
+
+
 def box_for(row):
     """North-west cell centre of the box: centred between the low at T and T+24 h (lon 0-360)."""
     la = (float(row["lat0"]) + float(row["lat24"])) / 2
@@ -122,6 +195,7 @@ def gfs(valid):
 def one(row, out):
     p = out / (row["id"] + ".bin")
     if p.exists():
+        satellite_for(row, out)
         return "skip"
     lat_n, lon_w = box_for(row)
     parts = []
@@ -138,6 +212,7 @@ def one(row, out):
     tmp = p.with_suffix(".tmp")
     tmp.write_bytes(b"".join(a.tobytes() for a in parts))
     tmp.replace(p)
+    satellite_for(row, out)
     return "ok"
 
 
@@ -147,8 +222,14 @@ def manifest(rows, out):
         if not (out / (r["id"] + ".bin")).exists():
             continue
         lat_n, lon_w = box_for(r)
+        sat = {}
+        for k in ("t0", "t24"):
+            f = out / ("%s_%s.sat" % (r["id"], k))
+            v = f.read_text().split() if f.exists() else ["0", "0"]
+            sat[k] = {"ir": v[0] == "1", "am": v[1] == "1"}
         snap = lambda s: {"lat": float(r["lat" + s]), "lon": float(r["lon" + s]), "hpa": float(r["hpa" + s]),
-                          "cat": int(r["cat" + s]), "peak": float(r["peak" + s]), "cover": float(r["cover" + s])}
+                          "cat": int(r["cat" + s]), "peak": float(r["peak" + s]), "cover": float(r["cover" + s]),
+                          **sat["t0" if s == "0" else "t24"]}
         cases.append({"id": r["id"], "basin": r["basin"], "lat0": lat_n, "lon0": lon_w,
                       "t0": snap("0"), "t24": snap("24")})
     m = {"version": 1, "res": RES, "ny": NY, "nx": NX,

@@ -65,8 +65,15 @@
               colors: ['#2b5fa8', '#6a9bd1', '#c5dcf0', '#fbe0cc', '#f5b78c', '#e8814f', '#cf4a2e', '#a8301f', '#6e1410'] },
       contours: [{ key: 'msl', step: 4, width: 0.8, color: 'rgba(30,30,30,.65)', label: false }],
       legend: [{ title: 'Sea minus 2 m air (K): red = sea warmer, more mixing', levels: [-4, -2, 0, 2, 4, 6, 8, 12] }],
-      note: 'Thin: MSLP every 4 hPa.' }
+      note: 'Thin: MSLP every 4 hPa.' },
+    { id: 'ir', label: 'IR', name: 'Infrared (11 \u00b5m)', sat: 'ir', legend: [],
+      noData: 'No infrared for this time',
+      note: 'Cold cloud tops white. Brightness temperature, 11 \u00b5m.' },
+    { id: 'am', label: 'Air mass', name: 'GOES air-mass RGB', sat: 'am', legend: [],
+      noData: 'No GOES view of this area at this time',
+      note: 'Red-orange: dry, ozone-rich air from a lowered tropopause (the upper-level PV anomaly). Green: warm moist air mass. Blue/purple: cold air mass. White: thick high cloud.' }
   ];
+  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "a low under the left exit or right entrance of a jet streak gets upper divergence; no jet nearby, little support.", "eady": "1+ per day near or ahead of the low means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "sstair": "air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion punching in behind the low is the upper PV anomaly, the strongest satellite hint of a bomb."};
   var REVEAL_TAB = { id: 'reveal', label: 'ASCAT', name: 'ASCAT wind over MSLP', reveal: true };
 
   // ------------------------------------------------------------------ helpers
@@ -169,14 +176,31 @@
     if (caseCache[id]) return Promise.resolve(caseCache[id]);
     // A deck published where .bin is not served carries base64 text files instead (manifest "encoding").
     var b64 = manifest && manifest.encoding === 'base64';
-    return fetch('deck/' + id + (b64 ? '.txt' : '.bin')).then(function (r) {
+    return fetch('deck/' + id + (b64 ? '.json' : '.bin')).then(function (r) {
       if (!r.ok) throw new Error(id + ' ' + r.status);
       return b64 ? r.text().then(function (t) {
-        var s = atob(t.trim()), u = new Uint8Array(s.length);
+        // {"bin": base64 of the .bin, "img": {"t0_ir": data URL, ...}}: one file per case
+        var j = JSON.parse(t);
+        satData[id] = j.img || {};
+        var s = atob(j.bin), u = new Uint8Array(s.length);
         for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
         return u.buffer;
       }) : r.arrayBuffer();
     }).then(function (b) { var d = parseBin(b); caseCache[id] = d; return d; });
+  }
+
+  var imgCache = {};
+  function loadImage(url) {   // cached by url; resolves to an Image, or null if the file is missing
+    if (!imgCache[url]) imgCache[url] = new Promise(function (res) {
+      var im = new Image(); im.onload = function () { res(im); }; im.onerror = function () { res(null); }; im.src = url;
+    });
+    return imgCache[url];
+  }
+  var satData = {};   // base64 decks carry the images inside the case file
+  function satUrl(c, snap, kind) {
+    var d = satData[c.id];
+    if (d && d[snap + '_' + kind]) return d[snap + '_' + kind];
+    return 'deck/' + c.id + '_' + snap + '_' + kind + '.jpg';
   }
 
   // ------------------------------------------------------------------ case choice
@@ -418,6 +442,31 @@
     halo(ctx, 'now', p[0], p[1] + 13, '600 10px system-ui,sans-serif', '#111');
   }
 
+  function renderSat(canvas, g, snap, tab, extra, img) {
+    var dpr = g.dpr, ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#e8ebef'; ctx.fillRect(0, 0, g.cw, g.ch);
+    if (!img) {
+      ctx.fillStyle = '#44505f'; ctx.font = '600 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(tab.noData, g.cw / 2, g.ch / 2);
+      drawGrid(ctx, g); drawLow(ctx, g, extra.low.lat, extra.low.lon);
+      return;
+    }
+    var cx = g.cw / (g.nx - 1), cy = g.ch / (g.ny - 1);   // image covers cell edges: half a cell beyond the centres
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, -cx / 2, -cy / 2, g.cw + cx, g.ch + cy);
+    // coastline: outline of the land array only
+    var segs = contourSegs(snap.land, g.nx, g.ny, 0.5), sx = cx, sy = cy;
+    ctx.beginPath();
+    segs.forEach(function (q) { ctx.moveTo(q[0] * sx, q[1] * sy); ctx.lineTo(q[2] * sx, q[3] * sy); });
+    ctx.lineWidth = 0.9; ctx.strokeStyle = 'rgba(15,20,30,.85)'; ctx.setLineDash([]); ctx.stroke();
+    drawGrid(ctx, g);
+    var none = [];
+    [[{ step: 8, width: 3.2, color: 'rgba(0,0,0,.55)' }], [{ step: 8, width: 1.1, color: 'rgba(255,255,255,.95)' }]].forEach(function (sp) {
+      drawContours(ctx, g, snap.f.msl, sp[0], none);
+    });
+    drawLow(ctx, g, extra.low.lat, extra.low.lon);
+  }
   function renderMap(canvas, g, snap, tab, extra) {
     var dpr = g.dpr, ctx = canvas.getContext('2d');
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -467,7 +516,8 @@
   }
 
   // ------------------------------------------------------------------ game state / UI
-  var opts = { game: 'now', mode: 'practice', weak: false };
+  var opts = { game: 'now', mode: 'practice', weak: false, hints: true };
+  try { if (window.sessionStorage.getItem('pdrill-hints') === '0') opts.hints = false; } catch (e) { /* ignore */ }
   var cur = null, blitz = null, geom = null, tabIdx = 0, tabList = TABS, timerId = null;
 
   function show(id) {
@@ -522,10 +572,21 @@
     var tab = tabList[tabIdx];
     $('cap').textContent = tab.name + (tab.reveal && cur.game === 'fc' ? ' (+24 h)' : '');
     buildLegend(tab);
+    var hb = $('hint'); hb.hidden = !(opts.hints && !tab.reveal && HINTS[tab.id]);
+    hb.textContent = hb.hidden ? '' : 'Look for: ' + HINTS[tab.id];
     var snapIdx = cur.game === 'fc' && tab.reveal ? 1 : (cur.snap === 't24' && cur.game === 'now' ? 1 : 0);
     var info = cur.game === 'fc' && tab.reveal ? cur.c.t24 : cur.c[cur.snap];
     var extra = { low: info };
     if (tab.reveal && cur.game === 'fc') extra.track = [cur.c.t0, cur.c.t24];
+    if (tab.sat) {
+      var token = cur, tg = geom;
+      if (!cur.c[cur.snap][tab.sat]) { renderSat($('map'), geom, cur.data[snapIdx], tab, extra, null); return; }
+      loadImage(satUrl(cur.c, cur.snap, tab.sat)).then(function (img) {
+        if (cur !== token || geom !== tg || tabList[tabIdx] !== tab) return;
+        renderSat($('map'), geom, cur.data[snapIdx], tab, extra, img);
+      });
+      return;
+    }
     renderMap($('map'), geom, cur.data[snapIdx], tab, extra);
   }
 
@@ -563,6 +624,7 @@
       $('mapLoad').hidden = true; setTab(0);
       cur.t0 = Date.now();
       if (blitz) startTimer();
+      ['ir', 'am'].forEach(function (k) { if (pick.c[pick.snap][k]) loadImage(satUrl(pick.c, pick.snap, k)); });
     }).catch(function (e) {
       $('mapLoad').textContent = 'Could not load this case (' + e.message + '). Tap Next.';
       $('nextBtn').hidden = false; $('answers').hidden = true;
@@ -716,6 +778,11 @@
   // ------------------------------------------------------------------ events
   function bind() {
     setupChoice('gameChoice', 'game'); setupChoice('modeChoice', 'mode');
+    $('hints').checked = opts.hints;
+    $('hints').addEventListener('change', function (e) {
+      opts.hints = e.target.checked;
+      try { window.sessionStorage.setItem('pdrill-hints', opts.hints ? '1' : '0'); } catch (x) { /* ignore */ }
+    });
     $('weak').addEventListener('change', function (e) { opts.weak = e.target.checked; });
     $('startBtn').addEventListener('click', startGame);
     $('againBtn').addEventListener('click', startGame);

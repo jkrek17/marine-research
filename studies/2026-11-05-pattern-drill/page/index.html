@@ -36,6 +36,8 @@
 
     <label class="toggle"><input type="checkbox" id="weak"> <span><b>Weak spots</b> <small>After 8 cases, about 2 in 3 cases come from the observed category you miss most.</small></span></label>
 
+    <label class="toggle"><input type="checkbox" id="hints"> <span><b>Hints</b> <small>Show a short "Look for" tip under each map.</small></span></label>
+
     <p id="startMsg" class="fine" role="status"></p>
     <button id="startBtn" class="btn primary big" type="button">Start</button>
 
@@ -59,6 +61,7 @@
         <div class="tabs" id="tabs" role="tablist" aria-label="Map"></div>
         <div class="cap" id="cap"></div>
         <div class="mapbox" id="mapbox"><canvas id="map" aria-label="Map"></canvas><div id="mapLoad" class="maploading">Loading case...</div></div>
+        <div class="hint" id="hint" hidden></div>
         <div class="legend" id="legend"></div>
         <div class="swipehint" id="swipeHint">Swipe the map or use the tabs. Arrow keys also work.</div>
       </div>
