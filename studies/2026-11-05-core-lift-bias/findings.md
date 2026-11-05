@@ -40,3 +40,18 @@ Hurricane force (not gated): matching catches 42% of ASCAT 64 kt cells in the At
 - Methods: `fit_score.py`. The constant and lead-by-lead lift sizes (+3..+8) and frequency matching (`rk.calibrate.quantile_map_fit/apply`, per basin and lead group, on candidate cells, and also split in-core / out-of-core) were fitted on tune weeks with 5-fold whole-week CV. Selection was mechanical (`tune_selection.csv`) and written to `FINAL_CHOICE.json` before the single held-out run (`FINAL_RUN.json`). Plain matching and matching split by core lowered the gale area to 0.73-0.85x on tune weeks and failed the gale line. The "may raise, never lower" version went forward.
 - Cases: 604 basin-cycles. 3,389 forecasts built; 2,650 lacked inputs (2,320 of them the 06/18Z steps of tune cycles, see above; 7 Pacific held-out cycles and a few others are missing from the store).
 - Checked by: an independent agent recomputed every number in the table and the intervals from `final_case_counts.csv` alone (10,000 week draws, another seed). All matched to the third decimal. It flagged the 5-week sample, the dominant December week and the thin 64 kt sample, all noted above.
+
+## Follow-up: the storm warning line (Jason, 17:14Z, "Re-score the warning lines first")
+**+8 kt in cores leaves the storm warning line and the HSF storm draft practically unchanged; frequency matching would move them.** The line is open OPC water where the grid is at least T kt. It is scored against ASCAT 48+ with the 60 nm reach (`rk.score.warning_events`, `lines.py`), on the same held-out weeks:
+
+| Held-out storm line | Atl storm water covered | Atl area / ASCAT | Atl seen warned cells false | Pac covered | Pac area | Pac false |
+|---|---|---|---|---|---|---|
+| Today: Core Lifted >= 39 kt | 83% | 2.07 | 29% | 67% | 3.4 | 57% |
+| +8 kt, line at 39 kt | 84% | 2.09 | 29% | 67% | 3.5 | 58% |
+| Matched, line at 39 kt | 88% | 3.20 | 46% | 81% | 9.4 | 78% |
+| Matched, line at 43 kt (today's coverage on tune weeks) | 83% | 2.04 | 29% | 68% | 4.0 | 64% |
+
+- The lifted cores already sit above 39 kt, so going from +5 to +8 kt changes the 39 kt line by at most 1 point of coverage and 1-2% of area. The gale line (strongest model) and HF line do not use Core Lifted.
+- Matching raises winds well below the cores too. At 39 kt the storm line grows to 3.2x ASCAT's area in the Atlantic and 9.4x in the Pacific. To keep today's line, the threshold would have to move to 43 kt, and at equal coverage it is no tighter in the Atlantic and wider in the Pacific.
+- So **+8 kt in cores in both basins** is the change that improves the drawn grid without touching the warning products. In the Pacific it catches 52% of storm tiles (+12 [+8, +17]) instead of matching's 61%, but it needs no new line threshold.
+- These coverages use this study's ASCAT window (`ascat_target`, 90 min) and the OPC mask on the basin grid. They are not the same setup as the warning experiment's 93% / 2.1x, so compare rows within this table only.
