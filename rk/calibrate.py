@@ -255,3 +255,33 @@ def p34_remap(p, basin, step, curves, season="winter", truth="ascat"):
     if np.any(np.diff(raw) <= 0):
         raise ValueError("raw knots must increase")
     return (np.interp(np.asarray(p, float) * 100.0, raw, cal) / 100.0).astype(np.float32)
+
+
+# ---- frequency matching (quantile mapping) of a wind grid ----
+
+QMAP_LEVELS = np.unique(np.concatenate([np.linspace(0, 0.9, 91), np.linspace(0.9, 0.999, 100), [0.9995, 1.0]]))
+
+
+def quantile_map_fit(fc, ob, levels=QMAP_LEVELS, min_n=2000):
+    """Frequency-matching map from forecast speeds to observed speeds at the same cells (paired samples,
+    selected on the FORECAST, e.g. candidate cells). Returns (fc quantiles, ob quantiles) or None when fewer
+    than min_n pairs. Applied with quantile_map_apply, the mapped forecast exceeds any speed about as often as
+    the observation did over the fitting cells; it is not a best-average correction (that pulls highs down)."""
+    fc, ob = np.asarray(fc, float), np.asarray(ob, float)
+    ok = np.isfinite(fc) & np.isfinite(ob)
+    if ok.sum() < min_n:
+        return None
+    return np.quantile(fc[ok], levels), np.quantile(ob[ok], levels)
+
+
+def quantile_map_apply(m, x):
+    """Map speeds x with a quantile_map_fit result: piecewise linear between quantiles; below the lowest and
+    above the highest forecast quantile the end offsets are kept (no clipping of extremes)."""
+    xq, yq = (np.asarray(a, float) for a in m)
+    xq = np.maximum.accumulate(xq + np.arange(len(xq)) * 1e-6)   # strictly increasing for ties
+    x = np.asarray(x, float)
+    out = np.interp(x, xq, yq)
+    lo, hi = x < xq[0], x > xq[-1]
+    out[lo] = x[lo] + (yq[0] - xq[0])
+    out[hi] = x[hi] + (yq[-1] - xq[-1])
+    return out
