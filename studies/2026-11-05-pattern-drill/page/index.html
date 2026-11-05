@@ -14,6 +14,10 @@
     <button id="statsBtn" class="btn small" type="button">Stats</button>
   </div>
 </header>
+<div id="leaveBanner" class="leave" role="alertdialog" aria-label="Leave blitz?" hidden>
+  <span>Leave blitz? Your progress in this blitz will be lost.</span>
+  <span class="leavebtns"><button id="leaveYes" class="btn small" type="button">Yes</button><button id="leaveNo" class="btn small primary" type="button">No</button></span>
+</div>
 
 <main>
   <div id="loadMsg" class="note">Loading deck...</div>
@@ -69,8 +73,9 @@
       <div class="right">
         <div id="nowline" class="nowline" hidden></div>
         <h2 id="question" class="q"></h2>
+        <p id="catNote" class="catnote" hidden>None &lt;34 kt &middot; Gale 34-47 &middot; Storm 48-63 &middot; HF 64+ &middot; peak = within the dashed 500 km ring</p>
         <div id="answers" class="answers"></div>
-        <div id="result" class="result" hidden></div>
+        <div id="result" class="result" tabindex="-1" aria-live="polite" hidden></div>
         <div id="debrief" class="debrief" hidden></div>
         <button id="nextBtn" class="btn primary big" type="button" hidden>Next case</button>
       </div>

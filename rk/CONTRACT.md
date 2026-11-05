@@ -219,5 +219,5 @@ Pure numpy on already-pulled MSLP and wind; no network. Lows come from `rk.bomb.
 ## rk/diag.py (synoptic diagnostics on a lat-lon grid)
 - Grids: 2-D arrays with 1-D `lats` (either order) and `lons` (degrees). Winds m/s, temperatures K, heights m, pressures hPa; results per second (`DAY` = 86400 to convert).
 - `coriolis(lats)`, `ddx(a, lats, lons)`, `ddy(a, lats)` (centred differences on the sphere), `advection(s, u, v, lats, lons)` = -(V . grad s) (positive = warm advection for temperature), `theta(t, p)`.
-- `eady(u_lo, v_lo, z_lo, t_lo, p_lo, u_hi, v_hi, z_hi, t_hi, p_hi, lats)`: maximum Eady growth rate 0.31 |f| |dV/dz| / N for the layer between two levels (1/s); NaN where N^2 <= 0.
+- `eady(u_lo, v_lo, z_lo, t_lo, p_lo, u_hi, v_hi, z_hi, t_hi, p_hi, lats, n2_min=None)`: maximum Eady growth rate 0.31 |f| |dV/dz| / N for the layer between two levels (1/s); NaN where N^2 <= 0. `n2_min` (s^-2, e.g. 2.5e-5) floors N^2 so near-neutral cells do not blow up.
 - `smooth(a, sigma)` Gaussian (cells) ignoring NaN; `coarsen(a, k, how="mean"|"max")` block reduce; `subsample(a, k)` every k-th cell.

@@ -12,7 +12,7 @@
   // Wind colours: rk/style.py WIND_LEVELS / WIND_COLORS / WIND_OVER (light-background version).
   var WIND_LEVELS = [0, 10, 15, 20, 25, 30, 34, 41, 48, 56, 64, 80];
   var WIND_COLORS = ['#f4f6f8', '#dde6ef', '#c3d4e6', '#9fbbd9', '#7aa0c9', '#5683b5',
-                     '#e8d27a', '#e8a93f', '#e06f2e', '#c9372c', '#9b1f5e'];
+                     '#f7e68a', '#f2a93b', '#d4531f', '#9e1f1f', '#5c0f45'];   // 34+: same hues, wider lightness steps (colour-blind safe)
   var WIND_OVER = '#c86fd8';
   var LAND_RGB = [221, 224, 228];
   var LEVELS = [['Trainee', 0], ['Watch', 500], ['Gale', 1500], ['Storm', 3500], ['Hurricane Force', 7000]];
@@ -73,7 +73,7 @@
       noData: 'No GOES view of this area at this time',
       note: 'Red-orange: dry, ozone-rich air from a lowered tropopause (the upper-level PV anomaly). Green: warm moist air mass. Blue/purple: cold air mass. White: thick high cloud.' }
   ];
-  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "a low under the left exit or right entrance of a jet streak gets upper divergence; no jet nearby, little support.", "eady": "1+ per day near or ahead of the low means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "sstair": "air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion punching in behind the low is the upper PV anomaly, the strongest satellite hint of a bomb."};
+  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 1,004 lows; read it with the 500 mb vorticity."};
   var REVEAL_TAB = { id: 'reveal', label: 'ASCAT', name: 'ASCAT wind over MSLP', reveal: true };
 
   // ------------------------------------------------------------------ helpers
@@ -387,6 +387,20 @@
       if (s < 15) { ctx.strokeStyle = 'rgba(0,0,0,.07)'; ctx.lineWidth = 0.5; ctx.strokeRect(i * cx - cx / 2, j * cy - cy / 2, cx, cy); }
     }
     ctx.globalAlpha = 1;
+    // thin dark outline round the >=48 kt and >=64 kt regions (shape cue that does not rely on colour)
+    [[48, 1.2], [64, 2.2]].forEach(function (th) {
+      ctx.beginPath();
+      var hit = function (a, b) { if (a < 0 || b < 0 || a >= nx || b >= ny) return false; var v = snap.spd[b * nx + a]; return v !== 255 && v >= th[0]; };
+      for (var jj = 0; jj < ny; jj++) for (var ii = 0; ii < nx; ii++) {
+        if (!hit(ii, jj)) continue;
+        var x0 = ii * cx - cx / 2, y0 = jj * cy - cy / 2;
+        if (!hit(ii, jj - 1)) { ctx.moveTo(x0, y0); ctx.lineTo(x0 + cx, y0); }
+        if (!hit(ii, jj + 1)) { ctx.moveTo(x0, y0 + cy); ctx.lineTo(x0 + cx, y0 + cy); }
+        if (!hit(ii - 1, jj)) { ctx.moveTo(x0, y0); ctx.lineTo(x0, y0 + cy); }
+        if (!hit(ii + 1, jj)) { ctx.moveTo(x0 + cx, y0); ctx.lineTo(x0 + cx, y0 + cy); }
+      }
+      ctx.lineWidth = th[1]; ctx.strokeStyle = '#111'; ctx.lineCap = 'butt'; ctx.setLineDash([]); ctx.stroke();
+    });
     var step = Math.max(2, Math.ceil(14 / Math.min(cx, cy))), len = Math.min(step * cx * 0.75, 12);
     for (j = 0; j < ny; j += step) for (i = 0; i < nx; i += step) {
       var sp = snap.spd[j * nx + i], dr = snap.dir[j * nx + i];
@@ -499,7 +513,7 @@
         bar.appendChild(d);
       });
       lg.appendChild(bar); box.appendChild(lg);
-      box.appendChild(el('div', 'lgnote', 'Black contours: MSLP every 4 hPa. Dashed ring: 500 km around the low. The peak counts only cells inside it that are nearer this low than any other, and is the 3rd-highest cell, so one stray cell does not set it. Rain-flagged cells are left out.'));
+      box.appendChild(el('div', 'lgnote', 'Thin black outline: 48 kt and over; thick black outline: 64 kt and over. Black contours: MSLP every 4 hPa. Dashed ring: 500 km around the low. The peak counts only cells inside it that are nearer this low than any other, and is the 3rd-highest cell, so one stray cell does not set it. Rain-flagged cells are left out.'));
       return;
     }
     tab.legend.forEach(function (L) {
@@ -525,7 +539,18 @@
     if (id !== 'ingr') lastScreen = id;
     ['start', 'play', 'end', 'ingr'].forEach(function (s) { $(s).hidden = s !== id; });
     $('loadMsg').hidden = true;
+    $('leaveBanner').hidden = true;
     window.scrollTo(0, 0);
+    syncTimer();
+  }
+  function focusPlay() {   // keyboard focus: the result once answered, else the first answer button
+    var t = cur && cur.answered && !$('result').hidden ? $('result') : $('answers').querySelector('.ans');
+    if (t && !t.closest('[hidden]')) { try { t.focus({ preventScroll: true }); } catch (e) { t.focus(); } }
+  }
+  function chromeH() {   // sticky header (+ sticky map tabs on narrow screens)
+    var h = document.querySelector('header.top').offsetHeight;
+    if (window.innerWidth <= 720) h += $('tabs').offsetHeight;
+    return h;
   }
   function updateTop() {
     var t = totals(session.records);
@@ -619,6 +644,7 @@
     $('pBasin').textContent = pick.c.basin === 'natl' ? 'N Atlantic' : pick.c.basin === 'npac' ? 'N Pacific' : pick.c.basin;
     $('timerbar').hidden = $('pTimer').hidden = !blitz;
     buildQuestion();
+    window.scrollTo(0, 0); focusPlay();
     var token = cur;
     loadCase(pick.c.id).then(function (d) {
       if (cur !== token) return;
@@ -630,7 +656,7 @@
     }).catch(function (e) {
       $('mapLoad').textContent = 'Could not load this case (' + e.message + '). Tap Next.';
       $('nextBtn').hidden = false; $('answers').hidden = true;
-      cur.failed = true;
+      cur.failed = true; $('nextBtn').focus({ preventScroll: true });
     });
   }
   function buildQuestion() {
@@ -638,6 +664,7 @@
     $('question').textContent = now ? 'Peak wind around the circled low right now?' : 'Peak wind around this low in 24 h?';
     var nl = $('nowline');
     if (!now) { var t = cur.c.t0; nl.hidden = false; nl.textContent = 'ASCAT now: ' + CATS[t.cat] + ' (' + Math.round(t.peak) + ' kt)'; } else nl.hidden = true;
+    $('catNote').hidden = session.records.length > 0;   // legend note on the first case of a session
     var a = $('answers'); a.innerHTML = '';
     var names = ['None', 'Gale', 'Storm', 'HF'];
     names.forEach(function (n, i) {
@@ -647,86 +674,143 @@
     });
   }
 
-  function startTimer() {
-    var end = Date.now() + BLITZ_SECS * 1000, bar = $('timerbar'), tm = $('pTimer');
-    function tick() {
-      var left = Math.max(0, end - Date.now()), s = Math.ceil(left / 1000);
-      tm.textContent = s + ' s'; tm.classList.toggle('low', s <= 10); bar.classList.toggle('low', s <= 10);
-      bar.firstElementChild.style.width = (left / (BLITZ_SECS * 10)) + '%';
-      if (left <= 0) { clearTimer(); answer(-1); }
-    }
-    tick(); timerId = setInterval(tick, 200);
+  // Blitz clock: timerLeft = ms remaining (null = no clock). It runs only while the play screen is
+  // showing with no drawer or leave-banner over it (syncTimer); paused time is not charged to the case.
+  var timerLeft = null, timerEnd = 0, pausedAt = 0;
+  function tickTimer() {
+    var left = Math.max(0, timerEnd - Date.now()), s = Math.ceil(left / 1000), bar = $('timerbar'), tm = $('pTimer');
+    timerLeft = left;
+    tm.textContent = s + ' s'; tm.classList.toggle('low', s <= 10); bar.classList.toggle('low', s <= 10);
+    bar.firstElementChild.style.width = (left / (BLITZ_SECS * 10)) + '%';
+    if (left <= 0) { clearTimer(); answer(-1); }
   }
-  function clearTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+  function startTimer() { timerLeft = BLITZ_SECS * 1000; pausedAt = Date.now(); syncTimer(); }
+  function clearTimer() { if (timerId) { clearInterval(timerId); timerId = null; } timerLeft = null; }
+  function syncTimer() {
+    var go = blitz && cur && cur.data && !cur.answered && timerLeft !== null && $('drawer').hidden && $('leaveBanner').hidden && !$('play').hidden;
+    if (go && !timerId) {
+      if (cur.t0 && pausedAt) cur.t0 += Date.now() - pausedAt;
+      timerEnd = Date.now() + timerLeft; tickTimer();
+      if (timerLeft !== null) timerId = setInterval(tickTimer, 200);
+    } else if (!go && timerId) {
+      clearInterval(timerId); timerId = null; timerLeft = Math.max(0, timerEnd - Date.now()); pausedAt = Date.now();
+    }
+  }
 
   // ------------------------------------------------------------------ ingredients
+  // Statistics from score_ingredients.py (version 2): every comparison is within the starting category,
+  // growth and decay have their own signals, changes under the dead band (5 kt) count as held.
   var IMEANS = {
-    eady: 'How fast the baroclinic zone near the low can build it (850-500 mb).',
-    jet: '250 mb jet speed near the low; a low under a jet streak gets upper divergence.',
-    pva: 'Upper-level vorticity coming in (forcing for ascent).',
-    tilt: 'Distance to the 500 mb low: small means stacked (mature).',
-    warm_adv: 'Warm advection at 850 mb ahead of the low.',
-    thk_grad: 'Thickness gradient near the low: the baroclinic zone.',
+    eady: 'How fast the baroclinic zone near the low can build it (850-500 mb Eady rate, upper part of the 500 km disc).',
+    jet: 'Strongest 250 mb wind within 1000 km.',
+    pva: 'Upper vorticity coming in over the low (500 mb vorticity advection): forcing for ascent.',
+    tilt: 'Distance from the surface low to the 500 mb vorticity maximum. Small = stacked under the upper low (mature). Large = the upper trough is still upstream.',
+    warm_adv: 'Warm advection at 850 mb near the low.',
+    thk_grad: 'Thickness gradient near the low: how sharp the baroclinic zone is.',
     sea_air: 'Sea minus air temperature: cold air over warm sea mixes strong winds down.',
-    dry: 'Dry upper air in the air-mass image.',
-    peak0: 'How strong it already is (ASCAT peak at the start).'
+    dry: 'Dry upper air (red/orange, not white cloud) on the rear side of the low in the air-mass image.',
+    dp_prev: 'Central pressure change in the 12 h before (negative = deepening). Not on the maps; on the desk you would have the previous analysis.'
   };
+  var SNAME = ['none', 'gale', 'storm', 'HF'], LEVEL = ['low', 'middling', 'high'];
   function nf(v) { var x = Math.abs(v); return String(parseFloat(v.toFixed(x < 2 ? 2 : x < 10 ? 1 : 0))); }
-  function ingList() { return (manifest && manifest.ingredients && manifest.ingredients.ingredients) || []; }
-  function ingFlag(it, t) {   // 1 growth, -1 decay, 0 neutral
-    if (t === 1) return 0;
-    return (t === 2) === (it.favour === 1) ? 1 : -1;
+  function ingStats() { return manifest && manifest.ingredients && manifest.ingredients.version >= 2 ? manifest.ingredients : null; }
+  function sig(s) { return s && s.verdict !== 'none'; }
+  function ingLean(it, t, c0) {   // 1 growth, -1 decay, 0 no lean: a real signal AND this start category's own record agrees
+    var M = ingStats(), sname = SNAME[c0], b = it.bars[sname], br = M.by_start[sname];
+    if (!b || b.grow[t] == null || t === 1) return 0;
+    var g = b.grow[t], d = b.decay[t], gs = sig(it.grow), ds = sig(it.decay);
+    var upG = c0 < 3 && gs && g >= br.grew + 3, upD = c0 > 0 && ds && d >= br.decayed + 3;
+    var lowG = c0 === 3 || g <= br.grew, lowD = c0 === 0 || d <= br.decayed;
+    if (upG && lowD) return 1;
+    if (upD && lowG) return -1;
+    if (c0 === 0 && gs && g <= br.grew - 5) return -1;   // a weak low cannot decay a category: this reads as "against growth"
+    return 0;
   }
+  function startWord(c) { return c === 0 ? 'below gale' : 'at ' + SNAME[c]; }
   function debriefHTML() {
-    var c = cur.c, ing = c.ing, list = ingList();
-    if (!ing || !list.length) return '';
-    var jp = manifest.ingredients.jet_pos && manifest.ingredients.jet_pos[ing.jet_pos];
+    var c = cur.c, ing = c.ing, M = ingStats();
+    if (!ing || !M) return '';
+    var c0 = c.t0.cat, sname = SNAME[c0];
     if (cur.game === 'fc') {
-      var g = 0, d = 0, rows = '';
-      list.forEach(function (it) {
-        if ((it.verdict !== 'strong' && it.verdict !== 'weak') || !ing[it.key] || it.key === 'peak0') return;
-        var v = ing[it.key], f = ingFlag(it, v[1]);
-        if (it.verdict === 'strong') { if (f > 0) g++; else if (f < 0) d++; }
-        rows += '<div class="drow"><span class="nm">' + it.name + '</span><span class="vl">' + nf(v[0]) + ' ' + it.units + '</span>' +
-          '<span class="pill ' + (f > 0 ? 'g' : f < 0 ? 'd' : '') + '">' + (f > 0 ? 'favours growth' : f < 0 ? 'favours decay' : 'neutral') + '</span>' +
-          '<span class="pill sig">' + it.verdict + ' signal</span></div>';
+      var c1 = c.t24.cat, dpk = ing.dpeak, rows = '';
+      var held = c1 !== c0 && Math.abs(dpk) < M.dead_band_kt;
+      var out = 'ASCAT peak ' + Math.round(c.t0.peak) + ' to ' + Math.round(c.t24.peak) + ' kt (' + (dpk >= 0 ? '+' : '') + Math.round(dpk) + ' kt).';
+      if (held) out += ' It crossed a category line by less than ' + M.dead_band_kt + ' kt: borderline, close to ASCAT noise.';
+      var br = M.by_start[sname], ch = '';
+      if (ing.p_grow != null && c0 < 3) ch += '<b>' + ing.p_grow + '%</b> chance of growing';
+      if (ing.p_decay != null && c0 > 0) ch += (ch ? ', ' : '') + '<b>' + ing.p_decay + '%</b> of decaying';
+      var base = 'Lows starting ' + startWord(c0) + ': ' + Math.round(br.grew) + '% grew, ' + Math.round(br.decayed) + '% decayed, ' + Math.round(br.same_cat) + '% stayed ' + sname + '.';
+      M.ingredients.forEach(function (it) {
+        if ((!sig(it.grow) && !sig(it.decay)) || !ing[it.key]) return;
+        var v = ing[it.key], t = v[1], f = ingLean(it, t, c0), b = it.bars[sname];
+        var like = b && b.grow[t] != null ? sname + ' lows like this: ' + Math.round(b.grow[t]) + '% grew' + (c0 > 0 ? ', ' + Math.round(b.decay[t]) + '% decayed' : '') : '';
+        rows += '<div class="drow"><span class="nm">' + it.name + '</span><span class="vl">' + nf(v[0]) + ' ' + it.units + ' (' + LEVEL[t] + ' for ' + sname + ')</span>' +
+          '<span class="pill ' + (f > 0 ? 'g' : f < 0 ? 'd' : '') + '">' + (f > 0 ? 'leans to growth' : f < 0 ? (c0 === 0 ? 'leans against growth' : 'leans to decay') : 'no clear lean') + '</span>' +
+          (like ? '<span class="dlike">' + like + '</span>' : '') + '</div>';
       });
+      var jp = M.jet_pos && M.jet_pos[ing.jet_pos];
       if (ing.jet_pos) rows += '<div class="drow"><span class="nm">Jet position</span><span class="vl">' + ing.jet_pos + '</span>' +
-        (jp ? '<span class="pill sig">' + Math.round(jp.grow) + '% grew, ' + Math.round(jp.decay) + '% decayed</span>' : '') + '</div>';
-      var diff = c.t24.cat - c.t0.cat;
-      var sum = 'Strong ingredients: ' + g + ' pointed to growth, ' + d + ' to decay. ';
-      var right = diff > 0 ? g > d : diff < 0 ? d > g : null, tie = g === d;
-      sum += diff === 0 ? 'It held.' : (diff > 0 ? 'It grew: ' : 'It decayed: ') +
-        (tie ? 'the ingredients were split.' : right ? 'the ingredients called it.' : 'the ingredients were misleading here.');
-      return '<h3>Why it went this way</h3>' + rows + '<div class="dsum">' + sum + '</div>';
+        (jp && jp.grow_same_mix != null ? '<span class="dlike">all lows here: ' + Math.round(jp.grow_same_mix) + '% grew (same strength mix)</span>' : '') + '</div>';
+      var pers = c1 === c0 ? 'Calling no change would have been right here.' : 'Calling no change would have missed this one.';
+      return '<h3>Why it went this way</h3><div class="dout">' + out + '</div>' +
+        (ch ? '<div class="dsum">The ingredients together gave ' + ch + '.</div>' : '') +
+        '<div class="dbase">' + base + ' ' + pers + '</div>' + rows +
+        '<div class="ikey">These are odds, not rules: the best single ingredient moves the chance of growth by about 20 points.</div>';
     }
     if (cur.snap !== 't0') return '';
     var rw = '';
-    list.forEach(function (it) { if (ing[it.key]) rw += '<div class="drow"><span class="nm">' + it.name + '</span><span class="vl">' + nf(ing[it.key][0]) + ' ' + it.units + '</span></div>'; });
+    M.ingredients.forEach(function (it) { if (ing[it.key]) rw += '<div class="drow"><span class="nm">' + it.name + '</span><span class="vl">' + nf(ing[it.key][0]) + ' ' + it.units + ' (' + LEVEL[ing[it.key][1]] + ' for ' + sname + ')</span></div>'; });
     if (ing.jet_pos) rw += '<div class="drow"><span class="nm">Jet position</span><span class="vl">' + ing.jet_pos + '</span></div>';
     return '<details class="dlite"><summary>Ingredients at this time</summary>' + rw + '</details>';
   }
+  var ingStart = 1;
+  function verdictTag(s, word) {
+    if (!sig(s)) return '';
+    return '<span class="itag ' + s.verdict + '">' + s.verdict + ': ' + (s.signal > 0 ? 'high' : 'low') + ' = ' + word + '</span>';
+  }
   function ingredientsHTML() {
-    var M = manifest.ingredients, list = ingList().slice();
-    if (!M || !list.length) return '<h1>Ingredients</h1><p class="lead">No ingredient statistics in this deck.</p>';
-    list = list.filter(function (it) { return it.key !== 'peak0'; });
-    list.sort(function (a, b) { return Math.abs(b.signal) - Math.abs(a.signal); });
-    var h = '<h1>Ingredients</h1><p class="lead">From ' + M.n + ' lows over two winters, judged by ASCAT. Overall ' + Math.round(M.base_grow) + '% grew and ' + Math.round(M.base_decay) + '% decayed in 24 h.</p>';
+    var M = ingStats();
+    if (!M) return '<h1>Ingredients</h1><p class="lead">No ingredient statistics in this deck.</p>';
+    var sname = SNAME[ingStart], br = M.by_start[sname];
+    var h = '<h1>Ingredients</h1><p class="lead">' + M.n + ' lows over two winters, judged by ASCAT 24 h later. A change of less than ' + M.dead_band_kt + ' kt counts as held. Everything here compares lows that started at the same strength.</p>';
+    h += '<table class="jt"><tr><th>Start</th><th>Lows</th><th>Grew</th><th>Held</th><th>Decayed</th></tr>';
+    SNAME.forEach(function (s) { var r = M.by_start[s]; h += '<tr><th>' + s + '</th><td>' + r.n + '</td><td>' + Math.round(r.grew) + '%</td><td>' + Math.round(100 - r.grew - r.decayed) + '%</td><td>' + Math.round(r.decayed) + '%</td></tr>'; });
+    h += '</table><p class="ikey">Calling no change gets the category right ' + Math.round(M.persistence_exact) + '% of the time: that is the score to beat. ' +
+      'All the ingredients together improve on the usual rates by about ' + Math.round(100 * M.model_grow.bss) + '% (growth) and ' + Math.round(100 * M.model_decay.bss) + '% (decay) in Brier skill.</p>';
+    h += '<div class="segs" role="group" aria-label="Starting strength">';
+    SNAME.forEach(function (s, i) { h += '<button type="button" class="seg' + (i === ingStart ? ' on' : '') + '" data-ist="' + i + '" aria-pressed="' + (i === ingStart) + '">Start ' + s + '</button>'; });
+    h += '</div>';
+    var list = M.ingredients.slice().sort(function (a, b) { return Math.max(Math.abs(b.grow.signal), Math.abs(b.decay.signal)) - Math.max(Math.abs(a.grow.signal), Math.abs(a.decay.signal)); });
     list.forEach(function (it) {
-      var c = it.cuts, lab = ['< ' + nf(c[0]), nf(c[0]) + '\u2013' + nf(c[1]), '> ' + nf(c[1])], bars = '';
-      for (var k = 0; k < 3; k++) bars += '<div>' + lab[k] + ' ' + it.units.replace(/^per day$/, '/day') + '</div><div class="bar2"><i class="gr" style="width:' + Math.min(100, it.grow[k]) + '%"></i><i class="dc" style="width:' + Math.min(100, it.decay[k]) + '%"></i><span>grew ' + Math.round(it.grow[k]) + '% &middot; decayed ' + Math.round(it.decay[k]) + '%</span></div>';
-      h += '<div class="icard"><div class="ihead"><b>' + it.name + '</b><span class="itag ' + it.verdict + '">' + it.verdict + (it.verdict === 'none' ? '' : ': ' + (it.favour > 0 ? 'high' : 'low') + ' favours growth') + '</span></div>' +
-        '<div class="imean">' + (IMEANS[it.key] || '') + ' Signal ' + (it.signal > 0 ? '+' : '') + Math.round(it.signal) + ' points (' + Math.round(it.lo) + ' to ' + Math.round(it.hi) + ').</div><div class="ibars">' + bars + '</div></div>';
+      var b = it.bars[sname], c = b.cuts, u = it.units.replace(/^per day$/, '/day');
+      var lab = ['< ' + nf(c[0]), nf(c[0]) + '–' + nf(c[1]), '> ' + nf(c[1])], bars = '';
+      for (var k = 0; k < 3; k++) {
+        var g = b.grow[k], d = b.decay[k];
+        bars += '<div>' + lab[k] + ' ' + u + '</div><div class="bar2">' +
+          (ingStart < 3 && g != null ? '<i class="gr" style="width:' + Math.min(100, g) + '%"></i>' : '') +
+          (ingStart > 0 && d != null ? '<i class="dc" style="width:' + Math.min(100, d) + '%"></i>' : '') +
+          '<span>' + (ingStart < 3 && g != null ? 'grew ' + Math.round(g) + '%' : '') + (ingStart > 0 && ingStart < 3 ? ' &middot; ' : '') + (ingStart > 0 && d != null ? 'decayed ' + Math.round(d) + '%' : '') + '</span></div>';
+      }
+      var tags = verdictTag(it.grow, 'more growth') +
+        (sig(it.decay) ? '<span class="itag ' + it.decay.verdict + '">' + it.decay.verdict + ': ' + (it.decay.signal < 0 ? 'low' : 'high') + ' = more decay</span>' : '');
+      h += '<div class="icard"><div class="ihead"><b>' + it.name + '</b>' + (tags || '<span class="itag">no clear signal</span>') + '</div>' +
+        '<div class="imean">' + (IMEANS[it.key] || '') + ' Growth signal ' + (it.grow.signal > 0 ? '+' : '') + Math.round(it.grow.signal) + ' points, decay signal ' + (it.decay.signal > 0 ? '+' : '') + Math.round(it.decay.signal) +
+        ' (Atlantic ' + (it.basin.natl.grow > 0 ? '+' : '') + Math.round(it.basin.natl.grow) + ', Pacific ' + (it.basin.npac.grow > 0 ? '+' : '') + Math.round(it.basin.npac.grow) + ' for growth).</div>' +
+        '<div class="ibars">' + bars + '</div></div>';
     });
-    h += '<div class="ikey">Blue bar: share that grew (category went up). Pink bar: share that decayed. Signal = growth share in the top third minus the bottom third, among lows of the same starting strength. Strong: 15+ points and clearly not zero. Only strong ingredients count in the case debrief. How strong the low is now is left out: lows near the top of a category tip over more often, but a low already at storm force has less room to grow, so it is not an ingredient.</div>';
+    h += '<div class="ikey">Blue bar: share that grew a category. Pink bar: share that decayed. Thirds are cut among ' + sname + ' starts (' + br.n + ' lows). ' +
+      'Signal = growth (or decay) share in the top third minus the bottom third, averaged over starting strengths. Strong: 15+ points and clear of zero at 99%; weak: clear of zero but smaller.</div>';
     if (M.jet_pos) {
-      h += '<h2>Jet position</h2><table class="jt"><tr><th></th><th>Lows</th><th>Grew</th><th>Decayed</th><th>Mean dp</th></tr>';
-      Object.keys(M.jet_pos).forEach(function (k) { var j = M.jet_pos[k]; h += '<tr><th>' + k + '</th><td>' + j.n + '</td><td>' + Math.round(j.grow) + '%</td><td>' + Math.round(j.decay) + '%</td><td>' + (j.dp > 0 ? '+' : '') + j.dp.toFixed(1) + ' hPa</td></tr>'; });
-      h += '</table>';
+      h += '<h2>Jet position</h2><table class="jt"><tr><th></th><th>Lows</th><th>Grew</th><th>Grew, same strength mix</th><th>Decayed</th></tr>';
+      Object.keys(M.jet_pos).forEach(function (k) { var j = M.jet_pos[k]; h += '<tr><th>' + k + '</th><td>' + j.n + '</td><td>' + Math.round(j.grow) + '%</td><td>' + (j.grow_same_mix == null ? '&ndash;' : Math.round(j.grow_same_mix) + '%') + '</td><td>' + Math.round(j.decay) + '%</td></tr>'; });
+      h += '</table><p class="ikey">Quadrants count only when the low is 300-1200 km along the streak from its core and within 600 km of its axis. Right entrance and left exit are the ascent quadrants. "Same strength mix" removes the effect of weak lows growing more often.</p>';
     }
     return h;
   }
-  function openIngredients() { $('drawer').hidden = true; $('ingBody').innerHTML = ingredientsHTML(); show('ingr'); }
+  function openIngredients() {
+    $('drawer').hidden = true; var b = $('ingBody'); b.innerHTML = ingredientsHTML(); show('ingr');
+    b.onclick = function (e) { var t = e.target.closest('[data-ist]'); if (!t) return; ingStart = +t.getAttribute('data-ist'); b.innerHTML = ingredientsHTML(); };
+  }
 
   function answer(called) {
     if (!cur || cur.answered || !cur.data) return;
@@ -762,6 +846,11 @@
     nb.textContent = blitz && blitz.n >= BLITZ_N ? 'See results' : 'Next case';
     // reveal tab
     tabList = TABS.concat([REVEAL_TAB]); buildTabs(); setTab(TABS.length);
+    focusPlay();
+    if (window.innerWidth < 900) {   // result sits below the map on narrow screens: bring it up under the sticky bars
+      var top = res.getBoundingClientRect().top + window.pageYOffset - chromeH() - 8;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
   }
 
   // ------------------------------------------------------------------ stats
@@ -826,14 +915,47 @@
     var h = '<h3 class="gh">' + title + '</h3>';
     if (!recs.length) return h + '<div class="empty">No cases yet.</div>';
     var conf = confusion(recs);
-    return h + '<div class="read">' + readLine(conf) + '</div>' + biasHTML(recs, game) + tableHTML(conf);
+    return h + '<div class="read">' + readLine(conf) + '</div>' + (game === 'fc' ? persistHTML(recs) : '') + biasHTML(recs, game) + tableHTML(conf);
+  }
+  // You vs persistence: what calling "no change" (the category now) would have scored on the same cases.
+  function persistHTML(recs) {
+    var n = recs.length, you = 0, yp = 0, pe = 0, pp = 0;
+    recs.forEach(function (r) { if (r.called === r.obs) you++; yp += r.pts; if (r.start === r.obs) pe++; pp += score(r.start, r.obs); });
+    var beat = yp > pp ? 'You are beating no change.' : yp === pp ? 'Level with no change.' : 'No change is ahead: look harder for growth and decay.';
+    return '<div class="persist"><b>You vs calling no change</b><span>You: ' + Math.round(100 * you / n) + '% exact, ' + yp + ' pts. ' +
+      'No change: ' + Math.round(100 * pe / n) + '% exact, ' + pp + ' pts. ' + beat + '</span></div>';
   }
   function openStats() {
     var all = session.records, t = totals(all);
     var h = levelHTML(t.pts) + kpiHTML(t);
-    h += gameSection('Right now', all.filter(function (r) { return r.game === 'now'; }), 'now');
-    h += gameSection('Forecast +24 h', all.filter(function (r) { return r.game === 'fc'; }), 'fc');
+    if (all.filter(function (r) { return r.called >= 0; }).length < 5) {
+      h += '<div class="statsempty"><p><b>Play 5 cases to see your bias</b></p><p class="fine">The bias tracker and confusion table need a few answered cases first.</p>' +
+        '<button type="button" class="btn small" id="statsNext">Next case</button></div>';
+    } else {
+      h += gameSection('Right now', all.filter(function (r) { return r.game === 'now'; }), 'now');
+      h += gameSection('Forecast +24 h', all.filter(function (r) { return r.game === 'fc'; }), 'fc');
+    }
+    statsOpener = document.activeElement;
     $('statsBody').innerHTML = h; $('drawer').hidden = false;
+    $('closeStats').focus();
+  }
+  var statsOpener = null;
+  function closeStats() {
+    if ($('drawer').hidden) return;
+    $('drawer').hidden = true;
+    var o = statsOpener; statsOpener = null;
+    if (o && o.getClientRects().length && o !== document.body) { try { o.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+    else if (!$('play').hidden) focusPlay();
+  }
+  function statsNext() {   // the "Next case" link in the stats empty state
+    closeStats();
+    if (!$('play').hidden && cur) { if (cur.answered || cur.failed) nextCase(); else focusPlay(); }
+    else startGame();
+  }
+  function leaveBlitz() { return blitz && !$('play').hidden && blitz.n < BLITZ_N; }
+  function askLeave(on) {
+    $('leaveBanner').hidden = !on; syncTimer();
+    if (on) $('leaveNo').focus({ preventScroll: true }); else if (!$('play').hidden) focusPlay();
   }
   function endBlitz() {
     clearTimer();
@@ -859,17 +981,26 @@
     $('startBtn').addEventListener('click', startGame);
     $('againBtn').addEventListener('click', startGame);
     $('endHomeBtn').addEventListener('click', goHome);
-    $('homeBtn').addEventListener('click', goHome);
+    $('homeBtn').addEventListener('click', function () { if (leaveBlitz()) askLeave(true); else goHome(); });
+    $('leaveYes').addEventListener('click', function () { $('leaveBanner').hidden = true; blitz = null; goHome(); });
+    $('leaveNo').addEventListener('click', function () { askLeave(false); });
+    $('statsBody').addEventListener('click', function (e) { if (e.target.id === 'statsNext') statsNext(); });
+    new MutationObserver(syncTimer).observe($('drawer'), { attributes: true, attributeFilter: ['hidden'] });   // pause the blitz clock under the drawer
+    var setHdr = function () { document.documentElement.style.setProperty('--hdr', document.querySelector('header.top').offsetHeight + 'px'); };
+    setHdr(); window.addEventListener('resize', setHdr); window.addEventListener('load', setHdr);
     $('nextBtn').addEventListener('click', nextCase);
     $('ingBtn').addEventListener('click', openIngredients);
     $('statsIng').addEventListener('click', openIngredients);
     $('ingBack').addEventListener('click', function () { show(lastScreen); });
     $('statsBtn').addEventListener('click', openStats);
-    $('closeStats').addEventListener('click', function () { $('drawer').hidden = true; });
-    $('drawer').addEventListener('click', function (e) { if (e.target === $('drawer')) $('drawer').hidden = true; });
+    $('closeStats').addEventListener('click', closeStats);
+    $('drawer').addEventListener('click', function (e) { if (e.target === $('drawer')) closeStats(); });
     document.addEventListener('keydown', function (e) {
-      if (!$('drawer').hidden) { if (e.key === 'Escape') $('drawer').hidden = true; return; }
+      if (!$('drawer').hidden) { if (e.key === 'Escape') closeStats(); return; }
+      if (!$('leaveBanner').hidden) { if (e.key === 'Escape') askLeave(false); return; }
       if ($('play').hidden) return;
+      var onBtn = e.target.closest && e.target.closest('button');
+      if ((e.key === 'Enter' || e.key === ' ') && onBtn && onBtn !== $('nextBtn')) return;   // let the focused button act
       if (e.key === 'ArrowRight') { setTab(tabIdx + 1); e.preventDefault(); }
       else if (e.key === 'ArrowLeft') { setTab(tabIdx - 1); e.preventDefault(); }
       else if (/^[1-4]$/.test(e.key) && cur && !cur.answered) answer(+e.key - 1);

@@ -50,6 +50,15 @@ def test_eady_textbook_value():
     assert 0.5 < want * diag.DAY < 1.5  # per day, the usual range
 
 
+def test_eady_floor_caps_near_neutral():
+    # nearly neutral layer: the floor on N^2 keeps the rate finite and below the unfloored value
+    shp = (2, 2)
+    args = (np.zeros(shp), np.zeros(shp), np.full(shp, 1500.0), np.full(shp, 273.0), 850.0, np.full(shp, 20.0),
+            np.zeros(shp), np.full(shp, 5500.0), np.full(shp, 235.0), 500.0, np.array([50.0, 50.0]))  # N^2 about 4e-6
+    raw, floored = diag.eady(*args), diag.eady(*args, n2_min=2.5e-5)
+    assert np.isfinite(floored).all() and (floored < 0.5 * raw).all()
+
+
 def test_eady_unstable_is_nan():
     shp = (2, 2)
     s = diag.eady(np.zeros(shp), np.zeros(shp), np.full(shp, 1500.0), np.full(shp, 300.0), 850.0,

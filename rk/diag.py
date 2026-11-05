@@ -45,17 +45,18 @@ def theta(t_k, p_hpa):
     return t_k * (1000.0 / p_hpa) ** KAPPA
 
 
-def eady(u_lo, v_lo, z_lo, t_lo, p_lo, u_hi, v_hi, z_hi, t_hi, p_hi, lats):
+def eady(u_lo, v_lo, z_lo, t_lo, p_lo, u_hi, v_hi, z_hi, t_hi, p_hi, lats, n2_min=None):
     """Maximum Eady growth rate 0.31 |f| |dV/dz| / N (1/s) for the layer between two pressure levels
     (lo = lower, e.g. 850 hPa; hi = upper, e.g. 500 hPa). dV/dz and N come from the two levels' winds,
-    heights and potential temperatures. NaN where the layer is not statically stable (N^2 <= 0)."""
+    heights and potential temperatures. NaN where the layer is not statically stable (N^2 <= 0).
+    n2_min (s^-2, e.g. 2.5e-5) floors N^2 so near-neutral cells do not blow up; None leaves it as is."""
     dz = np.asarray(z_hi, float) - np.asarray(z_lo, float)
     th_lo, th_hi = theta(t_lo, p_lo), theta(t_hi, p_hi)
     n2 = G / (0.5 * (th_lo + th_hi)) * (th_hi - th_lo) / dz
     shear = np.hypot(u_hi - u_lo, v_hi - v_lo) / dz
     f = np.abs(coriolis(lats))[:, None]
     with np.errstate(invalid="ignore", divide="ignore"):
-        out = 0.31 * f * shear / np.sqrt(n2)
+        out = 0.31 * f * shear / np.sqrt(n2 if n2_min is None else np.maximum(n2, n2_min))
     return np.where(n2 > 0, out, np.nan)
 
 
