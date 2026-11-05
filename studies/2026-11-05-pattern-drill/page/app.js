@@ -602,7 +602,7 @@
     var o = obsInfo.cat, secs = Math.min((Date.now() - cur.t0) / 1000, 600);
     if (called < 0) secs = BLITZ_SECS;
     var pts = score(called, o);
-    var rec = { game: cur.game, called: called, obs: o, pts: pts, t: Math.round(secs * 10) / 10, mode: opts.mode };
+    var rec = { game: cur.game, called: called, obs: o, start: cur.c.t0.cat, pts: pts, t: Math.round(secs * 10) / 10, mode: opts.mode };
     session.records.push(rec); saveSession();
     if (blitz) { blitz.recs.push(rec); blitz.n++; }
     var tt = totals(session.records);
@@ -653,17 +653,52 @@
     var frac = nxt ? Math.max(0, Math.min(1, (pts - LEVELS[i][1]) / (nxt[1] - LEVELS[i][1]))) : 1;
     return '<div class="level"><b>' + LEVELS[i][0] + '</b><span>' + (nxt ? (nxt[1] - pts) + ' pts to ' + nxt[0] : 'top level') + '</span></div><div class="lvbar"><i style="width:' + Math.round(frac * 100) + '%"></i></div>';
   }
-  function gameSection(title, recs) {
+  // Bias tracker: lean = called minus observed category (+ = calls too high), answered cases only.
+  function lean(recs) {
+    var a = recs.filter(function (r) { return r.called >= 0; });
+    if (!a.length) return null;
+    return { v: a.reduce(function (s, r) { return s + r.called - r.obs; }, 0) / a.length, n: a.length };
+  }
+  function leanText(l) { return l === null ? '-' : (l.v > 0 ? '+' : '') + l.v.toFixed(1); }
+  function leanRow(label, l, extra) {
+    // diverging bar, -2 .. +2 categories
+    var w = l === null ? 0 : Math.min(Math.abs(l.v), 2) / 2 * 50, side = l && l.v < 0 ? 'neg' : 'pos';
+    return '<div class="lrow"><span class="ll">' + label + '</span><span class="lbar"><i class="' + side + '" style="width:' + w.toFixed(1) +
+      '%"></i></span><span class="lv">' + leanText(l) + '</span><span class="ln">' + (extra || (l ? 'n ' + l.n : '')) + '</span></div>';
+  }
+  function biasHTML(recs, game) {
+    var all = lean(recs);
+    if (!all) return '';
+    var h = '<div class="bias"><div class="bh">Bias tracker <span class="fine">(called minus observed, in categories; + calls too high)</span></div>';
+    h += leanRow('All cases', all);
+    var last = lean(recs.slice(-10)), before = recs.length > 10 ? lean(recs.slice(0, -10)) : null;
+    if (before && last) h += leanRow('Last 10', last, 'was ' + leanText(before));
+    for (var o = 0; o < 4; o++) {
+      var l = lean(recs.filter(function (r) { return r.obs === o; }));
+      if (l) h += leanRow('Observed ' + ['none', 'gale', 'storm', 'HF'][o], l);
+    }
+    if (game === 'fc') {
+      h += '<div class="bh2">Growth vs decay over 24 h</div>';
+      [['Strengthened', 1], ['Held', 0], ['Weakened', -1]].forEach(function (g) {
+        var rs = recs.filter(function (r) { return r.called >= 0 && r.start !== undefined && Math.sign(r.obs - r.start) === g[1]; });
+        if (!rs.length) return;
+        var right = rs.filter(function (r) { return Math.sign(r.called - r.start) === g[1]; }).length;
+        h += leanRow(g[0], lean(rs), right + ' of ' + rs.length + ' change called right');
+      });
+    }
+    return h + '</div>';
+  }
+  function gameSection(title, recs, game) {
     var h = '<h3 class="gh">' + title + '</h3>';
     if (!recs.length) return h + '<div class="empty">No cases yet.</div>';
     var conf = confusion(recs);
-    return h + '<div class="read">' + readLine(conf) + '</div>' + tableHTML(conf);
+    return h + '<div class="read">' + readLine(conf) + '</div>' + biasHTML(recs, game) + tableHTML(conf);
   }
   function openStats() {
     var all = session.records, t = totals(all);
     var h = levelHTML(t.pts) + kpiHTML(t);
-    h += gameSection('Right now', all.filter(function (r) { return r.game === 'now'; }));
-    h += gameSection('Forecast +24 h', all.filter(function (r) { return r.game === 'fc'; }));
+    h += gameSection('Right now', all.filter(function (r) { return r.game === 'now'; }), 'now');
+    h += gameSection('Forecast +24 h', all.filter(function (r) { return r.game === 'fc'; }), 'fc');
     $('statsBody').innerHTML = h; $('drawer').hidden = false;
   }
   function endBlitz() {
@@ -672,7 +707,7 @@
     var pct = t.n ? Math.round(100 * t.exact / t.n) : 0;
     var h = '<div class="level"><b>' + t.pts + ' pts</b><span>' + pct + '% exact &middot; best streak ' + t.best + '</span></div>';
     h += levelHTML(totals(session.records).pts);
-    h += '<div class="read">' + readLine(conf) + '</div>' + tableHTML(conf);
+    h += '<div class="read">' + readLine(conf) + '</div>' + biasHTML(blitz.recs, blitz.recs.length && blitz.recs[0].game) + tableHTML(conf);
     $('endBody').innerHTML = h; show('end');
   }
   function goHome() { clearTimer(); cur = null; show('start'); }

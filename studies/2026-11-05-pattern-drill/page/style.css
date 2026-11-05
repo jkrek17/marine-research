@@ -123,3 +123,12 @@ table.conf td.diag{background:rgba(30,122,70,.18)}
 table.conf td.zero{color:#b4bcc6}
 table.conf .corner{font-size:11px;color:var(--ink2);font-weight:500}
 .empty{color:var(--ink3);font-size:14px}
+
+.bias{margin:10px 0 12px;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:10px;display:grid;gap:6px}
+.bh{font-weight:600;font-size:14px}.bh2{font-weight:600;font-size:13px;color:var(--ink2);margin-top:6px}
+.lrow{display:grid;grid-template-columns:minmax(0,8.5em) minmax(60px,1fr) 3em minmax(0,auto);gap:8px;align-items:center;font-size:13px}
+.ll{color:var(--ink2)}.lv{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}.ln{color:var(--ink3);font-size:12px}
+.lbar{position:relative;height:10px;background:#eef1f5;border-radius:5px}
+.lbar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--ink3)}
+.lbar i{position:absolute;top:0;bottom:0;border-radius:5px}
+.lbar i.pos{left:50%;background:var(--storm)}.lbar i.neg{right:50%;background:var(--accent)}
