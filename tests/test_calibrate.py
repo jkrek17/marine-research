@@ -197,6 +197,22 @@ def test_fit_pooled_thin_bins_follow_prior():
     assert abs(C.cal_at(40, r2, c2) - C.cal_at(40, r0, c0)) < 0.2
 
 
+def test_quantile_map_matches_frequencies():
+    """A forecast that is too smooth (shrunk toward the mean) is mapped so it exceeds 48 kt as often as the truth."""
+    r = np.random.default_rng(1)
+    ob = r.gamma(9.0, 4.0, 100000)
+    fc = 0.6 * ob + 0.4 * ob.mean() + r.normal(0, 2, ob.size)
+    m = C.quantile_map_fit(fc, ob)
+    out = C.quantile_map_apply(m, fc)
+    assert abs((out >= 48).mean() - (ob >= 48).mean()) < 0.003
+    assert (fc >= 48).mean() < 0.5 * (ob >= 48).mean()           # the raw forecast drew far too little
+    x = np.linspace(fc.min() - 5, fc.max() + 5, 500)
+    y = C.quantile_map_apply(m, x)
+    assert np.all(np.diff(y) >= -1e-9)                           # monotone, and beyond the ends: end offsets
+    assert abs((y[-1] - x[-1]) - (m[1][-1] - m[0][-1])) < 1e-3
+    assert C.quantile_map_fit(fc[:100], ob[:100]) is None        # too few pairs
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

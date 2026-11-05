@@ -1,6 +1,6 @@
 # Bias correction on Core Lifted: design card
 
-*Status: draft, waiting on Jason's answers to the three questions at the bottom (2026-11-05).*
+*Status: approved 2026-11-05 15:34Z ("try that and see what you find"): the three recommendations below.*
 
 **Question** (Jason, 2026-11-05 15:21Z): "what about bias correction on the core lifted?"
 
@@ -47,3 +47,13 @@ Reference only, not a candidate: the average correction (mean ASCAT for a given 
 1. **Which kind of correction.** A forecaster's "bias correction" can mean two things. (a) Frequency matching: make Core Lifted draw 48 kt as often as ASCAT sees 48 kt, by lead. This raises the peaks and is aimed at warning catch. (b) Average correction: the mean ASCAT wind for each forecast speed. This gives the best average error but pulls high forecasts down, because a 55 kt forecast is on average a bit too high. Recommended: (a), with (b) shown as a reference.
 2. **What it depends on.** Lead time, basin and wind band only, or also month (Nov-Dec vs Jan-Mar) or model agreement? One winter cuts thin quickly. Recommended: lead, basin and wind band, plus in-core vs out-of-core if it earns its place.
 3. **Win line.** Storm catch +5 points held-out, storm area at most 1.5x ASCAT, gale CSI within 0.01 and gale area at most 1.3x, and it must beat a plain constant lift. Right bar, or would you take more storm area for more catch?
+
+## Jason's answers (2026-11-05 15:34Z, "try that and see what you find")
+Taken as the three recommendations: (1) frequency matching, average correction as reference only; (2) lead, basin and wind band, plus in-core / out-of-core if it earns its place; (3) the win line as written.
+
+## Run notes (filled in while running)
+- Lead groups for every fitted piece: d1 = +24/+30 h, d2 = +48/+54, d3 = +72/+78, d45 = +96..+126.
+- Candidate cells for the maps: open water with Core Lifted >= 28 kt (the saved cases do not keep the per-model maximum, so "any model 34+" is left out of the candidate rule).
+- The gale floor is applied on the whole basin grid (the page limits it to the OPC boxes; the basin grids sit inside them).
+- Port check: `build.py` with AIFS at full weight reproduces the retrain study's held-out grids (blend within 0.016 kt, float16; core likelihood within 0.0002; same lifted cells) on natl +24 h and npac +30 h of 2025-11-03 00Z.
+- Selection on the tune weeks, mechanical: a product passes when storm area <= 1.5x ASCAT, gale area <= 1.3x and gale-tile CSI >= Core Lifted - 0.01 (pooled, out of fold for fitted maps); constant and lead-by-lead lift sizes are the passing size with the highest storm-tile catch.
