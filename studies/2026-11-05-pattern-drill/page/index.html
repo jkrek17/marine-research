@@ -24,7 +24,7 @@
 
   <section id="start" class="screen" hidden>
     <h1>Pick the pattern, call the wind</h1>
-    <p class="lead">Look at the model maps around a circled low. Call the peak wind that ASCAT saw within 500 km. Many cases, quick feedback. Session stats clear when you close the tab; benchmark history stays on this device.</p>
+    <p class="lead">Look at the model maps around the deepest low (circled). Call the strongest wind ASCAT saw anywhere on the map. Many cases, quick feedback. Session stats clear when you close the tab; benchmark history stays on this device.</p>
     <p class="policy" id="policy">Scoring leans to over-calling on purpose: a miss costs more than a false alarm, as on the desk.</p>
 
     <h2>Game</h2>
@@ -55,7 +55,7 @@
       <h2>Points</h2>
       <p><b>Forecast game, change call</b> (grow, hold or decay against the ASCAT category now; under 5 kt of change counts as hold): right 60. Hold when it moved 15. Grow or decay when it held 25. Wrong direction 0. The category after it is optional and scored as below.</p>
       <p><b>Category call</b>: exact 100. Over-call by one 50, by two or more 10. Under-call by one 25, by two or more 0. Missing an observed HF -25.</p>
-      <p class="fine">Categories: none under 34 kt, gale 34-47, storm 48-63, HF 64+. Truth is ASCAT 10 m wind within 500 km of the low (3rd highest cell). Maps are GFS analyses. Dates are hidden.</p>
+      <p class="fine">Categories: none under 34 kt, gale 34-47, storm 48-63, HF 64+. Truth is the strongest ASCAT 10 m wind anywhere on the map (3rd highest cell, so one stray cell does not set it); the circled low is the deepest on the map. Maps are GFS analyses. Dates are hidden.</p>
     </div>
   </section>
 
@@ -80,7 +80,7 @@
       <div class="right">
         <div id="nowline" class="nowline" hidden></div>
         <h2 id="question" class="q"></h2>
-        <p id="catNote" class="catnote" hidden>None &lt;34 kt &middot; Gale 34-47 &middot; Storm 48-63 &middot; HF 64+ &middot; peak = within the dashed 500 km ring</p>
+        <p id="catNote" class="catnote" hidden>None &lt;34 kt &middot; Gale 34-47 &middot; Storm 48-63 &middot; HF 64+ &middot; peak = strongest wind anywhere on the map</p>
         <div id="answers" class="answers"></div>
         <div id="result" class="result" tabindex="-1" aria-live="polite" hidden></div>
         <div id="debrief" class="debrief" hidden></div>

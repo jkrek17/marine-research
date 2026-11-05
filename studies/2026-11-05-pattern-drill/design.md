@@ -9,7 +9,9 @@
 - *Forecast*: maps at the start time plus the start-time ASCAT category. Call the category 24 h later. Reveal the +24 h pass and pressure.
 - Session stats only (no accounts, nothing stored past the session): points, streak, called-vs-observed 4x4 table, time per case, timed blitz, weak-spot mode. Points: miss costs more than a false alarm, an HF miss the most. Dates hidden.
 
-**Truth:** RSS ASCAT (`rk.truth.ascat`, real 10 m wind, Metop B/C intercalibrated) within 500 km of the low centre, ±90 min of the map time. Category = the 3rd highest ASCAT cell (so one noisy or rain cell does not set it). A snapshot counts only when ASCAT saw at least half of the open water within 500 km.
+**Truth (version 2, Jason 2026-11-05):** the strongest RSS ASCAT wind anywhere in the map box (3rd highest 0.25 deg cell, `scene.py`), and the circled low is the deepest low in the box at both times; a case counts only when ASCAT saw the circled low's own circulation (its pressure basin, `rk.score.pressure_basins`, up to 1000 km; `find_cases.py` version 2). Version 1, below, attributed winds to one low within 500 km and cut off big lows' cold-sector storm winds and mis-scored scenes with several lows.
+
+**Truth (version 1):** RSS ASCAT (`rk.truth.ascat`, real 10 m wind, Metop B/C intercalibrated) within 500 km of the low centre, ±90 min of the map time. Category = the 3rd highest ASCAT cell (so one noisy or rain cell does not set it). A snapshot counts only when ASCAT saw at least half of the open water within 500 km.
 
 **Maps** (GFS analysis f000, 0.25 deg, cut to a 25 x 40 deg box and coarsened to 0.5 deg): MSLP with 1000-500 thickness; 500 hPa heights with absolute vorticity; 250 hPa isotachs with heights; Eady growth rate 850-500 hPa (0.31 f |dV/dz| / N, per day); 850 hPa temperature advection with 850 heights and temperature; sea minus 2 m air temperature. Model 10 m wind is not shown.
 
@@ -33,6 +35,7 @@
             "t0": {"lat": .., "lon": .., "hpa": .., "cat": 2, "peak": 51.0, "cover": 0.7},
             "t24": {"lat": .., "lon": .., "hpa": .., "cat": 1, "peak": 42.0, "cover": 0.6}}, ...]}
 ```
+Version 2 adds `"truth": "scene"` and per snapshot `plat`, `plon` (the ASCAT cell that set the answer); `t0`/`t24` `lat`, `lon` are the circled low snapped to the drawn MSLP minimum within 200 km, and the box is centred on the low at T.
 `cat`: 0 none, 1 gale, 2 storm, 3 HF. Valid times are not in the manifest (dates hidden); a separate `key.csv` beside it, not published, maps ids to times.
 
 `deck/<id>.bin`: two snapshots (t0 then t24), each = for every field in `fields` order a `ny x nx` uint8 array (row 0 = north, value = offset + scale x byte, 255 = missing), then ASCAT speed (kt, 1 kt steps, 255 = not seen; highest cell in each 0.5 deg box), ASCAT direction (meteorological degrees / 2, 255 = not seen), land (1 land or ice, 0 water).

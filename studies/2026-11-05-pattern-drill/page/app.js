@@ -9,6 +9,7 @@
   var CAT_OBS = ['quiet (under 34 kt)', 'gale', 'storm', 'HF'];
   var BLITZ_N = 10, BLITZ_SECS = 60, WEAK_MIN = 8;
   var RING_KM = 500;
+  var SCENE = function () { return !!(manifest && manifest.truth === 'scene'); };   // answer = strongest wind in the whole box
   // Wind colours: rk/style.py WIND_LEVELS / WIND_COLORS / WIND_OVER (light-background version).
   var WIND_LEVELS = [0, 10, 15, 20, 25, 30, 34, 41, 48, 56, 64, 80];
   var WIND_COLORS = ['#f4f6f8', '#dde6ef', '#c3d4e6', '#9fbbd9', '#7aa0c9', '#5683b5',
@@ -83,7 +84,7 @@
       noData: 'No GOES view of this area at this time',
       note: 'Red-orange: dry, ozone-rich air from a lowered tropopause (the upper-level PV anomaly). Green: warm moist air mass. Blue/purple: cold air mass. White: thick high cloud.' }
   ];
-  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "w925": "the best single clue to how strong it is now. Over 1,004 lows ASCAT's peak ran about 85% of the strongest 925 mb wind near the low where the sea was under 2 C warmer than the 2 m air, and about all of it where the sea was 8+ C warmer. Read it with the Sea - air tab.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 1,004 lows; read it with the 500 mb vorticity."};
+  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "w925": "the best single clue to how strong it is now. Over 916 lows ASCAT's peak in the low's own circulation ran about 85-90% of the strongest 925 mb wind near the low where the sea was under 2 C warmer than the 2 m air, and all of it or more where the sea was 5+ C warmer. Read it with the Sea - air tab.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 916 lows; read it with the 500 mb vorticity."};
   var REVEAL_TAB = { id: 'reveal', label: 'ASCAT', name: 'ASCAT wind over MSLP', reveal: true };
 
   // ------------------------------------------------------------------ helpers
@@ -291,6 +292,8 @@
   // The cell that sets the answer. Offline it is the 3rd-highest real-wind cell within 500 km that is nearer this low than
   // any other; here, the 3rd-highest valid ASCAT cell inside the 500 km ring (fewer than 3 cells: the lowest there is).
   function peakCell(g, snap, low) {
+    // scene decks (version 2): the answer is the strongest wind anywhere in the box; the cell that set it comes with the case
+    if (low.plat != null) return { s: low.peak, lat: low.plat, lon: low.plon < g.lon0 ? low.plon + 360 : low.plon };
     var cells = [];
     for (var j = 0; j < g.ny; j++) for (var i = 0; i < g.nx; i++) {
       var s = snap.spd[j * g.nx + i]; if (s === 255) continue;
@@ -569,7 +572,7 @@
     if (tab.reveal) {
       drawAscat(ctx, g, snap);
       drawContours(ctx, g, snap.f.msl, { step: 4, width: function (l) { return l % 20 === 0 ? 1.5 : 1; }, color: 'rgba(0,0,0,.82)', label: true, fmt: f0, minGap: 120 }, labels);
-      drawRing(ctx, g, extra.low.lat, extra.low.lon, RING_KM);
+      if (!SCENE()) drawRing(ctx, g, extra.low.lat, extra.low.lon, RING_KM);
       if (extra.track) drawTrack(ctx, g, extra.track[0], extra.track[1]);
       drawLow(ctx, g, extra.low.lat, extra.low.lon);
       if (extra.peak) drawPeak(ctx, g, extra.peak, extra.tap);
@@ -594,7 +597,7 @@
         bar.appendChild(d);
       });
       lg.appendChild(bar); box.appendChild(lg);
-      box.appendChild(el('div', 'lgnote', 'Thin black outline: 48 kt and over; thick black outline: 64 kt and over. Black contours: MSLP every 4 hPa. Dashed ring: 500 km around the low. The peak counts only cells inside it that are nearer this low than any other, and is the 3rd-highest cell, so one stray cell does not set it. Rain-flagged cells are left out.'));
+      box.appendChild(el('div', 'lgnote', 'Thin black outline: 48 kt and over; thick black outline: 64 kt and over. Black contours: MSLP every 4 hPa. ' + (SCENE() ? 'The answer is the strongest wind anywhere on the map (the 3rd-highest cell, so one stray cell does not set it); it is ringed.' : 'Dashed ring: 500 km around the low. The peak counts only cells inside it that are nearer this low than any other, and is the 3rd-highest cell, so one stray cell does not set it.') + ' Rain-flagged cells are left out.'));
       return;
     }
     tab.legend.forEach(function (L) {
@@ -1185,7 +1188,7 @@
     var d = recs.filter(function (r) { return r.tapNm != null; }).map(function (r) { return r.tapNm; });
     if (!d.length) return '';
     return '<div class="persist"><b>Where the strongest wind is</b><span>Median miss ' + Math.round(median(d)) + ' nm over ' + d.length + ' tap' + (d.length > 1 ? 's' : '') +
-      ' (to the ringed cell: the 3rd-highest ASCAT cell within 500 km).</span></div>';
+      (SCENE() ? ' (to the ringed cell: the 3rd-highest ASCAT cell on the map).' : ' (to the ringed cell: the 3rd-highest ASCAT cell within 500 km).') + '</span></div>';
   }
   function pairsStatHTML() {
     var ps = session.pairs; if (!ps.length) return '';
@@ -1383,7 +1386,7 @@
     });
     var db = $('prDebrief');
     db.innerHTML = '<h3>What differed</h3><div class="dbase">These two lows had nearly the same ingredient profile. The three ingredients that differed most (in units of their spread across the deck):</div>' + rows +
-      '<div class="ikey">The differences are small by design, so read them as odds, not rules. Open Ingredients for how each one has behaved over 1,004 lows.</div>';
+      '<div class="ikey">The differences are small by design, so read them as odds, not rules. Open Ingredients for how each one has behaved over ' + ((manifest.ingredients && manifest.ingredients.n) || 916) + ' lows.</div>';
     db.hidden = false; $('prAnswers').hidden = true; $('prNext').hidden = false;
     ptabList = availTabs().concat([REVEAL_TAB]); buildPTabs(); setPTab(ptabList.length - 1);
     try { res.setAttribute('tabindex', '-1'); res.focus({ preventScroll: true }); } catch (e) { /* ignore */ }

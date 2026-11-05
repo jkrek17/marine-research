@@ -351,6 +351,25 @@ def test_pressure_drop():
     assert np.isnan(score.pressure_drop(np.full_like(narrow, np.nan), "natl", 50, 320)[0])
 
 
+def test_pressure_basins_split_at_col():
+    # a big deep low and a small shallow one 1500 km east: each side goes to its own low, split at the col,
+    # and the big low keeps cells 800 km out that a 500 km circle would miss
+    lats = np.arange(70.0, 40.0, -0.5)
+    lons = np.arange(300.0, 360.0, 0.5)
+    la, lo = np.meshgrid(lats, lons, indexing="ij")
+    def bowl(a, o, depth, width):
+        d = score._km(a, o, la, lo)
+        return -depth * np.exp(-(d / width) ** 2)
+    msl = 1012 + bowl(55, 315, 50, 900) + bowl(55, 340, 15, 300)
+    lows = [{"lat": 55.0, "lon": 315.0}, {"lat": 55.0, "lon": 340.0}]
+    lab = score.pressure_basins(msl, lats, lons, lows, max_km=1000, sigma=1)
+    j = lambda a, o: lab[int(round((70 - a) / 0.5)), int(round((o - 300) / 0.5))]
+    assert j(55, 315) == 0 and j(55, 340) == 1
+    assert j(48, 315) == 0                     # ~780 km south of the big low
+    assert j(55, 338) == 1 and j(55, 325) == 0
+    assert j(45, 300) == -1 or score._km(55, 315, 45, 300) <= 1000
+
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):

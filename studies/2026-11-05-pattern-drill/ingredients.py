@@ -194,7 +194,7 @@ def dp_prev(rec, basin, t0, lat, lon, hpa0):
 
 def measure(workers):
     from rk import satellite
-    rec = pick.load()
+    rec = pick.load()          # version 2 truth (find2: the low's own pressure basin)
     cands = pick.candidates(rec)
     by_t = {}
     for x in cands:
@@ -202,40 +202,47 @@ def measure(workers):
     cache = ROOT / CACHE
     cache.mkdir(exist_ok=True)
 
+    def label(r, x):
+        """Outcomes from the current candidate (version 2: the low's own pressure basin), not the cached ones."""
+        r.update(basin=x["basin"], t0=x["t0"].strftime("%Y%m%d%H"), lat=x["r0"]["lat"], lon=x["r0"]["lon"],
+                 hpa0=x["r0"]["hpa"], peak0=x["r0"]["peak3"], cat0=x["c0"], hpa24=x["r1"]["hpa"],
+                 peak24=x["r1"]["peak3"], cat24=x["c1"])
+        return r
+
     def one(t):
         p = cache / (t.strftime("%Y%m%d%H") + ".json")
-        if p.exists():
-            rows = json.loads(p.read_text())
-            if not rows or all(k in rows[0] for k in EXTRA):
-                return rows
-            g = fetch.gfs_global(t, 0, EXTRA_WANT)
+        rows = json.loads(p.read_text()) if p.exists() else []
+        have = {(r["basin"], round(r["lat"], 2), round(r["lon"], 2)): r for r in rows}
+        look = lambda x: have.get((x["basin"], round(x["r0"]["lat"], 2), round(x["r0"]["lon"], 2)))
+        missing = [x for x in by_t[t] if look(x) is None]
+        stale = [r for r in rows if not all(k in r for k in EXTRA)]
+        if missing:
+            g = fetch.gfs_global(t, 0, fetch.DRILL)
             if g is None:
-                return rows
-            for r in rows:
+                return [label(dict(look(x)), x) for x in by_t[t] if look(x) is not None]
+            ams = {}
+            for x in missing:
+                b = x["basin"]
+                if b not in ams:
+                    try:
+                        ams[b] = satellite.airmass_box(b, t)
+                    except Exception:
+                        ams[b] = None
+                r = measure_low(g, ams[b], x["r0"]["lat"], x["r0"]["lon"])
+                r.update(measure_extra(g, x["r0"]["lat"], x["r0"]["lon"]))
+                r["dp_prev"] = dp_prev(rec, b, t, x["r0"]["lat"], x["r0"]["lon"], x["r0"]["hpa"])
+                rows.append(label(r, x))
+            for r in stale:
                 r.update(measure_extra(g, r["lat"], r["lon"]))
+        elif stale:
+            g = fetch.gfs_global(t, 0, EXTRA_WANT)
+            if g is not None:
+                for r in stale:
+                    r.update(measure_extra(g, r["lat"], r["lon"]))
+        if missing or stale:
             p.write_text(json.dumps(rows))
-            return rows
-        g = fetch.gfs_global(t, 0, fetch.DRILL)
-        if g is None:
-            return []
-        rows = []
-        ams = {}
-        for x in by_t[t]:
-            b = x["basin"]
-            if b not in ams:
-                try:
-                    ams[b] = satellite.airmass_box(b, t)
-                except Exception:
-                    ams[b] = None
-            r = measure_low(g, ams[b], x["r0"]["lat"], x["r0"]["lon"])
-            r.update(measure_extra(g, x["r0"]["lat"], x["r0"]["lon"]))
-            r["dp_prev"] = dp_prev(rec, b, t, x["r0"]["lat"], x["r0"]["lon"], x["r0"]["hpa"])
-            r.update(basin=b, t0=t.strftime("%Y%m%d%H"), lat=x["r0"]["lat"], lon=x["r0"]["lon"],
-                     hpa0=x["r0"]["hpa"], peak0=x["r0"]["peak3"], cat0=x["c0"], hpa24=x["r1"]["hpa"],
-                     peak24=x["r1"]["peak3"], cat24=x["c1"])
-            rows.append(r)
-        p.write_text(json.dumps(rows))
-        return rows
+            have = {(r["basin"], round(r["lat"], 2), round(r["lon"], 2)): r for r in rows}
+        return [label(dict(look(x)), x) for x in by_t[t] if look(x) is not None]
 
     times = sorted(by_t)
     allrows = []

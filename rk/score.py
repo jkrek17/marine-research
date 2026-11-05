@@ -263,6 +263,72 @@ def _as_lows(x):
     return pd.DataFrame(a, columns=_LOW_COLS)
 
 
+def pressure_basins(msl, lats, lons, lows, max_km=1000.0, sigma=2.0, snap_km=300.0):
+    """Which low each grid cell belongs to -> int array (index into `lows`, -1 = none).
+
+    A cell belongs to the low its pressure falls toward: follow the steepest descent of the smoothed MSLP
+    (`sigma` cells, gaussian; 8 neighbours) down to a local minimum, and give the cell to the listed low
+    nearest that minimum (within `snap_km`; a minimum with no listed low nearby leaves its cells
+    unassigned). Two lows are split at the col between them, however big one is. Cells farther than
+    `max_km` from their low are dropped. `lows` is any sequence of objects or dicts with lat and lon
+    (find_lows rows work). Grid lat x lon, longitudes 0-360 or continuous. Each listed low's own cell is
+    also a sink, so a shallow wave low keeps the cells that drain through it. sigma 2 (0.5 deg) keeps
+    closed 1 hPa wave lows; 4 smooths them into the parent low (tried on 2025-12-18 12Z: the big low's
+    basin was the same at 1-4)."""
+    from scipy.ndimage import gaussian_filter
+    f = np.asarray(msl, float)
+    ok = np.isfinite(f)
+    sm = gaussian_filter(np.where(ok, f, np.nanmax(f[ok]) if ok.any() else 0.0), sigma, mode="nearest")
+    ny, nx = sm.shape
+    pad = np.pad(sm, 1, mode="edge")
+    idx = np.arange(ny * nx).reshape(ny, nx)
+    ipad = np.pad(idx, 1, mode="edge")
+    best, nxt = sm.copy(), idx.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if dy == 0 and dx == 0:
+                continue
+            v = pad[1 + dy:1 + dy + ny, 1 + dx:1 + dx + nx]
+            j = ipad[1 + dy:1 + dy + ny, 1 + dx:1 + dx + nx]
+            m = v < best
+            best[m], nxt[m] = v[m], j[m]
+    la2, lo2 = np.meshgrid(np.asarray(lats, float), np.asarray(lons, float), indexing="ij")
+    get = lambda r, k: r[k] if isinstance(r, dict) else getattr(r, k)
+    pts = [(float(get(r, "lat")), float(get(r, "lon"))) for r in lows]
+    for la, lo in pts:
+        k = int(np.argmin(_km(la, lo, la2, lo2)))
+        nxt.ravel()[k] = k
+    ptr = nxt.ravel()
+    for _ in range(64):                      # pointer jumping: each pass doubles the path followed
+        p2 = ptr[ptr]
+        if np.array_equal(p2, ptr):
+            break
+        ptr = p2
+    sink = ptr.reshape(ny, nx)
+    out = np.full((ny, nx), -1, int)
+    if not pts:
+        return out
+    sinks = np.unique(sink)
+    sla, slo = la2.ravel()[sinks], lo2.ravel()[sinks]
+    owner = {}
+    for s, a, o in zip(sinks, sla, slo):
+        d = [_km(a, o, la, lo) for la, lo in pts]
+        k = int(np.argmin(d))
+        owner[s] = k if d[k] <= snap_km else -1
+    lab = np.vectorize(owner.get, otypes=[int])(sink)
+    for k, (la, lo) in enumerate(pts):
+        far = (lab == k) & (_km(la, lo, la2, lo2) > max_km)
+        lab[far] = -1
+    return lab
+
+
+def _km(lat1, lon1, lat2, lon2):
+    p1, p2 = np.radians(lat1), np.radians(lat2)
+    dl = np.radians((np.asarray(lon2, float) - np.asarray(lon1, float) + 180) % 360 - 180)
+    a = np.sin((p2 - p1) / 2) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dl / 2) ** 2
+    return 2 * 6371.0 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+
+
 def find_lows(msl, basin, below=1000.0, size=13, inset_deg=0.0, sep_km=150.0):
     """Local MSLP minima (hPa) on the basin grid, below `below`, as DataFrame[lat, lon, hpa].
 
