@@ -139,7 +139,7 @@ Held-out (scored once): Atl HF 59% -> 70% (81/115), HF area 0.92x -> 1.67x, fals
 
 ## Follow-up: the ramp lift on the web page, with the ensembles (Jason, 18:56Z)
 
-"do we need to update our web pages to use this? is this better than core lifted? can we apply the ensemble method with the new core lift?" `tool_score.py --page`, `pagepick.py`. Every product starts from the PAGE blend (r10: GFS/ECMWF/AIFS + spread) and keeps the page's gale floor (gale-core chance >= 60% -> >= 34 kt). Families: ramps on the stronger of GFS/ECMWF (PM), ramps on the page blend's own wind (PO), PM scaled by the ensemble core likelihood (PE, x clip(P/p)), PM only where core likelihood >= p (PG); HF add-ons 0 -> 6 kt over 52-56 of the stronger model gated by GFS 925 x stability (PK) or GEFS P48 (PH). Rule per family on tune as selfpick.py (storm area <= 1.0x and gale area <= 1.3x both basins, most mean storm catch); HF add-ons: most Atl HF catch with Atl HF area <= 1.7x. Cases are 00/12Z (as the whole study).
+"do we need to update our web pages to use this? is this better than core lifted? can we apply the ensemble method with the new core lift?" `tool_score.py --page`, `pagepick.py`. Every product starts from the PAGE blend (r10: GFS/ECMWF/AIFS + spread) and keeps the page's gale floor (gale-core chance >= 60% -> >= 34 kt). Families: ramps on the stronger of GFS/ECMWF (PM), ramps on the page blend's own wind (PO), PM scaled by the ensemble core likelihood (PE, x clip(P/p)), PM only where core likelihood >= p (PG); HF add-ons 0 -> 6 kt over 52-56 of the stronger model gated by GFS 925 x stability (PK) or GEFS P48 (PH). Rule per family on tune as selfpick.py (storm area <= 1.0x and gale area <= 1.3x both basins, most mean storm catch); HF add-ons: most Atl HF catch with Atl HF area <= 1.7x. Cycles are 00/12Z; held-out valid times include 06/18Z (Pacific 06/18Z is 350 of 623 held-out cases), tune valid times are 00/12Z only.
 
 Held-out (scored once; same cases for every page product):
 
@@ -161,7 +161,26 @@ Held-out (scored once; same cases for every page product):
 - **The page blend runs hot below gale.** Its gale area is 1.23-1.38x ASCAT's against 0.93-1.06x for the #95 blend. In the Pacific the ramps on #95 catch 64% against 57% on the page blend.
 - Moving the page would also need the storm warning line (Core Lifted >= 39), the HSF storm draft and the core-lift verification re-scored, because each is built on Core Lifted. That waits on Jason.
 
+## Follow-up: the storm warning line and HSF draft on the proposed field (Jason, 19:31Z "Yes, re-score lines first")
+
+`lines_page.py`. The storm warning line (open OPC water where the field >= T) and the HSF storm draft (drawn from the same >= 39 kt line) on Core Lifted and on the proposed field, against ASCAT 48+ with the 60 nm reach (`rk.score.warning_events`, as core-lift-bias `lines.py`). Rule, set before held-out: new threshold = highest T whose tune coverage >= Core Lifted's at 39 kt. Held-out:
+
+| Storm line | Atl covered | Atl area | Atl false cells | Pac covered | Pac area | Pac false cells | Pac 06/18Z covered / area |
+|---|---|---|---|---|---|---|---|
+| Today: Core Lifted >= 39 | 83% | 2.07x | 29% | 67% | 3.4x | 57% | 66% / 3.2x |
+| Proposed field >= 39 | 86% | 3.35x | 50% | 80% | 10.2x | 79% | 79% / 9.6x |
+| Proposed field, same coverage (Atl 41 / Pac 43) | 84% | 2.78x | 44% | 70% | 4.8x | 67% | 70% / 4.5x |
+
+(The ramps alone, PM_A36_U44, give the same rows within 0.1x.)
+
+- **The proposed field is a better wind grid but a worse storm warning line.** At today's coverage the line is 1.35x wider in the Atlantic and 1.4x in the Pacific, with 15 and 10 more points of false warned cells. At 39 kt it balloons (Pacific 10x ASCAT's storm area).
+- Why: the ramps lift everything the stronger model has at 36-44 kt, so broad near-storm areas cross 39-43 kt. Core Lifted lifts only where the ensemble core likelihood is >= 35%, which is a better "where" for a warning line. The ensemble earns its keep in the line, not in the grid.
+- So the change that keeps both gains is: show the proposed field as the wind grid, and keep the storm warning line and HSF storm draft on Core Lifted >= 39 (computed, not drawn). That waits on Jason.
+- Pacific 06/18Z valid times (ASCAT's main passes) behave as the pooled Pacific; 00/12Z Pacific has only 4 held-out storm events.
+
 ## Lessons
+
+- **A better wind grid can make a worse warning line.** The ramp field caught more storm tiles at ASCAT's area, but its 39 kt line grew 1.4x at equal coverage, because the ramps lift broad near-storm areas. Score every product built on a field before swapping the field.
 
 - **An ensemble 'where' adds nothing once a model-triggered ramp says how much.** Scaling or gating the ramp by the ensemble core likelihood only lost catch; the tune picks were the thresholds that switch it off. Test the gate against no gate before adding it.
 
