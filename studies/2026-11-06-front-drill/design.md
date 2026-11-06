@@ -6,29 +6,36 @@
 
 **What it is:** a web page. Each case is one storm system at one synoptic hour, maps shown, fronts hidden. The trainee taps points to lay each front, picks its type, then submits. The reveal overlays the Unified Surface Analysis fronts and lows and scores the drawing. Timed, about 60-90 s a case, many cases, session stats only (no accounts), same look as the pattern drill (cream, navy, oxblood).
 
-**Truth:** the Unified Surface Analysis (OPC, WPC, NHC) as coded by WPC in the CODSUS bulletin (`ASUS02 KWBC`, 0.1 deg points, archived by IEM). Synoptic hours only (00, 06, 12, 18 UTC): the 03/09/15/21 bulletins are not the full ocean analysis. Types carried: cold, warm, occluded, stationary, trough; highs and lows with central pressure. Checked against OPC's two Atlantic charts for 2026-11-01 12Z: fronts and lows line up (`/mnt/project-files/frontal-trainer/opc-vs-coded-fronts-2026110112Z.png`). Coverage is about 20-30W to 170-180W, 16-83N: the whole Atlantic HSF area, not the far east Atlantic or the west Pacific beyond ~170W. 0.1 deg bulletins exist from ~2011, whole-degree back to 2005.
+**Truth:** the Unified Surface Analysis (OPC, WPC, NHC) as coded by WPC in the CODSUS bulletin (`ASUS02 KWBC`, 0.1 deg points, archived by IEM). Synoptic hours only (00, 06, 12, 18 UTC): the 03/09/15/21 bulletins are not the full ocean analysis. Types carried: cold, warm, occluded, stationary, trough; highs and lows with central pressure. Checked against OPC's two Atlantic charts for 2026-11-01 12Z: fronts and lows line up (`/mnt/project-files/frontal-trainer/opc-vs-coded-fronts-2026110112Z.png`). Coverage (checked over 28 synoptic analyses, 1-7 Dec 2025): ocean lows and fronts from about 25W to about 150W. The Atlantic HSF area is covered; the Pacific is only the north-east Pacific east of ~150W (WPC's map edge; points west of 152W south of 60N are a handful of front tails, and points to 180W are Alaska and the Bering Sea). The first estimate ("to ~170W") counted those Alaska points. 0.1 deg bulletins exist from ~2011, whole-degree back to 2005.
 
-**Maps** (GFS analysis f000, 0.25 deg, box coarsened to 0.5 deg like the drill):
-1. MSLP with 1000-500 thickness (default view).
-2. 1000-850 mean equivalent potential temperature (`rk.diag.theta_e` at 1000, 925, 850).
-3. IR (GridSat-B1 via `rk.satellite`, as the drill).
-4. 250 hPa isotachs.
-5. 10 m wind barbs (GFS f000), and ASCAT barbs when a pass is within 90 min (optional overlay).
-Jason's four plus wind barbs and thickness, proposed 11:53Z; dropped if he says so.
+**Maps** (GFS analysis f000, 0.25 deg, box coarsened to 0.5 deg like the drill; imagery kept at ~0.1 deg). Jason chose MSLP, 1000-850 theta-e, IR, 250 hPa wind speed. After the expert review (below) the proposed set is five views, isobars on every one:
+1. MSLP every 4 hPa with 1000-500 thickness and 10 m barbs (GFS f000; ASCAT barbs instead where a pass is within 90 min) (default).
+2. Imagery: GOES air-mass RGB where it exists inside the disk (not west of ~165W / east of ~25W), IR otherwise; linear greyscale +25 to -65 C, no convective enhancement; within 30 min of the hour.
+3. Theta-e at 850 hPa (Jason's 1000-850 mean is the alternative: the mean smooths the gradient and the 1000 hPa level carries sea-surface fluxes).
+4. Theta-e at 700 hPa: the warm ridge wrapping into the low (TROWAL) for occlusions.
+5. 3 h pressure tendency (falls ahead of the warm front, couplet at the triple point).
+250 hPa isotachs as a checkbox overlay rather than their own map.
 
 **Drawing:** tap points along a front, choose a type from cold / warm / occluded / stationary / trough, finish, start the next; undo and delete; place the low (L) by tap. Works on a phone.
 
 **Scoring** (generous on position, strict on type):
-- Each analysed front in the box is matched to the trainee front nearest it (mean distance from the analysed front's points to the drawn line).
+- Analysed fronts are filled in to a point every 25 nm (coded points are a median 102 nm apart); same-type segments meeting within 30 nm are merged; truth is clipped to the box minus 1 deg and fronts with under 150 nm inside are not scored.
+- Matching is one to one (one drawn line cannot claim the cold, warm and occluded fronts at a triple point). Distance is measured both ways over the overlapping part; coverage (share of the analysed length within 150 nm) gets a small weight of its own.
 - Position: full credit within 150 nm, sliding to none at 300 nm.
-- Type: full credit only for the right type, none otherwise; type is worth twice position.
-- A front the analysis drew and the trainee did not costs the most. Extra trainee fronts cost a little (troughs are drawn inconsistently, so an extra trough costs nothing).
-- Low: full credit within 60 nm. Pressure call optional later.
+- Type: worth twice position, and only scored when the front is matched (scaled by its position credit). Half credit for occluded vs cold near the triple point and for stationary vs a weak cold or warm front; none for cold vs warm.
+- Missed fronts cost the most, weighted by length and nearness to the low. Troughs are never penalised, missed or extra (44% of coded features; drawn inconsistently).
+- Low: full credit within 60 nm, none at 120 nm; either centre counts when the analysis has twin lows. Triple point as its own target later.
 Constants live in one place in the page so they can be tuned after forecasters play it.
 
-**Cases:** a case = a CODSUS low over open water inside the OPC area with at least one front attached (a front end within ~300 km of the low), at 00/06/12/18Z, winters (Nov-Mar) 2024-25 and 2025-26 first, both basins; at most one case per low per day; balanced so occluded, warm and stationary fronts are not swamped by cold fronts. First deck ~200 cases, like the drill. Box centred on the low.
+**Cases:** a case = an analysed low over open water (land mask, not a lat/lon box) inside the coverage above, with at least one non-trough front attached (an end within ~300 km), at 00/06/12/18Z, winters (Nov-Mar) 2024-25 and 2025-26 first; at most one case per low per day; balanced on front types (troughs left out of the balance). Keep a case only if: the GFS MSLP minimum is within 150 km and 4 hPa of the analysed low; no second analysed low within 500 km; and for the first deck, the low's non-trough front types match in the analyses 6 h before and after (analysts change types between charts about half the time). Box centred on the low. First deck ~200 cases.
 
-**Data:** GFS f000 records per case time (MSLP, 1000/500 hgt, T and RH at 1000/925/850, 250 u/v, 10 m u/v) through `rk.fetch.gfs_global`, ~12 MB per time, ~200-400 times, a few GB streamed, resumable per-time caches under `rk.paths.data("extra", "front-drill")`. CODSUS text: one IEM request per day, cached. Well under 50 GB.
+**Parser rules** (`rk/fronts.py`): ASUS02 only; keep the last issue for a valid time (corrections); year from the header (VALID is MMDDHH); parse tokens, not lines (pressure/position pairs wrap); stop at `$$`; drop repeated points.
+
+**Reveal:** OPC fronts and lows over the trainee's; triple point marked; one line per front type with the case's own numbers (cold: veer and theta-e drop; warm: backing and cloud shield; occluded: 700 theta-e ridge to the low; stationary: isobars along the front; trough: kink, no thermal gradient). Shapiro-Keyser cases noted as such (the coded analysis has no bent-back type; analysts draw it occluded or warm). Session stats include a front-type confusion table.
+
+**Expert review (2026-11-06, three reviewers: surface analyst, satellite/conceptual models, verification with 24 bulletins checked):** changes above come from it. One reviewer saw fewer lows in 12Z bulletins over three days; a 28-analysis check (1-7 Dec 2025) did not repeat it (12Z 10-25 lows vs 9-33 at other hours), so no 12Z rule, but the 6 h consistency filter would catch a dropped system.
+
+**Data:** GFS f000 records per case time (MSLP, 1000/500 hgt, T and RH at 850/700 (and 1000/925 for the mean), 250 u/v, 10 m u/v) plus MSLP 3 h earlier through `rk.fetch.gfs_global`, ~12 MB per time, ~200-400 times, a few GB streamed, resumable per-time caches under `rk.paths.data("extra", "front-drill")`. CODSUS text: one IEM request per day, cached. Well under 50 GB.
 
 **Reused / new:**
 - Reused: `rk.fetch.gfs_global`, `rk.diag` (theta_e, smooth, coarsen), `rk.satellite`, `rk.truth.ascat`, the drill's box, quantise, satellite and export code (`build_deck.py`, `page/export_site.py`), page skin.
