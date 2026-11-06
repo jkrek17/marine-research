@@ -1,4 +1,4 @@
-"""Copy the built wind drill into the Training site (a clone of jkrek17/pattern-drill for GitHub Pages).
+"""Copy the built wind drill into the Training site (a clone of jkrek17/training for GitHub Pages).
 
 Layout (2026-11-06, Jason: "rename it training and clean up the page"):
     <site>/index.html   landing page (site/index.html), with a Front drill card when <site>/fronts/ exists
