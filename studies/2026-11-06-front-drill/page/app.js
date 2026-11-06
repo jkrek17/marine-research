@@ -589,12 +589,34 @@
   }
 
   // ------------------------------------------------------------------ fronts and lows (overlay)
-  function sidePicker(P, type) {   // +1 / -1: which side of the line the symbols go (cold east/south, warm east/north, occluded east)
-    var a = P[0], b = P[P.length - 1], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
-    var nx = -dy / L, ny = dx / L;   // screen normal (y down)
+  // +1 / -1: which side of the line the symbols go. From the air on each side (850 hPa theta-e sampled ~150 km
+  // either side along the front): cold-front, occluded and stationary triangles face the warm air (occluded symbols
+  // continue the cold front's side through the triple point: Jason 2026-11-06); warm-front semicircles face the cold air. Falls back to geometry when the field is missing.
+  function sidePicker(P, type, g) {
+    var snap = cur && cur.data, F = snap && snap.f && snap.f.te850;
+    if (F && g) {
+      var nx = g.nx, ny = g.ny, off = 150 / 111 / g.res * g.cw / (nx - 1), sum = 0, nOk = 0;
+      var at = function (x, y) {
+        var i = Math.round(x / g.cw * (nx - 1)), j = Math.round(y / g.ch * (ny - 1));
+        if (i < 0 || j < 0 || i >= nx || j >= ny) return NaN;
+        return F[j * nx + i];
+      };
+      for (var k = 1; k < P.length; k++) {
+        var a = P[k - 1], b = P[k], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+        if (!L) continue;
+        var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, ux = -dy / L, uy = dx / L;   // same normal as the symbols use
+        var p1 = at(mx + ux * off, my + uy * off), p2 = at(mx - ux * off, my - uy * off);
+        if (isFinite(p1) && isFinite(p2)) { sum += (p1 - p2) * L; nOk++; }
+      }
+      if (nOk && sum !== 0) {
+        var warmSide = sum > 0 ? 1 : -1;   // +1: the +normal side is warmer
+        return type === 'warm' ? -warmSide : warmSide;
+      }
+    }
+    var a0 = P[0], b0 = P[P.length - 1], ddx = b0[0] - a0[0], ddy = b0[1] - a0[1], LL = Math.hypot(ddx, ddy) || 1;
+    var gnx = -ddy / LL, gny = ddx / LL;
     var bias = type === 'warm' ? [1, -0.5] : type === 'occluded' ? [1, 0.1] : [1, 0.5];
-    var s = nx * bias[0] + ny * bias[1];
-    return s >= 0 ? 1 : -1;
+    return gnx * bias[0] + gny * bias[1] >= 0 ? 1 : -1;
   }
   function pathPoint(P, cum, s) {   // position and unit tangent at arc length s
     var i = 1; while (i < P.length - 1 && cum[i] < s) i++;
@@ -629,7 +651,7 @@
       }
     } else { path(); ctx.lineWidth = o.lw; ctx.strokeStyle = ft.c; ctx.stroke(); }
     if (f.type !== 'trough') {
-      var side = sidePicker(P, f.type), n = Math.max(1, Math.floor(total / spacing));
+      var side = sidePicker(P, f.type, g), n = Math.max(1, Math.floor(total / spacing));
       for (var m = 0; m < n; m++) {
         var s2 = total / n * (m + 0.5), q = pathPoint(P, cum, s2), nx = -q.ty * side, ny = q.tx * side;
         var kind = f.type === 'cold' ? 'tri' : f.type === 'warm' ? 'semi' : f.type === 'occluded' ? (m % 2 ? 'semi' : 'tri') : (m % 2 ? 'semi' : 'tri');
