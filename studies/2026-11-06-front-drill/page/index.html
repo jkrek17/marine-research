@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Front drill</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <button id="homeBtn" class="brand" type="button" title="Back to start">Front drill</button>
+  <div class="topright">
+    <span id="topAvg" class="pts" aria-live="polite">0 cases</span>
+    <button id="statsBtn" class="btn small" type="button">Stats</button>
+  </div>
+</header>
+
+<main>
+  <div id="loadMsg" class="note">Loading deck...</div>
+
+  <section id="start" class="screen" hidden>
+    <h1>Draw the fronts, place the low</h1>
+    <p class="lead">One storm system per case, with the model maps around it. Tap points along each front, pick its type, finish it, then place the low. Submit to see the Unified Surface Analysis (OPC / WPC / NHC) over your drawing. Rapid fire: there is no time on the desk to dwell.</p>
+    <p class="policy">Position is scored generously (full credit within 150 nm, none at 300 nm). Front type is scored strictly and counts twice as much. Troughs are never scored, missed or extra.</p>
+    <label class="toggle"><input type="checkbox" id="useTimer" checked> <span><b>Clock</b> <small id="clockSmall">90 s a case. At zero, what you have drawn is submitted.</small></span></label>
+    <p id="startMsg" class="fine" role="status"></p>
+    <button id="startBtn" class="btn primary big" type="button">Start</button>
+    <div class="points">
+      <h2>How it is scored</h2>
+      <p><b>Fronts</b>: each analysed front (not troughs) is matched to one of yours, one to one. Position credit 1 within 150 nm of the analysed line, falling to 0 at 300 nm. Type credit counts twice as much and is scaled by position: exact type 1; half for occluded or stationary against cold, and stationary against warm; cold against warm 0.</p>
+      <p><b>Misses</b> cost the front's share of the total analysed length, weighted up when it is near the low. Extra fronts with no match cost a little. <b>Low</b>: full credit within 60 nm, none at 120 nm.</p>
+      <p class="fine">Maps are GFS analyses (0.5 deg). Truth is the coded Unified Surface Analysis. Dates are hidden. Training use only.</p>
+    </div>
+  </section>
+
+  <section id="play" class="screen" hidden>
+    <div class="playgrid">
+      <div class="left">
+        <div class="statusbar">
+          <span id="pCase"></span>
+          <span id="pBasin" class="chip">N Atlantic</span>
+          <span id="pTimer" class="timer" hidden></span>
+        </div>
+        <div id="timerbar" class="timerbar" hidden><i></i></div>
+        <div class="tabs" id="tabs" role="tablist" aria-label="Map"></div>
+        <div class="viewrow">
+          <div class="cap" id="cap"></div>
+          <label class="chk"><input type="checkbox" id="isoChk"> <span>250 mb isotachs</span></label>
+        </div>
+        <div class="mapbox tappable" id="mapbox"><canvas id="map" aria-label="Map: tap to lay fronts"></canvas><div id="mapLoad" class="maploading">Loading case...</div></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="right">
+        <div id="drawPane">
+          <div id="toolMsg" class="toolmsg" role="status">Pick a front type, then tap points on the map.</div>
+          <div class="tools" id="tools">
+            <div class="types" id="types" role="group" aria-label="Front type"></div>
+            <div class="acts">
+              <button id="lowBtn" class="tbtn lowbtn" type="button">Place L</button>
+              <button id="finBtn" class="tbtn" type="button">Finish front</button>
+              <button id="undoBtn" class="tbtn" type="button">Undo point</button>
+              <button id="delBtn" class="tbtn" type="button">Delete last front</button>
+              <button id="clrBtn" class="tbtn" type="button">Clear</button>
+              <button id="subBtn" class="tbtn submit" type="button">Submit</button>
+            </div>
+          </div>
+        </div>
+        <div id="revealPane" hidden>
+          <div class="togrow">
+            <label class="chk"><input type="checkbox" id="showTruth" checked> <span>Analysis</span></label>
+            <label class="chk"><input type="checkbox" id="showMine" checked> <span>Your drawing</span></label>
+          </div>
+          <div id="result" class="result" tabindex="-1" aria-live="polite"></div>
+          <div id="debrief" class="debrief"></div>
+          <button id="nextBtn" class="btn primary big" type="button">Next case</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="credits">Maps: NOAA GFS analyses. Imagery: NOAA GOES (air-mass RGB and infrared). Truth: Unified Surface Analysis (OPC, WPC, NHC) as coded in the CODSUS bulletin. Training use only; not an official forecast product.</footer>
+</main>
+
+<div id="drawer" class="drawer" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Session stats">
+    <div class="sheethead"><h2>Stats</h2><button id="closeStats" class="btn small" type="button">Close</button></div>
+    <div id="statsBody"></div>
+    <button id="resetStats" class="btn small" type="button">Reset stats</button>
+    <p class="fine">Stats stay on this device (browser local storage). Nothing is sent anywhere.</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
