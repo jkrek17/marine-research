@@ -38,5 +38,9 @@ for c in m["cases"]:
             if f.exists():
                 img[snap + "_" + kind] = "data:image/jpeg;base64," + base64.b64encode(f.read_bytes()).decode()
     rec = {"bin": base64.b64encode((deck / (c["id"] + ".bin")).read_bytes()).decode(), "img": img}
+    fc = {k: base64.b64encode((deck / ("%s_fc_%s.bin" % (c["id"], k))).read_bytes()).decode()
+          for k in c.get("fc", {}) if (deck / ("%s_fc_%s.bin" % (c["id"], k))).exists()}
+    if fc:
+        rec["fc"] = fc      # model +24 h forecast snapshots (fc_deck.py)
     (od / (c["id"] + ".json")).write_text(json.dumps(rec, separators=(",", ":")))
 print(len(m["cases"]), "cases as base64 JSON (one file each, images inside)")
