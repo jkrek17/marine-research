@@ -1,0 +1,8 @@
+{
+ "stronger-model ramp": "PM_A36_U44",
+ "own-wind ramp": "PO_A32_U42",
+ "ramp x core likelihood": "PE_A34_U44_p10",
+ "ramp where core likelihood": "PG_A34_U44_p5",
+ "HF core, 925 x stability gate": "PK_A36_U46_G0",
+ "HF core, GEFS P48 gate": "PH_A36_U46_p30"
+}

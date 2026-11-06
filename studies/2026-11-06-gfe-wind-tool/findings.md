@@ -131,7 +131,39 @@ Held-out (scored once):
 - Settings are grid-specific: ECMWF alone wants an earlier start (30), GFS alone runs hot and no tested setting fit.
 - "Highest model, then the ramp" over-draws storm 1.6x (Atl) to 2.9x (Pac) with 2.4x the false storm tiles; it is an HF-area tool (Atl HF 71-75% at ~2x).
 
+## Follow-up: targeted HF core (Jason, 17:23Z)
+
+"if the forecaster is trying to add value, then lets add it where it counts the most ... we dont want to blanket HF. it should be targeted to the right areas". On top of the current tool (ramps 38-42 / 48-52 of the stronger model): an extra 0 -> E kt over U..U+4 of the stronger model, only where GFS 925 mb wind x drill stability factor >= G kt (G0 = everywhere); E 4-10, U 48-56, G 0/55/60/65/70; cases with 925 mb data (`tool_score.py --hf`). Rule on tune: storm unchanged, Atl HF area <= 1.0x, most Atl HF tile catch, ties to fewer false HF tiles. Pick: **0 -> 6 kt over 52-56, gate 55 kt** (tune Atl HF 40% -> 53% at 0.96x).
+
+Held-out (scored once): Atl HF 59% -> 70% (81/115), HF area 0.92x -> 1.67x, false HF tiles 37 -> 68; Pac HF 3 -> 6 of 15 (false 4 -> 7); storm catch, area and gales unchanged. Same lift without the gate: 71% at 1.76x (74 false) Atl, 6 of 15 (12 false) Pac. On tune the gate matched an ungated lift of equal area (no better targeting than the model's own strength); held-out it trimmed false HF ~10% Atl / ~40% Pac for one tile. HF area overshot on held-out again (0.96x -> 1.67x). In awips-tools Make_BestWind as the "HF core" option, Off by default.
+
+## Follow-up: the ramp lift on the web page, with the ensembles (Jason, 18:56Z)
+
+"do we need to update our web pages to use this? is this better than core lifted? can we apply the ensemble method with the new core lift?" `tool_score.py --page`, `pagepick.py`. Every product starts from the PAGE blend (r10: GFS/ECMWF/AIFS + spread) and keeps the page's gale floor (gale-core chance >= 60% -> >= 34 kt). Families: ramps on the stronger of GFS/ECMWF (PM), ramps on the page blend's own wind (PO), PM scaled by the ensemble core likelihood (PE, x clip(P/p)), PM only where core likelihood >= p (PG); HF add-ons 0 -> 6 kt over 52-56 of the stronger model gated by GFS 925 x stability (PK) or GEFS P48 (PH). Rule per family on tune as selfpick.py (storm area <= 1.0x and gale area <= 1.3x both basins, most mean storm catch); HF add-ons: most Atl HF catch with Atl HF area <= 1.7x. Cases are 00/12Z (as the whole study).
+
+Held-out (scored once; same cases for every page product):
+
+| Grid | Atl storm | Atl area | Atl false storm | Atl HF | Atl HF area | Pac storm | Pac area | Pac false storm | Pac HF (of 15) |
+|---|---|---|---|---|---|---|---|---|---|
+| #95 blend, no lift (reference) | 35% | 0.25x | 28 | 12% | 0.07x | 22% | 0.16x | 18 | 0 |
+| Core Lifted (page today) | 62% | 0.71x | 76 | 16% | 0.11x | 41% | 0.51x | 26 | 1 |
+| Core Lifted +8 kt in cores | 77% | 1.25x | 187 | 23% | 0.36x | 52% | 1.04x | 61 | 1 |
+| **Ramps on stronger model, 36-40 / 44-48 (PM pick)** | 75% | 1.05x | 200 | 34% | 0.65x | 57% | 1.08x | 84 | 2 |
+| Ramps on page blend's own wind, 32-36 / 42-46 | 71% | 0.95x | 156 | 34% | 0.65x | 51% | 0.85x | 62 | 2 |
+| PM x core likelihood (pick p = 10%, i.e. nearly off) | 75% | 1.05x | 191 | 34% | 0.65x | 57% | 1.06x | 75 | 2 |
+| PM + HF core, GEFS P48 >= 30% gate | 74% | 1.00x | 178 | 62% | 1.33x | 55% | 0.96x | 70 | 6 |
+| PM + HF core, no gate (925 gate lost on tune) | 74% | 1.00x | 185 | 64% | 1.36x | 55% | 0.98x | 71 | 6 |
+| GFE tool on the #95 blend (reference) | 75% | 1.05x | 296 | 59% | 0.92x | 64% | 1.23x | 159 | 3 |
+
+- **Better than Core Lifted:** the stronger-model ramp on the page blend catches 75% / 57% of storm tiles against 62% / 41%, at about ASCAT's area. Against +8 kt in cores it matches the Atlantic at 0.2x less area and adds 5 pts in the Pacific.
+- **The ensemble core likelihood adds nothing on top of the ramp.** Scaling or gating the ramp by it lost catch at every threshold tried on tune; the picks are the lowest thresholds (10%, 5%), which leave the ramp almost untouched. The stronger model already says where the core is.
+- **For HF, the ensemble gate is the cleaner one on the page.** GEFS P48 >= 30% matches the ungated HF core in the Atlantic (62% vs 64%) and keeps the Pacific to 0 false HF tiles (ungated 3). The 925 x stability gate (55/60) lost to no gate on tune here.
+- **The page blend runs hot below gale.** Its gale area is 1.23-1.38x ASCAT's against 0.93-1.06x for the #95 blend. In the Pacific the ramps on #95 catch 64% against 57% on the page blend.
+- Moving the page would also need the storm warning line (Core Lifted >= 39), the HSF storm draft and the core-lift verification re-scored, because each is built on Core Lifted. That waits on Jason.
+
 ## Lessons
+
+- **An ensemble 'where' adds nothing once a model-triggered ramp says how much.** Scaling or gating the ramp by the ensemble core likelihood only lost catch; the tune picks were the thresholds that switch it off. Test the gate against no gate before adding it.
 
 - **A lower switch is a slide along the curve, not a win.** Threshold 42 against 44 added 5-7 pts catch and the same share of false tiles, with storm CSI unchanged. Report CSI next to catch whenever a rule lowers a threshold.
 - **An area cap set on tune weeks can overshoot on held-out weeks** (0.89x to 1.02x Atlantic, 0.92x to 1.16x Pacific). Quote both, and give the conservative setting next to the pick.
