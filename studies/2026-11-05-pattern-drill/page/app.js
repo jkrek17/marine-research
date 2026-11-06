@@ -1476,6 +1476,15 @@
     });
   }
 
+  function openFromHash() {   // links from the Training landing page: #now #bm #sh pick the game, #bench starts it, #read opens Reading the wind
+    var h = (location.hash || '').slice(1);
+    if (!h) return;
+    var b = document.querySelector('#gameChoice .opt[data-v="' + h + '"]');
+    if (b) b.click();
+    else if (h === 'bench' && benchIds) startBench();
+    else if (h === 'read') openIngredients();
+  }
+
   // ------------------------------------------------------------------ events
   function bind() {
     setupChoice('gameChoice', 'game'); setupChoice('modeChoice', 'mode');
@@ -1530,7 +1539,7 @@
   }
 
   bind(); updateTop(); loadBenchHist();
-  loadManifest().then(loadOptional).then(function () { show('start'); }).catch(function (e) {
+  loadManifest().then(loadOptional).then(function () { show('start'); openFromHash(); }).catch(function (e) {
     $('loadMsg').textContent = 'Could not load the case deck (' + e.message + ').';
   });
 })();
