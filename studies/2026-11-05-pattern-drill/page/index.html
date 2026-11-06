@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Wind drill · Training</title>
+<title>Peak wind · Training</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
   <a class="brand" href="../">Training</a>
-  <nav class="sitenav" aria-label="Drills"><button id="homeBtn" type="button" aria-current="page" title="Back to the wind drill start">Wind</button><a id="navFronts" href="../fronts/" hidden>Fronts</a></nav>
+  <nav class="sitenav" aria-label="Exercises"><button id="homeBtn" type="button" title="All exercises">All exercises</button><a id="navFronts" href="../fronts/" hidden>Frontal analysis</a></nav>
   <div class="topright">
-    <span id="topPts" class="pts" aria-live="polite">0 pts</span>
+    <span id="topPts" class="pts" aria-live="polite">Score 0</span>
     <button id="statsBtn" class="btn small" type="button">Stats</button>
   </div>
 </header>
-<div id="leaveBanner" class="leave" role="alertdialog" aria-label="Leave blitz?" hidden>
-  <span id="leaveTxt">Leave blitz? Your progress in this blitz will be lost.</span>
+<div id="leaveBanner" class="leave" role="alertdialog" aria-label="Leave the timed set?" hidden>
+  <span id="leaveTxt">Leave the timed set? Results from this set will be lost.</span>
   <span class="leavebtns"><button id="leaveYes" class="btn small" type="button">Yes</button><button id="leaveNo" class="btn small primary" type="button">No</button></span>
 </div>
 
@@ -72,6 +72,7 @@
           <span id="pGame" class="chip"></span>
           <span id="pBasin" class="chip"></span>
           <span id="pTimer" class="timer" hidden></span>
+          <label class="ptoggle"><input type="checkbox" id="pHints"> Hints</label>
         </div>
         <div id="timerbar" class="timerbar" hidden><i></i></div>
         <div class="tabs" id="tabs" role="tablist" aria-label="Map"></div>
@@ -100,11 +101,11 @@
   </section>
 
   <section id="end" class="screen" hidden>
-    <h1 id="endTitle">Blitz done</h1>
+    <h1 id="endTitle">Timed set complete</h1>
     <div id="endBody"></div>
     <div class="row">
-      <button id="againBtn" class="btn primary big" type="button">Play again</button>
-      <button id="endHomeBtn" class="btn big" type="button">Change game</button>
+      <button id="againBtn" class="btn primary big" type="button">Run again</button>
+      <button id="endHomeBtn" class="btn big" type="button">All exercises</button>
     </div>
   </section>
   <footer class="credits">Maps: NOAA GFS analyses. Satellite: NOAA GOES-East/West air-mass bands and NOAA GridSat-B1 infrared. Wind truth: ASCAT (Metop-B/C) from Remote Sensing Systems. Training use only; not an official forecast product.</footer>
@@ -114,7 +115,7 @@
   <div class="sheet" role="dialog" aria-modal="true" aria-label="Session stats">
     <div class="sheethead"><h2>Session stats</h2><button id="closeStats" class="btn small" type="button">Close</button></div>
     <div id="statsBody"></div>
-    <button id="statsIng" class="btn small" type="button">Reading the wind</button>
+    <button id="statsIng" class="btn small" type="button">Peak wind guidance</button>
     <button id="statsExport" class="btn small" type="button">Export results (CSV)</button>
     <p class="fine">Stats stay on this device. Session stats live in this browser tab and clear when you close it; benchmark history is kept in this browser's local storage. Nothing is sent anywhere.</p>
   </div>
