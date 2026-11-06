@@ -77,6 +77,24 @@ def ramp_specs():
     return s
 
 
+SELF_BASES = {0: "det", 1: "gfs", 2: "ifs", 3: "strong"}
+
+
+def self_specs():
+    """Follow-up (Jason 16:54Z: "could this be a simple tool to run on any model or blend"): the ramps triggered by
+    the grid being lifted itself, no other model. Q_B<b>_A<a>_U<u>: base b (0 #95 blend, 1 GFS, 2 ECMWF), lift
+    0 -> 6 kt over a..a+4 kt of the base's own wind, plus 0 -> 4 kt more over u..u+4. A99/U99 = the base as is.
+    Rows go to rows_<split>_self.csv.gz."""
+    s = ["D", "R_L6_T40_M4_U50_W4_C1"]
+    # Y (Jason 16:54Z "highest model, then the ramp above 42"): blend below A, moving linearly to the stronger of
+    # GFS/ECMWF over A..A+4 of that stronger wind, plus the same ramps (6 kt over A..A+4, 4 kt over U..U+4).
+    s += ["Y_A%d_U%d" % (a, u) for a in (36, 38, 40, 42) for u in (44, 46, 48, 50)]
+    for b in SELF_BASES:
+        s += ["Q_B%d_A99_U99" % b]
+        s += ["Q_B%d_A%d_U%d" % (b, a, u) for a in (30, 32, 34, 36, 38, 40) for u in (40, 42, 44, 46, 48) if u >= a + 4]
+    return s
+
+
 def ramp(s, lift, t, w, centred):
     lo = t - (w / 2.0 if centred else w)
     return np.float32(lift) * np.clip((s - lo) / float(w), 0, 1)
@@ -97,6 +115,22 @@ def make(label, d, x):
         if "det_ah" not in x or d["strong"] is None:
             return None
         return features.strong_lift(x["det_ah"], [d["strong"]], p["L"], p["T"], oc)
+    if kind == "Y":
+        if "det" not in d or d["strong"] is None:
+            return None
+        D, sf = d["det"], np.nan_to_num(d["strong"], nan=-1.0)
+        w = np.clip((sf - p["A"]) / 4.0, 0, 1)
+        top = (1 - w) * D + w * np.maximum(D, sf) + ramp(sf, 6, p["A"] + 4, 4, 0) + ramp(sf, 4, p["U"] + 4, 4, 0)
+        return np.where(oc, top, D).astype(np.float32)
+    if kind == "Q":
+        B = d.get(SELF_BASES[p["B"]])
+        if B is None:
+            return None
+        if p["A"] == 99:
+            return B.astype(np.float32)
+        bf = np.nan_to_num(B, nan=-1.0)
+        add = ramp(bf, 6, p["A"] + 4, 4, 0) + ramp(bf, 4, p["U"] + 4, 4, 0)
+        return np.where(oc, B + add, B).astype(np.float32)
     if "det" not in d or d["strong"] is None:
         return None
     D, s = d["det"], d["strong"]
@@ -171,12 +205,13 @@ def main():
     ap.add_argument("--basins", default="natl,npac")
     ap.add_argument("--combo", action="store_true", help="score combo_specs() into rows_<split>_combo.csv.gz")
     ap.add_argument("--ramp", action="store_true", help="score ramp_specs() into rows_<split>_ramp.csv.gz")
+    ap.add_argument("--self", dest="selfq", action="store_true", help="score self_specs() into rows_<split>_self.csv.gz")
     a = ap.parse_args()
-    tag = "_combo" if a.combo else "_ramp" if a.ramp else ""
+    tag = "_combo" if a.combo else "_ramp" if a.ramp else "_self" if a.selfq else ""
     out = paths.data("extra", "gfe-wind-tool") / ("rows_%s%s.csv.gz" % (a.split, tag))
     if a.split == "held_out" and out.exists():  # once per product set
         sys.exit("held-out rows exist (%s): scored once already" % out)
-    labels = combo_specs() if a.combo else ramp_specs() if a.ramp else specs()
+    labels = (combo_specs() if a.combo else ramp_specs() if a.ramp else self_specs() if a.selfq else specs())
     jobs = [(b, c, s, p, labels) for b in a.basins.split(",") for c, s, p in S.load_cases(b, a.split)]
     print("%d cases, %d products" % (len(jobs), len(labels)), flush=True)
     t0, allrows = time.time(), []
