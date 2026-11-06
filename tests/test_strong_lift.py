@@ -48,6 +48,15 @@ def test_input_not_modified():
     assert np.array_equal(base, keep)
 
 
+def test_hf_ceiling_flag():
+    wind = np.array([[70, 70, 70, 50, 70]], np.float32)
+    s925 = np.array([[80, 80, 70, 60, np.nan]], np.float32)
+    sa = np.array([[1.0, 6.0, 3.0, 1.0, 6.0]], np.float32)
+    flag, ceil = features.hf_ceiling(wind, s925, sa)
+    assert np.allclose(ceil[0, :4], [56.0, 66.4, 55.3, 42.0], atol=0.05)
+    assert flag.tolist() == [[True, False, True, False, False]]   # 50 kt not HF; NaN 925 not flagged
+
+
 if __name__ == "__main__":
     for n, f in list(globals().items()):
         if n.startswith("test_"):

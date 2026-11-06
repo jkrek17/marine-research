@@ -1,0 +1,47 @@
+{
+ "cap1": {
+  "natl": "X_L10_T44",
+  "natl_S": "S_L6_T40",
+  "natl_G": "G_L6_T40_g5",
+  "natl_W": "W_L8_T44_M8_U52",
+  "natl_X": "X_L10_T44",
+  "natl_F": "F_L6_T40_g50",
+  "npac": "S_L6_T42",
+  "npac_S": "S_L6_T42",
+  "npac_G": "G_L6_T40_g5",
+  "npac_W": "W_L8_T44_M4_U60",
+  "npac_X": "X_L10_T46",
+  "npac_F": "F_L6_T42_g50",
+  "joint": "F_L6_T42_g50"
+ },
+ "csi": {
+  "natl": "F_L6_T42_g50",
+  "natl_S": "S_L6_T42",
+  "natl_G": "G_L6_T40_g5",
+  "natl_W": "W_L6_T44_M8_U56",
+  "natl_X": "X_L10_T44",
+  "natl_F": "F_L6_T42_g50",
+  "npac": "G_L8_T42_g5",
+  "npac_S": "S_L6_T42",
+  "npac_G": "G_L8_T42_g5",
+  "npac_W": "W_L8_T44_M4_U60",
+  "npac_X": "X_L10_T44",
+  "npac_F": "F_L6_T42_g50",
+  "joint": "G_L8_T42_g5"
+ },
+ "cap15": {
+  "natl": "F_L10_T42_g50",
+  "natl_S": "S_L10_T42",
+  "natl_G": "G_L8_T40_g5",
+  "natl_W": "W_L8_T44_M8_U52",
+  "natl_X": "X_L10_T44",
+  "natl_F": "F_L10_T42_g50",
+  "npac": "X_L10_T44",
+  "npac_S": "S_L6_T40",
+  "npac_G": "G_L8_T42_g5",
+  "npac_W": "W_L8_T44_M4_U60",
+  "npac_X": "X_L10_T44",
+  "npac_F": "F_L6_T40_g50",
+  "joint": "X_L8_T44"
+ }
+}

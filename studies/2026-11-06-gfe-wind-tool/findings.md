@@ -1,0 +1,117 @@
+# Best GFE grid wind tool: findings
+
+*2026-11-06. Design card: `design.md`. Pick rule (Jason, card): most storm-tile catch with storm area no bigger than ASCAT's, gales unchanged. Picked on tune weeks, scored once on the five held-out weeks (Nov 2025 - Mar 2026).*
+
+## Answer
+
+**Lift the GFE blend 6 kt wherever the stronger of deterministic GFS and ECMWF is 42 kt or more.** That is the #73 rule with the switch lowered from 44 to 42 kt. It needs only det GFS and ECMWF 10 m wind, which Jason's AWIPS has. GFE tool: awips-tools `GFE/smarttools/Lift_StormCores.py`, run after the #95 blend over an ocean edit area.
+
+Held-out, against ASCAT, 5x5 deg storm tiles (Pacific includes the 06/18Z passes):
+
+| Wind grid | Atlantic storm catch | Atl storm area vs ASCAT | Atl false storm tiles | Pacific storm catch | Pac storm area | Pac false storm tiles | Gales |
+|---|---|---|---|---|---|---|---|
+| #95 blend as is | 35% | 0.25x | 28 | 22% | 0.16x | 18 | — |
+| #95 + GEFS 48 kt lift | 57% | 0.65x | 91 | 38% | 0.51x | 33 | same |
+| #95 + 6 kt where stronger >= 44 (#73) | 69% | 0.81x | 208 | 57% | 0.87x | 105 | same |
+| **#95 + 6 kt where stronger >= 42 (pick)** | **74%** | **1.02x** | **283** | **63%** | **1.16x** | **147** | **same** |
+| Page Core Lifted (needs members, AIFS) | 62% | 0.72x | 78 | 40% | 0.51x | 26 | page's own |
+| Page Core Lifted + 8 kt in cores (#70) | 77% | 1.25x | 190 | 53% | 1.03x | 61 | page's own |
+
+Paired held-out differences, whole-week intervals:
+- **Pick vs #95.** Storm catch rose 39 pts in the Atlantic (36 to 42) and 42 pts in the Pacific (34 to 49). Storm CSI rose 0.19 in the Atlantic and 0.17 in the Pacific. Gale CSI moved by less than 0.003.
+- **Pick vs #73 (threshold 44).** Storm catch rose 5 pts in the Atlantic (4 to 5) and 7 pts in the Pacific (3 to 11). The cost was 75 more false storm tiles in the Atlantic and 42 more in the Pacific. Storm CSI did not change (-0.005 in both basins, intervals cross 0). So 42 against 44 slides along the same curve: more catch for more area, not a better tool. The pick rule chose 42 on the tune weeks, where the storm area was 0.89x Atlantic and 0.92x Pacific. On the held-out weeks it ran slightly over ASCAT's area (1.02x and 1.16x). **If storm area must stay under ASCAT's, set the threshold to 44.**
+- **Pick vs Core Lifted.**
+  - Storm catch is higher: +12 pts in the Atlantic (10 to 16) and +22 pts in the Pacific (16 to 28).
+  - False storm tiles: about 3.5 times as many in the Atlantic and about 5 times as many in the Pacific.
+  - Storm CSI is a tie in both basins.
+  - Gale CSI is 0.02-0.03 lower. That gap comes from the blend, not from the lift: #95 against the page's member blend.
+- **Does it beat Core Lifted?** It catches more storm-force wind, using only what is on AWIPS. It pays for that with more false storm area. By the storm score it ties.
+
+## Other candidates (all on #95)
+
+- **GEFS 48 kt chance >= 50% as a storm floor.**
+  - On its own: +3 pts catch in both basins.
+  - On top of the lift: +1 tile, because the lift already covers those cells.
+  - Left as an Off switch in the tool.
+- **GEFS-gated lift** (lift only where GEFS P48 is 5% or more).
+  - Atlantic: catch 73%, with 241 false storm tiles, against 76% and 308 ungated at threshold 40.
+  - Pacific: 62% with 132 false tiles, against 64% with 164.
+  - Fewer false storms for a little catch, but it lost the pick under the rule.
+- **Strongest model + lift** (Jason's ranking: take the strongest and add about 8 kt where it is 44 or more).
+  - Atlantic: same storm catch as the pick (74%), with 413 false storm tiles against 283.
+  - Pacific: storm area 1.56x.
+  - It loses at storm force. At HF it catches the most (Atlantic 71% of HF tiles), but at about 2x ASCAT's HF area with 114 false HF tiles.
+- **Two-tier lift for HF** (+8 more where the strongest is 52 or more): Atlantic HF catch 77% at 2.4x area. Too much area.
+- **AI-GFS as part of the switch** (stronger of GFS, ECMWF and AI-GFS). It made no difference: +0.6 pts Atlantic, 0 Pacific.
+- **AI-GFS at half weight inside the blend** (on AWIPS; held-out weeks only, paired against the pick):
+  - Atlantic: 58 fewer false storm tiles (-21%; interval -121 to -7) for -2.7 pts storm catch.
+  - Pacific: 44 fewer false storm tiles (-30%; interval -79 to -9) at the same catch (-0.5 pts).
+  - Pacific storm CSI +0.05 (+0.01 to +0.07).
+  - The worthwhile AI-GFS step is in the blend (#95's job), not in the lift.
+- **Not scorable here:** CMC and UKMET (servers blocked), and the Greenland barrier-flow rule (ASCAT is blind near the coast). The tool carries the Greenland rule as a note: trust the GFS family there.
+
+## What it does not fix: HF
+
+- **With the pick, HF tile catch stays low:** Atlantic 26% (30 of 115 tiles), Pacific 3 of 15. A 6 kt lift seldom carries a model core in the 50s up to 64 kt.
+- **Setting lift 10 kt, threshold 44** (reported, not picked; HF was not part of the pick rule):
+  - Atlantic HF catch rises from 26% to 60% (+34 pts, interval +28 to +43), with HF area 0.93x ASCAT's.
+  - On the tune weeks the same setting raised HF catch from 22% to 40%.
+  - Cost: storm catch -2 pts and +30 false storm tiles.
+  - Pacific HF is too thin to judge: 15 held-out tiles, 4 on tune.
+  - This is the best HF setting found, but it is a second setting to test, not a fix.
+- **925 x stability HF ceiling check** (no wind change). It flags a 64 kt cell where GFS 925 wind x 0.70 / 0.79 / 0.83 (sea minus 2 m air < 2, 2-5, 5+ C) is under 60 kt.
+  - With lift 10 / threshold 44 in the Atlantic it flagged 20% of HF cells. 88% of the flagged cells stayed under 64 kt on ASCAT.
+  - Believing the flag would drop 501 false HF cells and lose 66 of 752 real ones (9%).
+  - With the pick it flagged 11%, and 73% of those were right.
+  - In the Pacific the flag was right 96-97% of the time, on few cells.
+  - Useful as a "this HF patch is probably storm" check. Default Off until the AWIPS grid names are checked.
+
+## Port check (what the tool reads on AWIPS)
+
+- Fcst Wind (the #95 result).
+- Det GFS and ECMWF 10 m wind: newest of the last three runs, via `grid_fetch` aliases.
+- Optional:
+  - the GEFS 48 kt probability grid;
+  - GFS 925 mb wind, surface temperature and 2 m temperature.
+  - Their names are guesses and must be checked on AWIPS.
+
+The study lifted ocean cells only. Run the tool over an ocean edit area.
+
+## Sample
+
+- **Held-out:** 5 weeks, 140 cycles, about 670-690 cases per basin (+24 to +126 h). ASCAT-seen tiles only.
+- **Tune:** 2392 cases. 2248 had no store inputs: shoulder-season cycles that the winter store does not hold.
+- **Out-of-fold picks:** the Atlantic tune pick was stable (X_L10_T44 in all 5 folds). The Pacific moved between threshold 40 and 42 at lift 6.
+- **Check:** the headline numbers were recomputed from the raw rows outside `analyze.py` and matched.
+
+Files:
+- `tune_pooled.csv`, `tune_picks.csv`, `tune_oof.csv`, `PICK.json`;
+- `heldout_pooled.csv`, `heldout_paired.csv`, `hf_flag.csv`;
+- rows in `RK_DATA/extra/gfe-wind-tool/`.
+
+## Follow-up: good at both storm and HF (Jason, 16:42Z)
+
+"so whats the best combo to be good at both storm and HF". Two-step lifts: +L where the stronger of GFS/ECMWF >= T, then +M more where it >= U (L/T 6/40, 6/42, 8/42; M 2/4/6; U 44-50). Rule set before held-out (`combo.py`): in both basins on tune weeks, gales pass, storm area <= 1.0x and storm catch within 1 pt of the one-step pick; then most Atlantic HF tile catch with HF area <= 1.0x (Pacific HF too thin: 4 tune tiles). Pick: **+6 where >= 42, then +6 more where >= 48** (tune: Atl storm 67.5%, HF 52% at 0.92x; one step 66%, 22%).
+
+Held-out (scored once):
+
+| Wind grid | Atl storm caught | Atl storm area | Atl false storm tiles | Atl HF caught | Atl HF area | Atl false HF tiles | Pac storm caught | Pac HF caught |
+|---|---|---|---|---|---|---|---|---|
+| One step +6 at 42 | 74% | 1.02x | 283 | 26% (30) | 0.35x | 17 | 63% | 3 of 15 |
+| +10 at 44 | 72% | 0.96x | 313 | 60% (69) | 0.93x | 37 | 64% | 3 of 15 |
+| **+6 at 42, +6 more at 48 (pick)** | **75%** | 1.05x | 304 | **73% (84)** | 1.64x | 70 | **66%** | **6 of 15** |
+| +6 at 42, +4 more at 48 | 75% | 1.04x | 300 | 60% (69) | 0.93x | 37 | 65% | 3 of 15 |
+
+Gales unchanged in all. The two-step beats both one-step settings at storm and HF. The picked HF area overshot on held-out (0.92x tune -> 1.64x held-out); "+4 more" holds 0.93x with 60% HF catch. Pacific: storm area 1.26x (pick) / 1.23x. GFE tool defaults now 6/42 then 6/48 (extra lift 0 = one step).
+
+## Follow-up: ramp instead of steps (Jason, 16:49Z)
+
+Jason picked +6 then +4 more, and asked about the jumps (41 -> 47, 48 -> 52) and "is there a function that would ramp it up better". Ramped lifts: lift = L x clip((stronger - start) / width, 0, 1), plus the same for the extra lift; ramps ending at the threshold or centred on it, widths 2-8 kt (`tool_score.py --ramp`, `combo.py --set ramp`, same rule as the combo pick with the step +6 at 42 / +4 at 48 as the reference). Pick: **0 -> 6 kt as the stronger model goes 38 -> 42, then 0 -> 4 kt more from 48 -> 52** (tune: Atl storm 67.1% vs steps 67.2%, HF 40% both, false storm tiles 947 vs 951).
+
+Held-out (scored once): Atl storm 75.1% (steps 74.7%), area 1.05x, false storm tiles 296 (300), HF 59% (68/115) at 0.92x (steps 60% at 0.93x); Pac storm 64.3% (65.2%), area 1.23x, HF 3 of 15. Gale area +2% Atl, +3% Pac (ramp starts at 38 kt); gale CSI within 0.005. The ramp scores the same as the steps and has no jumps; GFE tool default.
+
+## Lessons
+
+- **A lower switch is a slide along the curve, not a win.** Threshold 42 against 44 added 5-7 pts catch and the same share of false tiles, with storm CSI unchanged. Report CSI next to catch whenever a rule lowers a threshold.
+- **An area cap set on tune weeks can overshoot on held-out weeks** (0.89x to 1.02x Atlantic, 0.92x to 1.16x Pacific). Quote both, and give the conservative setting next to the pick.
+- **Jason's "take the strongest + 8" is an HF rule, not a storm rule.** It wins HF catch and loses storm area. Score a forecaster's rule at the category it was written for.
