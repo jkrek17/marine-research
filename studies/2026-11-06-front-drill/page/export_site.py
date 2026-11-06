@@ -22,7 +22,7 @@ def export(site, deck):
         (out / "deck").mkdir(parents=True)
         for p in (Path(tmp) / "deck").iterdir():
             shutil.copy2(p, out / "deck" / p.name)
-    for f in ("index.html", "guide.html", "app.js", "style.css"):
+    for f in ("index.html", "guide.html", "guide_schematic.svg", "app.js", "style.css"):
         shutil.copy2(here / f, out / f)
     return out
 
