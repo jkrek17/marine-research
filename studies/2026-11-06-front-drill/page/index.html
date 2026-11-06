@@ -20,7 +20,7 @@
 
   <section id="start" class="screen" hidden>
     <h1>Draw the fronts, place the low</h1>
-    <p class="lead">One storm system per case: a dashed ring marks it, with the model maps around it. Tap points along each of its fronts, pick the type, finish it, then place its low. Submit to see the Unified Surface Analysis (OPC / WPC / NHC) over your drawing. Rapid fire: there is no time on the desk to dwell.</p>
+    <p class="lead">One storm system per case: a dashed ring marks it, with the model maps around it. The low and any stationary front are drawn for you: tap points along its cold, warm and occluded fronts, pick the type and finish each one. Submit to see the Unified Surface Analysis (OPC / WPC / NHC) over your drawing. Rapid fire: there is no time on the desk to dwell.</p>
     <p class="policy">Position is scored generously (full credit within 150 nm, none at 300 nm). Front type is scored strictly and counts twice as much. Only the fronts of the system in the ring are scored. Troughs are never scored, missed or extra, and fronts drawn outside the ring cost nothing.</p>
     <label class="toggle"><input type="checkbox" id="useTimer" checked> <span><b>Clock</b> <small id="clockSmall">90 s a case. At zero, what you have drawn is submitted.</small></span></label>
     <p id="startMsg" class="fine" role="status"></p>
@@ -42,7 +42,7 @@
           <span id="pTimer" class="timer" hidden></span>
         </div>
         <div id="timerbar" class="timerbar" hidden><i></i></div>
-        <div id="ringPrompt" class="ringprompt" hidden><b>Analyse the system inside the ring:</b> place its low and draw its fronts.</div>
+        <div id="ringPrompt" class="ringprompt" hidden><b>Analyse the system inside the ring:</b> draw its cold, warm and occluded fronts.</div>
         <div class="tabs" id="tabs" role="tablist" aria-label="Map"></div>
         <div class="viewrow">
           <div class="cap" id="cap"></div>
@@ -58,7 +58,7 @@
           <div class="tools" id="tools">
             <div class="types" id="types" role="group" aria-label="Front type"></div>
             <div class="acts">
-              <button id="lowBtn" class="tbtn lowbtn" type="button">Place L</button>
+              <button id="lowBtn" class="tbtn lowbtn" type="button" hidden>Place L</button>
               <button id="finBtn" class="tbtn" type="button">Finish front</button>
               <button id="undoBtn" class="tbtn" type="button">Undo point</button>
               <button id="delBtn" class="tbtn" type="button">Delete last front</button>

@@ -30,6 +30,9 @@ if since:
     import csv
     when = {r["id"]: r["valid"] for r in csv.DictReader(open(deck.parent / "key.csv"))}
     m["cases"] = [c for c in m["cases"] if when.get(c["id"], "") >= since]
+# the trainee draws cold, warm and occluded only (lows and stationary fronts are given): keep cases with one to draw
+drawable = {"cold", "warm", "occluded"}
+m["cases"] = [c for c in m["cases"] if any(f.get("sys", True) and f["type"] in drawable for f in c["fronts"])]
 (out / "deck" / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
 for c in m["cases"]:
     rec = {"bin": base64.b64encode((deck / (c["id"] + ".bin")).read_bytes()).decode()}

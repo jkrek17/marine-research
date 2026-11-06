@@ -23,11 +23,11 @@
     NEAR_MIN: 0.5,
     EXTRA_PEN: 0.25,           // each extra drawn non-trough front with no match (units: a front is POS_W+TYPE_W, the low LOW_W)
     EXTRA_MAX: 1,
-    RING_OFFSET_NM: 120,       // the ring centre is off the true low by 0-RING_OFFSET_NM (deterministic per case) so it does not give away the L
+    RING_OFFSET_NM: 0,         // the analysed L is given (Jason 2026-11-06), so the ring is centred on it       // the ring centre is off the true low by 0-RING_OFFSET_NM (deterministic per case) so it does not give away the L
     EXTRA_IN_RING: 0.5,        // a drawn front with no match counts as extra only if at least this share of it lies inside the ring
     LOW_FULL_NM: 60,           // low: full credit within this ...
     LOW_ZERO_NM: 120,          // ... none from here
-    LOW_W: 1,
+    LOW_W: 0,                  // the L is given, not scored (Jason 2026-11-06)
     MATCH_TYPE_BIAS: 0.1,      // greedy matching cost = (1 - position credit) - bias * type credit, so a near tie goes to the right type
     PASS: 70                   // percent counted for the streak
   };
@@ -40,8 +40,11 @@
     stationary: { c: '#d32f2f', c2: '#1565c0', name: 'Stationary' },
     trough: { c: '#e08a00', name: 'Trough' }
   };
-  var FT_ORDER = ['cold', 'warm', 'occluded', 'stationary', 'trough'];
-  var SCORED_ORDER = ['cold', 'warm', 'occluded', 'stationary'];
+  // Jason 2026-11-06: "place the L for me. I just want to draw fronts ... just place the stationary already", "dont worry about troughs":
+  // the trainee draws cold, warm and occluded only; the system's lows and stationary fronts are drawn for them; troughs are not shown until the reveal.
+  var FT_ORDER = ['cold', 'warm', 'occluded'];
+  var SCORED_ORDER = ['cold', 'warm', 'occluded'];
+  var GIVEN = { stationary: true };
   var STORE_KEY = 'fdrill-stats-1';
   var LAND_RGB = [221, 224, 228];
   // Wind colours: same as the pattern drill (rk/style.py light-background version).
@@ -211,7 +214,7 @@
     var ring = ringOf(c);
     var lows = (c.lows && c.lows.length ? c.lows : [c.low]).filter(function (l) { return inRing(ring, l); });
     if (!lows.length) lows = [c.low];
-    var truths = c.fronts.filter(function (f) { return f.type !== 'trough' && isSys(f); }).map(function (f, i) {
+    var truths = c.fronts.filter(function (f) { return f.type !== 'trough' && !GIVEN[f.type] && isSys(f); }).map(function (f, i) {
       var pts = f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; });
       var near = Infinity;
       pts.forEach(function (p) { lows.forEach(function (l) { var d = distNm(p, l); if (d < near) near = d; }); });
@@ -867,6 +870,13 @@
     var u = clamp(g.cw / 80, 3.8, 6.5), showT = cur.submitted && $('showTruth').checked, showM = !cur.submitted || $('showMine').checked;
     var ring = ringOf(cur.c);
     if (ring) drawRing(ctx, g, ring);
+    if (!showT) {   // given to the trainee: the system's stationary fronts and its analysed lows
+      var toPtsG = function (f) { return { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }; };
+      cur.c.fronts.filter(function (f) { return isSys(f) && GIVEN[f.type]; }).forEach(function (f) { drawFront(ctx, g, toPtsG(f), { lw: 3, u: u * 1.1, outline: '#0c1220', ref: cur.c.low }); });
+      (cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low]).filter(function (l) { return inRing(ring, l); }).forEach(function (l) {
+        drawLowMark(ctx, g, l.lat, l.lon, { color: '#d00018', sub: l.hpa != null ? String(Math.round(l.hpa)) : '' });
+      });
+    }
     if (showT) {
       var toPts = function (f) { return { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }; };
       cur.c.fronts.filter(function (f) { return !isSys(f); }).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 1.7, u: u * 0.8, tint: '#7c8693', alpha: 0.8, ref: lowFor(f) }); });
@@ -901,8 +911,8 @@
     $('undoBtn').disabled = !(n || cur.drawn.length);
     $('delBtn').disabled = !(cur.active || cur.drawn.length);
     $('clrBtn').disabled = !(cur.active || cur.drawn.length || cur.low);
-    var have = cur.drawn.length + ' front' + (cur.drawn.length === 1 ? '' : 's') + (cur.low ? ', low placed' : ', no low yet');
-    if (!cur.tool) msg('Pick a front type, then tap points on the map. Place L sets the low of the system. (' + have + ')');
+    var have = cur.drawn.length + ' front' + (cur.drawn.length === 1 ? '' : 's') + (SCORE.LOW_W ? (cur.low ? ', low placed' : ', no low yet') : '');
+    if (!cur.tool) msg('The low and any stationary front are drawn for you. Pick cold, warm or occluded, then tap points on the map. (' + have + ')');
     else if (cur.tool === 'L') msg('Tap the map to place the low (tap again to move it). (' + have + ')');
     else if (!n) msg(FT[cur.tool].name + ': tap points along the front, in order. (' + have + ')');
     else msg(FT[cur.tool].name + ', ' + n + ' point' + (n === 1 ? '' : 's') + ': keep tapping, then tap ' + FT[cur.tool].name + ' again, Finish front, or double-tap the last point. (' + have + ')');
@@ -924,7 +934,7 @@
     var x = (e.clientX - r.left) * geom.cw / r.width, y = (e.clientY - r.top) * geom.ch / r.height;
     var now = Date.now(), dbl = now - lastTap.t < 350 && Math.hypot(x - lastTap.x, y - lastTap.y) < 16;
     lastTap = { t: now, x: x, y: y };
-    if (!cur.tool) { msg('Pick a front type first (or Place L), then tap the map.'); return; }
+    if (!cur.tool) { msg('Pick a front type first, then tap the map.'); return; }
     var p = unproj(geom, x, y);
     if (cur.tool === 'L') { cur.low = { lat: p.lat, lon: p.lon }; updateTools(); paint(); return; }
     if (dbl && cur.active) { if (cur.active.pts.length >= 2) finishFront(); return; }   // second tap of a double-tap ends the front
@@ -1022,7 +1032,7 @@
     var cls = res.pct >= SCORE.PASS ? 'good' : res.pct >= 40 ? 'ok' : 'bad';
     var r = $('result'); r.className = 'result ' + cls;
     var unit = 100 / res.denom;
-    var h = '<div class="bigpct">' + fmtPct(res.pct) + '</div><div class="rline">' + (auto ? 'Time up: submitted what you had. ' : '') + Math.round(secs) + ' s. Fronts ' + fmtPct(res.frontMax ? res.frontSum / res.frontMax * 100 : 0) + ' of what was available, low ' + fmtPct(res.low.credit * 100) + '.</div>';
+    var h = '<div class="bigpct">' + fmtPct(res.pct) + '</div><div class="rline">' + (auto ? 'Time up: submitted what you had. ' : '') + Math.round(secs) + ' s. Fronts ' + fmtPct(res.frontMax ? res.frontSum / res.frontMax * 100 : 0) + ' of what was available' + (SCORE.LOW_W ? ', low ' + fmtPct(res.low.credit * 100) : '') + '.</div>';
     h += '<table class="brk"><tr><th>Analysed</th><th>You drew</th><th class="n">Off</th><th class="n cov">Cover</th><th class="n">Pos</th><th>Type</th><th class="n">Points</th></tr>';
     res.rows.forEach(function (rw) {
       var sw = '<span class="sw" style="background:' + FT[rw.type].c + '"></span>';
@@ -1033,7 +1043,7 @@
         h += '<tr><td>' + sw + FT[rw.type].name + ' <span class="fine">' + Math.round(rw.len) + ' nm</span></td><td>' + FT[rw.drawnType].name + '</td><td class="n">' + Math.round(rw.dist) + ' nm</td><td class="n">' + Math.round(rw.cov * 100) + '%</td><td class="n">' + Math.round(rw.pos * 100) + '%</td><td>' + tcTxt + '</td>' + pts + '</tr>';
       }
     });
-    h += '<tr><td colspan="6">Low' + (res.low.dist === null ? ' <span class="fine">(not placed)</span>' : ' <span class="fine">' + Math.round(res.low.dist) + ' nm from the nearest analysed low</span>') + '</td><td class="n">' + (res.lowPts * unit).toFixed(0) + ' / ' + (SCORE.LOW_W * unit).toFixed(0) + '</td></tr>';
+    if (SCORE.LOW_W) h += '<tr><td colspan="6">Low' + (res.low.dist === null ? ' <span class="fine">(not placed)</span>' : ' <span class="fine">' + Math.round(res.low.dist) + ' nm from the nearest analysed low</span>') + '</td><td class="n">' + (res.lowPts * unit).toFixed(0) + ' / ' + (SCORE.LOW_W * unit).toFixed(0) + '</td></tr>';
     if (res.extras.length) h += '<tr><td colspan="6">Extra drawn front' + (res.extras.length > 1 ? 's' : '') + ' in the ring with no analysed match (' + res.extras.map(function (i) { return FT[res.drawnDense[i].type].name.toLowerCase(); }).join(', ') + ')</td><td class="n">-' + (res.extraPen * unit).toFixed(0) + '</td></tr>';
     h += '</table><p class="fine">Only the fronts of the system in the ring are scored; troughs, other systems and fronts drawn outside the ring are not. Position is generous (full within ' + SCORE.POS_FULL_NM + ' nm, none at ' + SCORE.POS_ZERO_NM + '); type counts ' + SCORE.TYPE_W + 'x position and is scaled by it.</p>';
     r.innerHTML = h;
