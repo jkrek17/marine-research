@@ -89,6 +89,21 @@ Files:
 - `heldout_pooled.csv`, `heldout_paired.csv`, `hf_flag.csv`;
 - rows in `RK_DATA/extra/gfe-wind-tool/`.
 
+## Follow-up: good at both storm and HF (Jason, 16:42Z)
+
+"so whats the best combo to be good at both storm and HF". Two-step lifts: +L where the stronger of GFS/ECMWF >= T, then +M more where it >= U (L/T 6/40, 6/42, 8/42; M 2/4/6; U 44-50). Rule set before held-out (`combo.py`): in both basins on tune weeks, gales pass, storm area <= 1.0x and storm catch within 1 pt of the one-step pick; then most Atlantic HF tile catch with HF area <= 1.0x (Pacific HF too thin: 4 tune tiles). Pick: **+6 where >= 42, then +6 more where >= 48** (tune: Atl storm 67.5%, HF 52% at 0.92x; one step 66%, 22%).
+
+Held-out (scored once):
+
+| Wind grid | Atl storm caught | Atl storm area | Atl false storm tiles | Atl HF caught | Atl HF area | Atl false HF tiles | Pac storm caught | Pac HF caught |
+|---|---|---|---|---|---|---|---|---|
+| One step +6 at 42 | 74% | 1.02x | 283 | 26% (30) | 0.35x | 17 | 63% | 3 of 15 |
+| +10 at 44 | 72% | 0.96x | 313 | 60% (69) | 0.93x | 37 | 64% | 3 of 15 |
+| **+6 at 42, +6 more at 48 (pick)** | **75%** | 1.05x | 304 | **73% (84)** | 1.64x | 70 | **66%** | **6 of 15** |
+| +6 at 42, +4 more at 48 | 75% | 1.04x | 300 | 60% (69) | 0.93x | 37 | 65% | 3 of 15 |
+
+Gales unchanged in all. The two-step beats both one-step settings at storm and HF. The picked HF area overshot on held-out (0.92x tune -> 1.64x held-out); "+4 more" holds 0.93x with 60% HF catch. Pacific: storm area 1.26x (pick) / 1.23x. GFE tool defaults now 6/42 then 6/48 (extra lift 0 = one step).
+
 ## Lessons
 
 - **A lower switch is a slide along the curve, not a win.** Threshold 42 against 44 added 5-7 pts catch and the same share of false tiles, with storm CSI unchanged. Report CSI next to catch whenever a rule lowers a threshold.
