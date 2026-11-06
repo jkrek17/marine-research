@@ -198,6 +198,21 @@ def strong_lift(base, models, lift_kt, thresh_kt, ocean=None):
     return np.where(on, base + np.float32(lift_kt), base).astype(np.float32)
 
 
+HF_CEIL_EDGES_C, HF_CEIL_F, HF_CEIL_KT = (2.0, 5.0), (0.70, 0.79, 0.83), 60.0
+
+
+def hf_ceiling(wind, s925, sea_air, flag_kt=HF_CEIL_KT, hf_kt=64.0):
+    """HF ceiling flag (no wind change): True where `wind` >= hf_kt but 925 mb wind x the pattern drill's map-wide
+    factor (0.70 / 0.79 / 0.83 for sea minus 2 m air < 2 / 2-5 / 5+ C) is under flag_kt, i.e. the drawn hurricane
+    force probably peaks at storm force. NaN 925 or sea-air: not flagged. -> (flag bool grid, ceiling kt float32)."""
+    s925 = np.asarray(s925, np.float32)
+    sa = np.asarray(sea_air, np.float32)
+    f = np.select([sa < HF_CEIL_EDGES_C[0], sa < HF_CEIL_EDGES_C[1]], HF_CEIL_F[:2], HF_CEIL_F[2])
+    ceil = np.where(np.isfinite(sa), s925 * f, np.nan).astype(np.float32)
+    flag = (np.nan_to_num(np.asarray(wind, np.float32), nan=-1) >= hf_kt) & np.isfinite(ceil) & (ceil < flag_kt)
+    return flag, ceil
+
+
 def det_blend(basin, cycle, step, models=MODELS, weights=None, lags=(12, 24), k=NOMEM_K):
     """The page's deterministic blend (build.py nomem_blend / support_base) from the store -> {"r10", "runs"} or None.
 
