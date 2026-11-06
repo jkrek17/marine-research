@@ -67,6 +67,21 @@ def combo_specs():
     return s
 
 
+def ramp_specs():
+    """Follow-up (Jason 16:49Z: the step lift jumps 41 -> 47 and 48 -> 52): lift ramps linearly with the stronger
+    model wind over W kt instead of stepping. C0: ramp ends at the threshold (0 at T-W, full at T); C1: centred
+    (0 at T-W/2, full at T+W/2). Rows go to rows_<split>_ramp.csv.gz."""
+    s = ["D", "S_L6_T42", "W_L6_T42_M4_U48"]
+    s += ["R_L6_T42_M4_U48_W%d_C%d" % (w, c) for w in (2, 4, 6, 8) for c in (0, 1)]
+    s += ["R_L6_T%d_M4_U%d_W%d_C1" % (t, u, w) for t in (40, 44) for u in (46, 50) for w in (4, 6)]
+    return s
+
+
+def ramp(s, lift, t, w, centred):
+    lo = t - (w / 2.0 if centred else w)
+    return np.float32(lift) * np.clip((s - lo) / float(w), 0, 1)
+
+
 def parse(label):
     kind, *rest = label.split("_")
     p = {r[0]: int(r[1:]) for r in rest}
@@ -101,6 +116,10 @@ def make(label, d, x):
             return None
         f = features.strong_lift(D, [s], p["L"], p["T"], oc)
         return np.where(oc & (x["p48c_h"] >= p["g"] / 100.0), np.maximum(f, 48.0), f).astype(np.float32)
+    if kind == "R":
+        sf = np.nan_to_num(s, nan=-1.0)
+        add = ramp(sf, p["L"], p["T"], p["W"], p["C"]) + ramp(sf, p["M"], p["U"], p["W"], p["C"])
+        return np.where(oc, D + add, D).astype(np.float32)
     if kind == "W":
         f = features.strong_lift(D, [s], p["L"], p["T"], oc)
         return features.strong_lift(f, [s], p["M"], p["U"], oc)
@@ -151,11 +170,13 @@ def main():
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--basins", default="natl,npac")
     ap.add_argument("--combo", action="store_true", help="score combo_specs() into rows_<split>_combo.csv.gz")
+    ap.add_argument("--ramp", action="store_true", help="score ramp_specs() into rows_<split>_ramp.csv.gz")
     a = ap.parse_args()
-    out = paths.data("extra", "gfe-wind-tool") / ("rows_%s%s.csv.gz" % (a.split, "_combo" if a.combo else ""))
-    if a.split == "held_out" and out.exists():
+    tag = "_combo" if a.combo else "_ramp" if a.ramp else ""
+    out = paths.data("extra", "gfe-wind-tool") / ("rows_%s%s.csv.gz" % (a.split, tag))
+    if a.split == "held_out" and out.exists():  # once per product set
         sys.exit("held-out rows exist (%s): scored once already" % out)
-    labels = combo_specs() if a.combo else specs()
+    labels = combo_specs() if a.combo else ramp_specs() if a.ramp else specs()
     jobs = [(b, c, s, p, labels) for b in a.basins.split(",") for c, s, p in S.load_cases(b, a.split)]
     print("%d cases, %d products" % (len(jobs), len(labels)), flush=True)
     t0, allrows = time.time(), []
