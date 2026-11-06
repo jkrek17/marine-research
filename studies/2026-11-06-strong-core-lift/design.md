@@ -49,3 +49,8 @@ Each candidate is also laid on the page blend (Core Lifted with its lift replace
 
 ## Jason's answers (2026-11-06 12:10Z, "use your best judgement")
 Taken as the three recommendations: (1) switch on where the strongest of GFS/ECMWF >= T, T re-picked on tune weeks; (2) report both GFE bars, must beat plain #95 and match or beat the GEFS lift; (3) the #70 win line, HF reported.
+
+## Run notes (filled in while running)
+- Build: 604 basin-cycles, 3,793 cases written. Tune 06/18Z-valid steps have no page fields (no low-level files) and 12Z tune cycles no #95 blend there (lag step not stored), so tuning is mostly 00/12Z-valid as in #70. Held-out: 7 Pacific cycles (5-11 Jan) lack the ensembles (no page products; GFE products scored), Atlantic 2025-12-11 lacks lag runs (no #95 blend).
+- Tune picks (`tune_selection.csv`, `FINAL_CHOICE.json`): the win-line pick rides the 1.5x storm-area cap (S1 at L = 10-12 kt, T = 42-44 kt in every fold). Storm-tile catch grows with drawn area, so before the held-out run, equal-area picks were added from the tune weeks (`equal_area.py`): S1 at the storm area of +8 kt Core Lifted (page) and at the area of the GEFS lift, of Core Lifted and of +8 kt (GFE). These are the fair comparisons; the win-line picks are reported too.
+- The 925 mix-down (tuned, a = 0.25-0.75) failed the gale line in both basins on tune weeks (gale area / CSI), so it is dropped from the held-out run. The gated version and the desk Stability Height products (for the desk stability tool thread) are fixed and scored anyway.

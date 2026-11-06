@@ -498,6 +498,8 @@ def final_specs(ch):
             if c:
                 out.append((kind, (kind, c.get("L"), c.get("T"), c.get("a"))))
     out += [(k, (k, None, None, None)) for k in FIXED]
+    for label, c in (ch.get("equal_area") or {}).items():   # equal-area picks (tune), added before --final
+        out.append((label, (c["kind"], c.get("L"), c.get("T"), c.get("a"))))
     for kind in ("CLS1", "DS1"):
         for L in DRILL_LS:
             out.append(("%s_drill_L%d_T%d" % (kind, L, DRILL_T), (kind, L, DRILL_T, None)))
@@ -619,7 +621,7 @@ def lines(a):
     _, have = held_out_jobs(res, basins, steps)
     jobs = []
     for b, c, s in have:
-        sp = [x for x in final_specs(choice[b]) if "drill" not in x[0] and x[0] not in FIXED]
+        sp = [x for x in final_specs(choice[b]) if x[0] not in FIXED]
         jobs.append((b, c, s, B.out_path(b, c, s), sp))
     rows, t0 = [], time.time()
     with mp.get_context("spawn").Pool(a.workers) as pool:
