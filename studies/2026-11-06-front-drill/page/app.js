@@ -1,6 +1,6 @@
 /* Front drill: static page, plain JS + canvas. Reads deck/manifest.json and deck/<id>.bin (+ imagery JPEG)
    in the format of ../design.md ("Deck format"). One case = one storm system at one analysis hour (a dashed ring marks it): the trainee taps
-   points to lay the fronts, picks each type, places the low, submits; the reveal overlays the analysed fronts.
+   points to lay the fronts, picks each type, submits (the analysed low and stationary fronts are shown); the reveal overlays the analysed fronts.
    Sibling of the pattern drill (../../2026-11-05-pattern-drill/page/): map drawing, deck loading and look are reused. */
 (function () {
   'use strict';
@@ -29,7 +29,7 @@
     LOW_ZERO_NM: 120,          // ... none from here
     LOW_W: 0,                  // the L is given, not scored (Jason 2026-11-06)
     MATCH_TYPE_BIAS: 0.1,      // greedy matching cost = (1 - position credit) - bias * type credit, so a near tie goes to the right type
-    PASS: 70                   // percent counted for the streak
+    PASS: 70                   // percent counted as a good score in the stats
   };
 
   // ------------------------------------------------------------------ constants
@@ -321,13 +321,13 @@
   }
   function updateTop() {
     var t = summary(stats.records);
-    $('topAvg').textContent = t.n ? t.n + ' case' + (t.n === 1 ? '' : 's') + ' · avg ' + Math.round(t.avg) + '%' : '0 cases';
+    $('topScore').textContent = 'Score ' + (t.n ? Math.round(t.avg) : 0);
   }
   function statsHTML() {
     var recs = stats.records, t = summary(recs);
     if (!recs.length) return '<div class="statsempty"><p><b>No cases yet.</b></p><p class="fine">Play a few and your average, pace and front-type confusions appear here.</p></div>';
     var h = '<div class="kpis"><div class="kpi"><b>' + t.n + '</b><span>cases</span></div><div class="kpi"><b>' + Math.round(t.avg) + '%</b><span>average score</span></div><div class="kpi"><b>' + Math.round(t.avgT) + ' s</b><span>average time</span></div></div>';
-    h += '<div class="kpis"><div class="kpi"><b>' + t.cur + '</b><span>streak of ' + SCORE.PASS + '%+</span></div><div class="kpi"><b>' + t.best + '</b><span>best streak</span></div><div class="kpi"><b>' + Math.round(100 * recs.filter(function (r) { return r.pct >= SCORE.PASS; }).length / t.n) + '%</b><span>cases at ' + SCORE.PASS + '%+</span></div></div>';
+    h += '<div class="kpis"><div class="kpi"><b>' + Math.round(100 * recs.filter(function (r) { return r.pct >= SCORE.PASS; }).length / t.n) + '%</b><span>cases scoring ' + SCORE.PASS + '% or more</span></div></div>';
     var cf = confusion(recs);
     h += '<h3 class="gh">Front types: analysed (rows) against what you drew (columns)</h3><table class="conf"><tr><th class="corner">analysed \\ drawn</th>' +
       cf.cols.map(function (c) { return '<th>' + (c === 'none' ? 'missed' : FT[c].name) + '</th>'; }).join('') + '</tr>';
@@ -797,15 +797,16 @@
   // ------------------------------------------------------------------ game state
   var cur = null, geom = null, baseCv = null, baseTok = 0, deck = [], deckPos = 0, timerId = null, startFirst = QS.get('case');
   var lastTap = { t: 0, x: -99, y: -99 };
+  var basinSel = 'all';
 
   function show(id) {
-    ['start', 'play'].forEach(function (s) { $(s).hidden = s !== id; });
+    ['play'].forEach(function (s) { $(s).hidden = s !== id; });
     $('loadMsg').hidden = true; window.scrollTo(0, 0);
   }
   function nextId() {
     if (startFirst && manifest.byId[startFirst]) { var id = startFirst; startFirst = null; return id; }
     startFirst = null;
-    if (deckPos >= deck.length) { deck = shuffle(manifest.cases.map(function (c) { return c.id; })); deckPos = 0; }
+    if (deckPos >= deck.length) { deck = shuffle(manifest.cases.filter(function (c) { return basinSel === 'all' || (c.basin || 'natl') === basinSel; }).map(function (c) { return c.id; })); deckPos = 0; }
     return deck[deckPos++];
   }
   function buildTabs() {
@@ -825,7 +826,7 @@
       t.appendChild(b);
     });
     var lab = function (id, long, short) { $(id).innerHTML = '<span class="lg">' + long + '</span><span class="sh">' + short + '</span>'; };
-    lab('finBtn', 'Finish front', 'Finish'); lab('undoBtn', 'Undo point', 'Undo'); lab('delBtn', 'Delete last front', 'Del front'); lab('clrBtn', 'Clear', 'Clear'); lab('lowBtn', 'Place L', 'Place L');
+    lab('finBtn', 'Finish front', 'Finish'); lab('undoBtn', 'Undo point', 'Undo'); lab('delBtn', 'Delete last front', 'Del front'); lab('clrBtn', 'Clear', 'Clear');
   }
   function sizeCanvas() {
     if (!geom) return;
@@ -925,7 +926,6 @@
   function msg(t) { $('toolMsg').textContent = t; }
   function updateTools() {
     [].forEach.call($('types').children, function (b) { b.classList.toggle('on', cur.tool === b.dataset.type); b.setAttribute('aria-pressed', cur.tool === b.dataset.type); });
-    $('lowBtn').classList.toggle('on', cur.tool === 'L'); $('lowBtn').setAttribute('aria-pressed', cur.tool === 'L');
     var n = cur.active ? cur.active.pts.length : 0;
     $('finBtn').disabled = n < 2;
     $('undoBtn').disabled = !(n || cur.drawn.length);
@@ -933,7 +933,6 @@
     $('clrBtn').disabled = !(cur.active || cur.drawn.length || cur.low);
     var have = cur.drawn.length + ' front' + (cur.drawn.length === 1 ? '' : 's') + (SCORE.LOW_W ? (cur.low ? ', low placed' : ', no low yet') : '');
     if (!cur.tool) msg('The low and any stationary front are drawn for you. Pick cold, warm or occluded, then tap points on the map. (' + have + ')');
-    else if (cur.tool === 'L') msg('Tap the map to place the low (tap again to move it). (' + have + ')');
     else if (!n) msg(FT[cur.tool].name + ': tap points along the front, in order. (' + have + ')');
     else msg(FT[cur.tool].name + ', ' + n + ' point' + (n === 1 ? '' : 's') + ': keep tapping, then tap ' + FT[cur.tool].name + ' again, Finish front, or double-tap the last point. (' + have + ')');
   }
@@ -956,7 +955,6 @@
     lastTap = { t: now, x: x, y: y };
     if (!cur.tool) { msg('Pick a front type first, then tap the map.'); return; }
     var p = unproj(geom, x, y);
-    if (cur.tool === 'L') { cur.low = { lat: p.lat, lon: p.lon }; updateTools(); paint(); return; }
     if (dbl && cur.active) { if (cur.active.pts.length >= 2) finishFront(); return; }   // second tap of a double-tap ends the front
     if (!cur.active) cur.active = { type: cur.tool, pts: [] };
     cur.active.pts.push({ lat: p.lat, lon: p.lon });
@@ -976,11 +974,6 @@
   function clearAll() {
     if (!cur || cur.submitted) return;
     cur.active = null; cur.drawn = []; cur.low = null; cur.tool = null; updateTools(); paint();
-  }
-  function placeLow() {
-    if (!cur || cur.submitted) return;
-    if (cur.active) finishFront();
-    cur.tool = cur.tool === 'L' ? null : 'L'; updateTools();
   }
 
   // ------------------------------------------------------------------ clock
@@ -1055,7 +1048,7 @@
     var r = $('result'); r.className = 'result ' + cls;
     var unit = 100 / res.denom;
     var h = '<div class="bigpct">' + fmtPct(res.pct) + '</div><div class="rline">' + (auto ? 'Time up: submitted what you had. ' : '') + Math.round(secs) + ' s. Fronts ' + fmtPct(res.frontMax ? res.frontSum / res.frontMax * 100 : 0) + ' of what was available' + (SCORE.LOW_W ? ', low ' + fmtPct(res.low.credit * 100) : '') + '.</div>';
-    h += '<table class="brk"><tr><th>Analysed</th><th>You drew</th><th class="n">Off</th><th class="n cov">Cover</th><th class="n">Pos</th><th>Type</th><th class="n">Points</th></tr>';
+    h += '<table class="brk"><tr><th>Analysed</th><th>You drew</th><th class="n">Off</th><th class="n cov">Cover</th><th class="n">Pos</th><th>Type</th><th class="n">Score</th></tr>';
     res.rows.forEach(function (rw) {
       var sw = '<span class="sw" style="background:' + FT[rw.type].c + '"></span>';
       var pts = '<td class="n">' + (rw.earned * unit).toFixed(0) + ' / ' + (rw.max * unit).toFixed(0) + '</td>';
@@ -1076,18 +1069,21 @@
     types.forEach(function (t) { var hint = cur.c.hints && cur.c.hints[t]; if (hint) dh += '<div class="hintrow" style="--c:' + FT[t].c + '"><b>' + FT[t].name + '.</b> ' + hint + '</div>'; });
     if (cur.triple) dh += '<div class="hintrow" style="--c:#111"><b>Triple point</b> (ringed): occluded, cold and warm fronts meet here.</div>';
     dh += '<p class="fine">Analysts put a front on the warm edge of the temperature change and at the wind shift, so expect your line on that edge rather than in the middle of the theta-e gradient.</p>';
-    dh += '<p class="fine">Thick outlined lines: the analysis (OPC / WPC / NHC) for the system in the ring. ' + (nOther ? 'Thin grey lines and L: other systems, not scored. ' : '') + 'Thinner coloured lines: yours. Red L: analysed low. Blue L: yours.</p>';
+    dh += '<p class="fine">Thick outlined lines: the analysis (OPC / WPC / NHC) for the system in the ring. ' + (nOther ? 'Thin grey lines and L: other systems, not scored. ' : '') + 'Thinner coloured lines: yours. Red L: analysed low.</p>';
     d.innerHTML = dh;
   }
-  function goHome() { clearTimer(); cur = null; show('start'); }
   function openStats() { $('statsBody').innerHTML = statsHTML(); $('drawer').hidden = false; }
   function closeStats() { $('drawer').hidden = true; }
 
   // ------------------------------------------------------------------ wiring
   function init() {
-    $('clockSmall').textContent = TIMER_SECS + ' s a case. At zero, what you have drawn is submitted.';
-    $('startBtn').addEventListener('click', function () { startCase(nextId()); });
-    $('homeBtn').addEventListener('click', function (e) { e.preventDefault(); goHome(); });
+    try { if (localStorage.getItem('fdrill-clock') === '0') $('useTimer').checked = false; } catch (e) { /* storage blocked */ }
+    $('useTimer').addEventListener('change', function () {
+      try { localStorage.setItem('fdrill-clock', this.checked ? '1' : '0'); } catch (e) { /* storage blocked */ }
+      if (!cur || cur.submitted || !cur.data) return;
+      if (this.checked) startTimer(); else { clearTimer(); $('pTimer').hidden = $('timerbar').hidden = true; }
+    });
+    $('basinSel').addEventListener('change', function () { basinSel = this.value; deck = []; deckPos = 0; startCase(nextId()); });
     $('statsBtn').addEventListener('click', openStats);
     $('closeStats').addEventListener('click', closeStats);
     $('resetStats').addEventListener('click', function () { if (window.confirm('Clear all stats on this device?')) { stats.records = []; saveStats(); updateTop(); $('statsBody').innerHTML = statsHTML(); } });
@@ -1098,7 +1094,6 @@
     $('undoBtn').addEventListener('click', undoPoint);
     $('delBtn').addEventListener('click', delFront);
     $('clrBtn').addEventListener('click', clearAll);
-    $('lowBtn').addEventListener('click', placeLow);
     $('subBtn').addEventListener('click', function () { submit(false); });
     $('nextBtn').addEventListener('click', function () { startCase(nextId()); });
     $('ascChk').addEventListener('change', function () { if (cur) { updateCap(); buildLegend(TABS[cur.tabIdx], cur.c); renderBase(); } });
@@ -1110,7 +1105,14 @@
     updateTop();
     loadManifest().then(function () {
       if (!manifest.cases.length) throw new Error('empty deck');
-      show('start');
+      var basins = [], names = { natl: 'N Atlantic', npac: 'N Pacific' };
+      manifest.cases.forEach(function (c) { var b = c.basin || 'natl'; if (basins.indexOf(b) < 0) basins.push(b); });
+      if (basins.length > 1) {
+        var s = $('basinSel'); s.appendChild(new Option('All', 'all'));
+        basins.forEach(function (b) { s.appendChild(new Option(names[b] || b, b)); });
+        $('basinLbl').hidden = false;
+      }
+      startCase(nextId());
     }).catch(function (e) {
       $('loadMsg').hidden = false; $('loadMsg').textContent = 'Could not load the deck (' + e.message + ').';
     });

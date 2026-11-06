@@ -3,36 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Front drill</title>
+<title>Frontal analysis · Training</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
   <a class="brand" href="../">Training</a>
-  <nav class="sitenav" aria-label="Drills"><a href="../wind/">Wind</a><a href="../fronts/" id="homeBtn" aria-current="page" title="Back to start">Fronts</a></nav>
+  <nav class="sitenav" aria-label="Exercises"><a href="../">All exercises</a><a href="../#wind">Peak wind</a><a href="./" aria-current="page">Frontal analysis</a></nav>
   <div class="topright">
-    <span id="topAvg" class="pts" aria-live="polite">0 cases</span>
+    <span id="topScore" class="pts" aria-live="polite" title="Average over the cases you have submitted">Score 0</span>
     <button id="statsBtn" class="btn small" type="button">Stats</button>
   </div>
 </header>
 
 <main>
   <div id="loadMsg" class="note">Loading deck...</div>
-
-  <section id="start" class="screen" hidden>
-    <h1>Draw the fronts, place the low</h1>
-    <p class="lead">One storm system per case: a dashed ring marks it, with the model maps around it. The low and any stationary front are drawn for you: tap points along its cold, warm and occluded fronts, pick the type and finish each one. Submit to see the Unified Surface Analysis (OPC / WPC / NHC) over your drawing. Rapid fire: there is no time on the desk to dwell.</p>
-    <p class="policy">Position is scored generously (full credit within 150 nm, none at 300 nm). Front type is scored strictly and counts twice as much. Only the fronts of the system in the ring are scored. Troughs are never scored, missed or extra, and fronts drawn outside the ring cost nothing.</p>
-    <label class="toggle"><input type="checkbox" id="useTimer" checked> <span><b>Clock</b> <small id="clockSmall">90 s a case. At zero, what you have drawn is submitted.</small></span></label>
-    <p id="startMsg" class="fine" role="status"></p>
-    <button id="startBtn" class="btn primary big" type="button">Start</button>
-    <div class="points">
-      <h2>How it is scored</h2>
-      <p><b>Fronts</b>: each analysed front of the system in the ring (not troughs, not other systems) is matched to one of yours, one to one. Position credit 1 within 150 nm of the analysed line, falling to 0 at 300 nm. Type credit counts twice as much and is scaled by position: exact type 1; half for occluded or stationary against cold, and stationary against warm; cold against warm 0.</p>
-      <p><b>Misses</b> cost the front's share of the total analysed length, weighted up when it is near the low. Extra fronts inside the ring with no match cost a little. <b>Low</b>: the nearest analysed low in the ring; full credit within 60 nm, none at 120 nm. The ring is centred a little off the low, so it does not give the L away.</p>
-      <p class="fine">Maps are GFS analyses (0.5 deg). Truth is the coded Unified Surface Analysis. Dates are hidden. Training use only.</p>
-    </div>
-  </section>
 
   <section id="play" class="screen" hidden>
     <div class="playgrid">
@@ -41,6 +26,10 @@
           <span id="pCase"></span>
           <span id="pBasin" class="chip">N Atlantic</span>
           <span id="pTimer" class="timer" hidden></span>
+          <span class="pctl">
+            <label class="ptoggle" id="basinLbl" hidden>Basin <select id="basinSel" aria-label="Basin"></select></label>
+            <label class="ptoggle"><input type="checkbox" id="useTimer" checked> Clock</label>
+          </span>
         </div>
         <div id="timerbar" class="timerbar" hidden><i></i></div>
         <div id="ringPrompt" class="ringprompt" hidden><b>Analyse the system inside the ring:</b> draw its cold, warm and occluded fronts.</div>
@@ -50,7 +39,7 @@
           <span class="chks"><label class="chk" id="ascLbl" hidden><input type="checkbox" id="ascChk"> <span>ASCAT</span></label>
           <label class="chk"><input type="checkbox" id="isoChk"> <span>250 mb isotachs</span></label></span>
         </div>
-        <div class="mapbox tappable" id="mapbox"><canvas id="map" aria-label="Map: tap to lay fronts"></canvas><div id="mapLoad" class="maploading">Loading case...</div></div>
+        <div class="mapbox tappable" id="mapbox"><canvas id="map" aria-label="Map: tap to draw fronts"></canvas><div id="mapLoad" class="maploading">Loading case...</div></div>
         <div class="legend" id="legend"></div>
       </div>
       <div class="right">
@@ -59,7 +48,6 @@
           <div class="tools" id="tools">
             <div class="types" id="types" role="group" aria-label="Front type"></div>
             <div class="acts">
-              <button id="lowBtn" class="tbtn lowbtn" type="button" hidden>Place L</button>
               <button id="finBtn" class="tbtn" type="button">Finish front</button>
               <button id="undoBtn" class="tbtn" type="button">Undo point</button>
               <button id="delBtn" class="tbtn" type="button">Delete last front</button>
@@ -80,6 +68,15 @@
       </div>
     </div>
   </section>
+
+  <details class="points" id="howTo">
+    <summary>How scoring works</summary>
+    <p>One storm system per case, marked by a dashed ring. The analysed low and any stationary front are shown. Draw its cold, warm and occluded fronts: pick the type, tap points along the front and finish it. Submit to compare with the Unified Surface Analysis (OPC / WPC / NHC).</p>
+    <p><b>Fronts</b>: each analysed front of the system in the ring (not troughs, not other systems) is matched to one of yours, one to one. Position credit is 1 within 150 nm of the analysed line, falling to 0 at 300 nm. Type credit counts twice as much and is scaled by position: exact type 1; half for occluded or stationary against cold, and stationary against warm; cold against warm 0.</p>
+    <p><b>Misses</b> cost the front's share of the total analysed length, weighted up when it is near the low. Extra fronts inside the ring with no match cost a little. Fronts drawn outside the ring cost nothing.</p>
+    <p><b>Clock</b>: 90 s a case. At zero, what you have drawn is submitted. Untick Clock to work without it.</p>
+    <p class="fine">Maps are GFS analyses (0.5 deg). Truth is the coded Unified Surface Analysis. Dates are hidden. Training use only.</p>
+  </details>
 
   <footer class="credits">Maps: NOAA GFS analyses. Imagery: NOAA GOES (air-mass RGB and infrared). Truth: Unified Surface Analysis (OPC, WPC, NHC) as coded in the CODSUS bulletin. Training use only; not an official forecast product.</footer>
 </main>
