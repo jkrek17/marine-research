@@ -10,7 +10,9 @@ import sys
 from pathlib import Path
 
 here = Path(__file__).resolve().parent
-deck, out = Path(sys.argv[1]), Path(sys.argv[2])
+args = [a for a in sys.argv[1:] if not a.startswith("--since=")]
+since = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--since=")), None)   # YYYYMMDDHH: keep cases valid from then on (key.csv beside the deck)
+deck, out = Path(args[0]), Path(args[1])
 (out / "deck").mkdir(parents=True, exist_ok=True)
 html = (here / "index.html").read_text()
 body = re.search(r"<body[^>]*>(.*)</body>", html, re.S).group(1)
@@ -24,6 +26,10 @@ m = json.loads((deck / "manifest.json").read_text())
 m["encoding"] = "base64"
 # outside the natl basin (Gulf of Mexico, south of 30N): no ASCAT, partial imagery
 m["cases"] = [c for c in m["cases"] if c["low"]["lat"] >= 30 and c["low"]["lon"] >= 270]
+if since:
+    import csv
+    when = {r["id"]: r["valid"] for r in csv.DictReader(open(deck.parent / "key.csv"))}
+    m["cases"] = [c for c in m["cases"] if when.get(c["id"], "") >= since]
 (out / "deck" / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
 for c in m["cases"]:
     rec = {"bin": base64.b64encode((deck / (c["id"] + ".bin")).read_bytes()).decode()}

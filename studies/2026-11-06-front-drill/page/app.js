@@ -638,34 +638,23 @@
   }
 
   // ------------------------------------------------------------------ fronts and lows (overlay)
-  // +1 / -1: which side of the line the symbols go. From the air on each side (850 hPa theta-e sampled ~150 km
-  // either side along the front): cold-front, occluded and stationary triangles face the warm air (occluded symbols
-  // continue the cold front's side through the triple point: Jason 2026-11-06); warm-front semicircles face the cold air. Falls back to geometry when the field is missing.
-  function sidePicker(P, type, g) {
-    var snap = cur && cur.data, F = snap && snap.f && snap.f.te850;
-    if (F && g) {
-      var nx = g.nx, ny = g.ny, off = 150 / 111 / g.res * g.cw / (nx - 1), sum = 0, nOk = 0;
-      var at = function (x, y) {
-        var i = Math.round(x / g.cw * (nx - 1)), j = Math.round(y / g.ch * (ny - 1));
-        if (i < 0 || j < 0 || i >= nx || j >= ny) return NaN;
-        return F[j * nx + i];
-      };
-      for (var k = 1; k < P.length; k++) {
-        var a = P[k - 1], b = P[k], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
-        if (!L) continue;
-        var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, ux = -dy / L, uy = dx / L;   // same normal as the symbols use
-        var p1 = at(mx + ux * off, my + uy * off), p2 = at(mx - ux * off, my - uy * off);
-        if (isFinite(p1) && isFinite(p2)) { sum += (p1 - p2) * L; nOk++; }
-      }
-      if (nOk && sum !== 0) {
-        var warmSide = sum > 0 ? 1 : -1;   // +1: the +normal side is warmer
-        return type === 'warm' ? -warmSide : warmSide;
-      }
-    }
-    var a0 = P[0], b0 = P[P.length - 1], ddx = b0[0] - a0[0], ddy = b0[1] - a0[1], LL = Math.hypot(ddx, ddy) || 1;
-    var gnx = -ddy / LL, gny = ddx / LL;
-    var bias = type === 'warm' ? [1, -0.5] : type === 'occluded' ? [1, 0.1] : [1, 0.5];
-    return gnx * bias[0] + gny * bias[1] >= 0 ? 1 : -1;
+  // +1 / -1: which side of the line the symbols go. Northern-hemisphere convention for fronts of a cyclone:
+  // walking along the front AWAY from its low (or the triple point chain), the symbols sit on the LEFT, i.e. on the
+  // side the front moves toward: cold-front triangles face the warm sector, warm-front semicircles face the cold
+  // air ahead, occluded symbols continue the cold front's side through the triple point (Jason 2026-11-06), and
+  // stationary triangles take the left. 850 hPa theta-e was tried first and fails ahead of warm fronts (warm air
+  // aloft). `ref` = screen point of the low the front belongs to.
+  function sidePicker(P, type, g, ref) {
+    var a = P[0], b = P[P.length - 1];
+    if (!ref) ref = [g.cw / 2, g.ch / 2];
+    var outward = Math.hypot(a[0] - ref[0], a[1] - ref[1]) <= Math.hypot(b[0] - ref[0], b[1] - ref[1]);
+    // the symbol normal for side +1 is (-ty, tx): screen-right of travel (y down); left of travel is side -1
+    return outward ? -1 : 1;
+  }
+  function lowFor(f) {   // the analysed low nearest either end of a front (its parent low)
+    var ls = cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low], e = [f.pts[0], f.pts[f.pts.length - 1]], best = null, bd = 1e9;
+    ls.forEach(function (l) { e.forEach(function (p) { var d = distNm(l, { lat: p[0], lon: p[1] }); if (d < bd) { bd = d; best = l; } }); });
+    return best;
   }
   function pathPoint(P, cum, s) {   // position and unit tangent at arc length s
     var i = 1; while (i < P.length - 1 && cum[i] < s) i++;
@@ -701,7 +690,7 @@
       }
     } else { path(); ctx.lineWidth = o.lw; ctx.strokeStyle = ft.c; ctx.stroke(); }
     if (f.type !== 'trough') {
-      var side = sidePicker(P, f.type, g), n = Math.max(1, Math.floor(total / spacing));
+      var side = sidePicker(P, f.type, g, o.ref ? proj(g, o.ref.lat, o.ref.lon) : null), n = Math.max(1, Math.floor(total / spacing));
       for (var m = 0; m < n; m++) {
         var s2 = total / n * (m + 0.5), q = pathPoint(P, cum, s2), nx = -q.ty * side, ny = q.tx * side;
         var kind = f.type === 'cold' ? 'tri' : f.type === 'warm' ? 'semi' : f.type === 'occluded' ? (m % 2 ? 'semi' : 'tri') : (m % 2 ? 'semi' : 'tri');
@@ -880,8 +869,8 @@
     if (ring) drawRing(ctx, g, ring);
     if (showT) {
       var toPts = function (f) { return { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }; };
-      cur.c.fronts.filter(function (f) { return !isSys(f); }).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 1.7, u: u * 0.8, tint: '#7c8693', alpha: 0.8 }); });
-      cur.c.fronts.filter(isSys).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 3.4, u: u * 1.2, outline: '#0c1220' }); });
+      cur.c.fronts.filter(function (f) { return !isSys(f); }).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 1.7, u: u * 0.8, tint: '#7c8693', alpha: 0.8, ref: lowFor(f) }); });
+      cur.c.fronts.filter(isSys).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 3.4, u: u * 1.2, outline: '#0c1220', ref: cur.c.low }); });
       if (cur.triple) drawTriple(ctx, g, cur.triple);
       (cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low]).forEach(function (l) {
         var sub = l.hpa != null ? String(Math.round(l.hpa)) : '';
@@ -889,8 +878,9 @@
       });
     }
     if (showM) {
-      cur.drawn.forEach(function (f) { drawFront(ctx, g, f, { lw: 2.4, u: u, alpha: cur.submitted ? 0.85 : 1, curve: true }); });
-      if (cur.active && !cur.submitted) drawFront(ctx, g, cur.active, { lw: 2.4, u: u, dots: true, curve: true });
+      var myRef = cur.low || ringOf(cur.c) || cur.c.low;
+      cur.drawn.forEach(function (f) { drawFront(ctx, g, f, { lw: 2.4, u: u, alpha: cur.submitted ? 0.85 : 1, curve: true, ref: myRef }); });
+      if (cur.active && !cur.submitted) drawFront(ctx, g, cur.active, { lw: 2.4, u: u, dots: true, curve: true, ref: myRef });
       if (cur.low) {
         if (cur.submitted && cur.result && cur.result.low.nearest && showT) {
           var a = proj(g, cur.low.lat, cur.low.lon), b = proj(g, cur.result.low.nearest.lat, cur.result.low.nearest.lon);
