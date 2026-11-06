@@ -1,0 +1,7 @@
+{
+ "blend": "Q_B0_A40_U44",
+ "GFS": null,
+ "ECMWF": "Q_B2_A30_U40",
+ "stronger": null,
+ "blend+stronger": null
+}

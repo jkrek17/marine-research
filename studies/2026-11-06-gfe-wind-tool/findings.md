@@ -110,6 +110,27 @@ Jason picked +6 then +4 more, and asked about the jumps (41 -> 47, 48 -> 52) and
 
 Held-out (scored once): Atl storm 75.1% (steps 74.7%), area 1.05x, false storm tiles 296 (300), HF 59% (68/115) at 0.92x (steps 60% at 0.93x); Pac storm 64.3% (65.2%), area 1.23x, HF 3 of 15. Gale area +2% Atl, +3% Pac (ramp starts at 38 kt); gale CSI within 0.005. The ramp scores the same as the steps and has no jumps; GFE tool default.
 
+## Follow-up: one tool for any grid, and "highest model then the ramp" (Jason, 16:54Z)
+
+`tool_score.py --self`, `selfpick.py`. Q: lift triggered by the grid's own wind (no other model): 0 -> 6 kt over A..A+4, 0 -> 4 kt more over U..U+4, on the #95 blend, GFS alone, ECMWF alone, or the stronger of GFS/ECMWF. Y: blend below A, moving to the stronger model over A..A+4, plus the ramps. Rule per family on tune: storm area <= 1.0x and gale area <= 1.3x in both basins, most mean storm catch.
+
+Held-out (scored once):
+
+| Grid | Atl storm | Atl area | Atl false storm | Atl HF | Atl HF area | Pac storm | Pac area | Gale CSI Atl/Pac |
+|---|---|---|---|---|---|---|---|---|
+| Current tool (ramps on stronger GFS/ECMWF, 38-42 / 48-52) | 75% | 1.05x | 296 | 59% | 0.92x | 64% | 1.23x | 0.632 / 0.540 |
+| Blend, own wind, 36-40 / 44-48 (tune near-miss: Pac area 1.016x) | 76% | 1.08x | 311 | 60% | 0.93x | 64% | 1.26x | 0.630 / 0.547 |
+| Blend, own wind, 40-44 / 44-48 (rule pick) | 69% | 0.80x | 210 | 60% | 0.93x | 55% | 0.82x | 0.630 / 0.547 |
+| ECMWF alone, own wind, 30-34 / 40-44 (rule pick) | 76% | 0.99x | 433 | 42% | 0.62x | 59% | 1.15x | 0.605 / 0.506 |
+| GFS alone | no setting passed the area cap on tune (GFS + ramps 1.3-1.6x Atl, 2.3-3.2x Pac) | | | | | | | |
+| Stronger model everywhere + ramps 36-40 / 44-48 | 85% | 1.64x | 709 | 71% | 1.95x | 82% | 2.87x | 0.609 / 0.492 |
+| Blend below 38, stronger model + ramps above | 85% | 1.66x | 711 | 75% | 2.02x | 82% | 2.90x | 0.631 / 0.534 |
+| Blend below 42, stronger model + ramps above | 70% | 0.90x | 326 | 73% | 1.99x | 62% | 1.24x | 0.632 / 0.546 |
+
+- On the blend, triggering on its own wind (4 kt lower start, since the blend runs below the stronger model) scores the same as the current tool and leaves gales exactly as the blend; it needs no GFS/ECMWF fetch.
+- Settings are grid-specific: ECMWF alone wants an earlier start (30), GFS alone runs hot and no tested setting fit.
+- "Highest model, then the ramp" over-draws storm 1.6x (Atl) to 2.9x (Pac) with 2.4x the false storm tiles; it is an HF-area tool (Atl HF 71-75% at ~2x).
+
 ## Lessons
 
 - **A lower switch is a slide along the curve, not a win.** Threshold 42 against 44 added 5-7 pts catch and the same share of false tiles, with storm CSI unchanged. Report CSI next to catch whenever a rule lowers a threshold.
