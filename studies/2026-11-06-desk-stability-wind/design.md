@@ -1,6 +1,6 @@
 # The desk's stability wind tool: design card
 
-*Status: questions to Jason posted 2026-11-06 12:32Z; building on the recommended answers meanwhile. Scoring shared with `studies/2026-11-06-strong-core-lift/` (draft PR #73) so the case set is built once.*
+*Status: scored 2026-11-06 (findings.md); Jason named the tool 12:40Z.*
 
 **Question** (Jason, via the project chat, 2026-11-06): is the desk's "stability enhanced wind" GFE tool useful but applied too widely? Read as: on held-out weeks, does the desk's rule reproduced from deterministic fields catch more ASCAT gale and storm water than the GFE deterministic blend (#95) and Core Lifted, at what cost in area, and does a version gated to strong cold-air cores keep the catch without the spread?
 
