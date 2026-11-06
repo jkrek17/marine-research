@@ -274,7 +274,7 @@ def manifest(rows, out):
                           **({"plat": float(r["plat" + s]), "plon": float(r["plon" + s])} if r.get("plat" + s) else {}),
                           **sat["t0" if s == "0" else "t24"]}
         cases.append({"id": r["id"], "basin": r["basin"], "lat0": lat_n, "lon0": lon_w,
-                      "t0": snap("0"), "t24": snap("24")})
+                      "t0": snap("0"), "t24": snap("24"), **({"pool": r["pool"]} if r.get("pool") else {})})
     scene = all("plat" in c["t0"] for c in cases)
     m = {"version": 2 if scene else 1, "res": RES, "ny": NY, "nx": NX, "truth": "scene" if scene else "low",
          "source": ("GFS analysis maps; ASCAT (RSS, Metop-B/C) truth: the strongest wind anywhere in the map box "

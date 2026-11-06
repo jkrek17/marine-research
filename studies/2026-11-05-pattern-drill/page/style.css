@@ -209,6 +209,7 @@ table.jt th{background:var(--tint)}
 /* change call, tap, pairs, benchmark */
 .policy{margin:6px 0 0;padding:8px 12px;border-left:3px solid var(--storm);background:var(--paper)6ef;font-size:14px;font-weight:600}
 .answers.ch3{grid-template-columns:repeat(3,1fr)}
+.answers.ch2{grid-template-columns:repeat(2,1fr)}
 .ans:disabled{opacity:.4;cursor:not-allowed}
 .ans[data-ch="1"]{border-left-color:var(--storm)}
 .ans[data-ch="0"]{border-left-color:var(--none)}
