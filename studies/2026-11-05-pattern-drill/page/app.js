@@ -702,7 +702,7 @@
   }
   function updateTop() {
     var t = totals(session.records);
-    $('topPts').textContent = t.pts + ' pts';
+    $('topPts').textContent = 'Score ' + t.pts;
   }
   function setupChoice(id, key) {
     var g = $(id);
@@ -824,7 +824,7 @@
     if (bench && bench.n >= bench.ids.length) return endBench();
     var pick = bench ? { c: manifest.byId[bench.ids[bench.n]], snap: 't0' } : pickCase(opts.game, opts.weak);
     if (!pick) {
-      $('startMsg').textContent = 'You have seen every case in this game this session. Pick the other game or close the tab to reset.';
+      $('startMsg').textContent = 'You have seen every case in this exercise this session. Choose another exercise or close the tab to reset.';
       if (blitz && blitz.recs.length) return endBlitz();
       goHome(); return;
     }
@@ -837,7 +837,7 @@
     $('mapLoad').hidden = false; $('mapLoad').textContent = 'Loading case...';
     var played = session.records.filter(function (r) { return r.game === opts.game; }).length;
     $('pCase').textContent = bench ? 'Benchmark ' + (bench.n + 1) + ' of ' + bench.ids.length : blitz ? 'Case ' + (blitz.n + 1) + ' of ' + BLITZ_N : 'Case ' + (played + 1);
-    $('pGame').textContent = game === 'now' ? 'Right now' : game === 'bm' ? 'Beat the model' : game === 'sh' ? 'Storm or HF?' + (fcLike ? ' (+24 h)' : '') : 'Forecast +24 h';
+    $('pGame').textContent = game === 'now' ? 'Analysis' : game === 'bm' ? '24-hour forecast' : game === 'sh' ? 'Storm or hurricane force' + (fcLike ? ' (+24 h)' : '') : 'Forecast +24 h';
     $('pBasin').textContent = pick.c.basin === 'natl' ? 'N Atlantic' : pick.c.basin === 'npac' ? 'N Pacific' : pick.c.basin;
     $('timerbar').hidden = $('pTimer').hidden = !blitz;
     buildQuestion();
@@ -1073,9 +1073,9 @@
   // Numbers from rule925.py (manifest.speed).
   function speedHTML() {
     var S = manifest && manifest.speed;
-    if (!S) return '<h1>Reading the wind</h1><p class="lead">No wind-speed statistics in this deck.</p>';
+    if (!S) return '<h1>Peak wind guidance</h1><p class="lead">No wind-speed statistics in this deck.</p>';
     var H = S.held_out || {}, P = S.fc, pc = function (x) { return x + '%'; };
-    var h = '<h1>Reading the wind</h1><p class="lead">How to judge the strongest wind ASCAT will show, from ' + S.n_now + ' analysis maps and ' + S.n_fc + ' GFS +24 h forecasts over five winters (2021-26). Truth is the strongest ASCAT wind anywhere on the map.</p>';
+    var h = '<h1>Peak wind guidance</h1><p class="lead">How to judge the strongest wind ASCAT will show, from ' + S.n_now + ' analysis maps and ' + S.n_fc + ' GFS +24 h forecasts over five winters (2021-26). Truth is the strongest ASCAT wind anywhere on the map.</p>';
     h += '<h2>1. Strongest 925 mb wind &times; stability</h2>';
     h += '<p>Find the strongest 925 mb wind over water on the map (925 mb wind tab). Read sea minus air where that wind is (Sea - air tab). Multiply:</p>';
     h += '<table class="jt"><tr><th>Sea minus 2 m air</th><th>Factor</th><th>925 wind for gale</th><th>for storm</th><th>for HF</th></tr>';
@@ -1175,7 +1175,7 @@
       if (cur.peak) h += '<div class="rline">' + (cur.tap ? 'Your tap was <b>' + Math.round(cur.tapNm) + ' nm</b> from the cell that set the peak (ringed, ' + Math.round(cur.peak.s) + ' kt).'
         : 'The ringed cell on the ASCAT tab set the peak (' + Math.round(cur.peak.s) + ' kt).') + '</div>';
     }
-    h += '<div class="rstats">Streak ' + tt.cur + ' &middot; Total ' + tt.pts + ' pts &middot; Best streak ' + tt.best + '</div>';
+    h += '<div class="rstats">Session score ' + tt.pts + ' &middot; ' + tt.exact + ' of ' + tt.n + ' exact</div>';
     var res = $('result'); res.className = 'result ' + cls; res.innerHTML = h; res.hidden = false;
     $('answers').hidden = true;
     var db = $('debrief'), dh = debriefHTML(); db.innerHTML = dh; db.hidden = !dh;
@@ -1213,10 +1213,11 @@
   function kpiHTML(t) {
     var pct = function (x) { return t.n ? Math.round(100 * x / t.n) + '%' : '-'; };
     var k = [[t.n, 'cases played'], [pct(t.exact), 'right call'], [pct(t.within1), 'within one'],
-             [t.best, 'best streak'], [t.n ? (t.time / t.n).toFixed(1) + ' s' : '-', 'mean time per case'], [t.pts, 'total points']];
+             [t.n ? (t.time / t.n).toFixed(1) + ' s' : '-', 'mean time per case'], [t.pts, 'score']];
     return '<div class="kpis">' + k.map(function (x) { return '<div class="kpi"><b>' + x[0] + '</b><span>' + x[1] + '</span></div>'; }).join('') + '</div>';
   }
-  function levelHTML(pts) {
+  function levelHTML(pts) {   // levels retired (Jason 2026-11-06: more professional)
+    return '';
     var i = levelFor(pts), nxt = LEVELS[i + 1];
     var frac = nxt ? Math.max(0, Math.min(1, (pts - LEVELS[i][1]) / (nxt[1] - LEVELS[i][1]))) : 1;
     return '<div class="level"><b>' + LEVELS[i][0] + '</b><span>' + (nxt ? (nxt[1] - pts) + ' pts to ' + nxt[0] : 'top level') + '</span></div><div class="lvbar"><i style="width:' + Math.round(frac * 100) + '%"></i></div>';
@@ -1307,10 +1308,10 @@
       h += '<div class="statsempty"><p><b>Play 5 cases to see your bias</b></p><p class="fine">The bias tracker and confusion table need a few answered cases first.</p>' +
         '<button type="button" class="btn small" id="statsNext">Next case</button></div>';
     } else {
-      h += gameSection('Right now', all.filter(function (r) { return r.game === 'now'; }), 'now');
-      h += gameSection('Beat the model', all.filter(function (r) { return r.game === 'bm'; }), 'bm');
+      h += gameSection('Analysis', all.filter(function (r) { return r.game === 'now'; }), 'now');
+      h += gameSection('24-hour forecast', all.filter(function (r) { return r.game === 'bm'; }), 'bm');
       var shr = all.filter(function (r) { return r.game === 'sh'; });
-      if (shr.length) h += gameSection('Storm or HF?', shr, 'sh');
+      if (shr.length) h += gameSection('Storm or hurricane force', shr, 'sh');
       var old = all.filter(function (r) { return r.game === 'fc'; });
       if (old.length) h += gameSection('Forecast +24 h (grow, hold, decay)', old, 'fc');
     }
@@ -1334,7 +1335,7 @@
   }
   function leaveBlitz() { return !$('play').hidden && ((blitz && blitz.n < BLITZ_N) || (bench && bench.n < bench.ids.length)); }
   function askLeave(on) {
-    $('leaveTxt').textContent = bench ? 'Leave the benchmark? This run will not be saved.' : 'Leave blitz? Your progress in this blitz will be lost.';
+    $('leaveTxt').textContent = bench ? 'Leave the benchmark? This run will not be saved.' : 'Leave the timed set? Results from this set will be lost.';
     $('leaveBanner').hidden = !on; syncTimer();
     if (on) $('leaveNo').focus({ preventScroll: true }); else if (!$('play').hidden) focusPlay();
   }
@@ -1342,15 +1343,15 @@
     clearTimer();
     var t = totals(blitz.recs), conf = confusion(blitz.recs);
     var pct = t.n ? Math.round(100 * t.exact / t.n) : 0;
-    var h = '<div class="level"><b>' + t.pts + ' pts</b><span>' + pct + '% exact &middot; best streak ' + t.best + '</span></div>';
+    var h = '<div class="level"><b>' + t.exact + ' of ' + t.n + ' exact</b><span>' + pct + '% &middot; score ' + t.pts + '</span></div>';
     h += levelHTML(totals(session.records).pts);
     if (blitz.recs.length && blitz.recs[0].game === 'fc') h += changeHTML(blitz.recs);
     if (blitz.recs.length && (blitz.recs[0].game === 'bm' || blitz.recs[0].game === 'now')) h += vsModelHTML(blitz.recs);
     if (blitz.recs.length && blitz.recs[0].game === 'sh') h += shHTML(blitz.recs) + vsModelHTML(blitz.recs);
     h += '<div class="read">' + readLine(conf) + '</div>' + biasHTML(blitz.recs, blitz.recs.length && blitz.recs[0].game) + tableHTML(conf);
-    $('endTitle').textContent = 'Blitz done'; $('endBody').innerHTML = h; show('end');
+    $('endTitle').textContent = 'Timed set complete'; $('endBody').innerHTML = h; show('end');
   }
-  function goHome() { clearTimer(); cur = null; show('start'); }
+  function goHome() { clearTimer(); cur = null; location.href = '../#wind'; }   // the site landing page is the only menu
   // startMsg is cleared whenever a game starts (see startGame)
 
   // ------------------------------------------------------------------ keys, change-call stats
@@ -1476,13 +1477,13 @@
     });
   }
 
-  function openFromHash() {   // links from the Training landing page: #now #bm #sh pick the game, #bench starts it, #read opens Reading the wind
-    var h = (location.hash || '').slice(1);
-    if (!h) return;
-    var b = document.querySelector('#gameChoice .opt[data-v="' + h + '"]');
-    if (b) b.click();
+  function openFromHash() {   // the Training landing page is the menu: #now #bm #sh start practice, #now-timed etc. a timed set,
+    // #bench the benchmark, #read the guidance page. With no hash the old start screen is skipped for the landing page.
+    var h = (location.hash || '').slice(1), m = /^(now|bm|sh)(-timed)?$/.exec(h);
+    if (m) { opts.game = m[1]; opts.mode = m[2] ? 'blitz' : 'practice'; startGame(); }
     else if (h === 'bench' && benchIds) startBench();
-    else if (h === 'read') openIngredients();
+    else if (h === 'read') { lastScreen = 'start'; openIngredients(); }
+    else location.replace('../#wind');
   }
 
   // ------------------------------------------------------------------ events
@@ -1494,6 +1495,12 @@
       try { window.sessionStorage.setItem('pdrill-hints', opts.hints ? '1' : '0'); } catch (x) { /* ignore */ }
     });
     $('weak').addEventListener('change', function (e) { opts.weak = e.target.checked; });
+    $('pHints').checked = opts.hints;
+    $('pHints').addEventListener('change', function (e) {
+      opts.hints = e.target.checked; $('hints').checked = opts.hints;
+      try { window.sessionStorage.setItem('pdrill-hints', opts.hints ? '1' : '0'); } catch (x) { /* ignore */ }
+      if (cur && cur.data) draw();
+    });
     $('startBtn').addEventListener('click', startGame);
     $('againBtn').addEventListener('click', function () { if (lastEnd === 'bench') startBench(); else startGame(); });
     $('endHomeBtn').addEventListener('click', goHome);
@@ -1514,7 +1521,7 @@
     $('ingLink').addEventListener('click', openIngredients);
     fetch('../fronts/index.html', { method: 'HEAD' }).then(function (r) { if (r.ok) $('navFronts').hidden = false; }).catch(function () { /* no front drill yet */ });
     $('statsIng').addEventListener('click', openIngredients);
-    $('ingBack').addEventListener('click', function () { show(lastScreen); });
+    $('ingBack').addEventListener('click', function () { if (lastScreen === 'start') location.href = '../#wind'; else show(lastScreen); });
     $('statsBtn').addEventListener('click', openStats);
     $('closeStats').addEventListener('click', closeStats);
     $('drawer').addEventListener('click', function (e) { if (e.target === $('drawer')) closeStats(); });

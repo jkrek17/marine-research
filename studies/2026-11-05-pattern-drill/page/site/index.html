@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Training</title>
+<title>Marine Forecaster Training</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
 <style>
 :root{--cream:#F3EDDF;--paper:#FBF8F1;--navy:#14233C;--oxblood:#6E1423;--on:#F7F2E6;--ink:#17202F;--ink2:#46506A;--line:#DDD4C1;
@@ -11,62 +11,83 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--cream);color:var(--ink);font:16px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
 .top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:18px;padding:10px 16px;background:var(--navy);border-bottom:3px solid var(--oxblood);color:var(--on)}
-.brand{font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.08em;text-transform:uppercase}
-.top nav{display:flex;gap:14px;font-size:14px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:21px;letter-spacing:.06em;text-transform:uppercase}
+.top nav{display:flex;gap:16px;font-size:14px;margin-left:auto}
 .top nav a{color:var(--on);text-decoration:none;opacity:.85}
 .top nav a:hover{opacity:1;text-decoration:underline}
-main{max-width:920px;margin:0 auto;padding:22px 16px 36px}
-h1{font-family:var(--f-display);font-size:32px;margin:4px 0 4px;color:var(--navy)}
-.lead{color:var(--ink2);margin:0 0 22px;max-width:66ch}
-section{margin:0 0 28px}
-.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--navy);padding-bottom:4px;margin-bottom:6px}
+main{max-width:940px;margin:0 auto;padding:26px 16px 36px}
+.kicker{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--oxblood);margin:0}
+h1{font-family:var(--f-display);font-size:34px;line-height:1.1;margin:4px 0 8px;color:var(--navy)}
+.lead{color:var(--ink2);margin:0 0 26px;max-width:68ch}
+section{margin:0 0 30px}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--navy);padding-bottom:4px}
 .sechead h2{font-family:var(--f-display);font-size:26px;margin:0;color:var(--navy);letter-spacing:.02em}
-.sechead .q{font-weight:700;color:var(--oxblood);font-size:14px}
-.about{color:var(--ink2);font-size:14px;margin:6px 0 12px;max-width:72ch}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-.card{display:flex;flex-direction:column;padding:14px 14px 12px;background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--oxblood);border-radius:10px;color:inherit;text-decoration:none}
-.card:hover,.card:focus-visible{border-color:var(--navy);outline:none;box-shadow:0 2px 10px rgba(20,35,60,.12)}
+.sechead .q{font-size:14px;color:var(--ink2)}
+.about{color:var(--ink2);font-size:14px;margin:8px 0 14px;max-width:74ch}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.card{display:flex;flex-direction:column;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--navy);border-radius:6px}
 .card h3{font-family:var(--f-display);font-size:21px;margin:0 0 2px;color:var(--navy)}
-.card p{margin:0 0 8px;color:var(--ink2);font-size:14px;flex:1}
-.card .meta{font-size:12px;color:var(--ink2);border-top:1px solid var(--line);padding-top:6px}
-.card.ref{border-left-color:var(--navy);background:transparent}
+.card p{margin:0 0 12px;color:var(--ink2);font-size:14px;flex:1}
+.card .meta{font-size:12px;color:var(--ink2);margin:-6px 0 12px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.act{display:inline-block;padding:6px 14px;border-radius:4px;border:1px solid var(--navy);color:var(--navy);text-decoration:none;font-size:14px;font-weight:600}
+.act.primary{background:var(--navy);color:var(--on)}
+.act:hover,.act:focus-visible{background:var(--oxblood);border-color:var(--oxblood);color:var(--on);outline:none}
+.card.ref{background:transparent;border-top-color:var(--oxblood)}
 .card.wide{grid-column:1/-1}
-.start{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--ink2)}
-.start b{color:var(--ink)}
-.start ol{margin:4px 0 0;padding-left:20px}
-footer{max-width:920px;margin:0 auto;padding:0 16px 30px;color:var(--ink2);font-size:12px}
+details{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px 16px;font-size:14px;color:var(--ink2);margin-top:12px}
+details summary{cursor:pointer;font-weight:600;color:var(--navy)}
+details p{margin:8px 0 0}
+.steps{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:12px 16px;font-size:14px;color:var(--ink2)}
+.steps b{color:var(--ink)}
+.steps ol{margin:0;padding-left:20px}
+footer{max-width:940px;margin:0 auto;padding:0 16px 30px;color:var(--ink2);font-size:12px}
 </style>
 </head>
 <body>
-<header class="top"><span class="brand">Training</span><nav><a href="#wind">Wind</a><!--FRONTS_NAV--></nav></header>
+<header class="top"><span class="brand">Marine Forecaster Training</span><nav><a href="#wind">Peak wind</a><!--FRONTS_NAV--></nav></header>
 <main>
+  <p class="kicker">Marine desk exercises</p>
   <h1>Marine forecaster training</h1>
-  <p class="lead">Fast drills on real past storms in the North Atlantic and North Pacific, judged against what was observed. A case takes a minute or two. Nothing is sent anywhere: your results stay on this device.</p>
+  <p class="lead">Exercises built from past North Atlantic and North Pacific storms, each verified against observations. Each case takes one to two minutes. Results are kept only in your browser.</p>
 
   <section id="wind">
-    <div class="sechead"><h2>Wind speed</h2><span class="q">How strong is the strongest wind on the map?</span></div>
-    <p class="about">Call none, gale, storm or HF from model maps, then see the ASCAT answer. GFS, ECMWF and the 925 &times; stability rule are scored on the same case, so you can see whether you beat them. 334 storms, five winters (2021-26).</p>
+    <div class="sechead"><h2>Peak wind</h2><span class="q">Estimate the strongest wind on the map</span></div>
+    <p class="about">From model maps, call the strongest wind ASCAT observed (none, gale, storm or hurricane force), then compare with the scatterometer. GFS, ECMWF and the 925 mb &times; stability method are scored on every case alongside you. 334 storms from five winters, 2021-26.</p>
     <div class="cards">
-      <a class="card" href="wind/#now"><h3>Right now</h3><p>Analysis maps at an ASCAT pass. What did ASCAT show?</p><span class="meta">Reading the analysis</span></a>
-      <a class="card" href="wind/#bm"><h3>Beat the model</h3><p>GFS and ECMWF +24 h maps. What will ASCAT show tomorrow?</p><span class="meta">Forecasting, against the models</span></a>
-      <a class="card" href="wind/#sh"><h3>Storm or HF?</h3><p>Every map is storm force or more. 48-63 kt, or 64 kt and up?</p><span class="meta">The hardest call</span></a>
-      <a class="card" href="wind/#bench"><h3>Benchmark</h3><p>The same 20 Beat the model cases every run, no hints. Track your score over time.</p><span class="meta">About 15 minutes</span></a>
-      <a class="card ref wide" href="wind/#read"><h3>Reading the wind</h3><p>What the research says to look at: the model's 10 m wind lifted 8 kt where it reaches 44 kt, checked against the strongest 925 mb wind and sea minus air. Tables of the 925 wind each category needs.</p><span class="meta">Reference page, read before you play</span></a>
+      <div class="card"><h3>Analysis</h3><p>GFS analysis maps at the time of an ASCAT pass. What did ASCAT observe?</p>
+        <div class="acts"><a class="act primary" href="wind/#now">Practice</a><a class="act" href="wind/#now-timed">Timed set</a></div></div>
+      <div class="card"><h3>24-hour forecast</h3><p>GFS and ECMWF 24-hour forecast maps. What will ASCAT observe at verification time?</p>
+        <div class="acts"><a class="act primary" href="wind/#bm">Practice</a><a class="act" href="wind/#bm-timed">Timed set</a></div></div>
+      <div class="card"><h3>Storm or hurricane force</h3><p>Every case reached at least storm force. Was the peak 48-63 kt, or 64 kt and above?</p>
+        <div class="acts"><a class="act primary" href="wind/#sh">Practice</a><a class="act" href="wind/#sh-timed">Timed set</a></div></div>
+      <div class="card"><h3>Benchmark</h3><p>The same 20 forecast cases each run, with no hints. Your history is kept on this device so you can track progress.</p>
+        <span class="meta">About 15 minutes</span>
+        <div class="acts"><a class="act primary" href="wind/#bench">Start benchmark</a></div></div>
+      <div class="card ref"><h3>Peak wind guidance</h3><p>What the verification shows: the model's 10 m wind is lifted 8 kt where it reaches 44 kt, and the ceiling is checked against the strongest 925 mb wind and the sea-air temperature difference. Includes the 925 mb wind each category requires and the model biases by category.</p>
+        <div class="acts"><a class="act" href="wind/#read">Read the guidance</a></div></div>
     </div>
+    <details>
+      <summary>Scoring and verification</summary>
+      <p><b>Categories:</b> none under 34 kt, gale 34-47, storm 48-63, hurricane force 64+. <b>Truth:</b> the strongest ASCAT 10 m wind anywhere on the map (third-highest cell, to reject single-cell noise).</p>
+      <p><b>Score:</b> exact 100; over by one 50, by two or more 10; under by one 25, by two or more 0; a missed hurricane force case costs 25. Misses cost more than false alarms, as on the desk.</p>
+      <p><b>Timed set:</b> 10 cases, 60 seconds each. <b>Hints</b> can be switched on or off during any practice session.</p>
+      <p><b>Data:</b> GFS analyses, GFS and ECMWF +24 h forecasts (ECMWF 00 and 12 UTC runs from March 2025). Dates are hidden.</p>
+    </details>
   </section>
 <!--FRONTS-->
   <section>
-    <div class="sechead"><h2>New here?</h2></div>
-    <div class="start">
+    <div class="sechead"><h2>Suggested sequence</h2></div>
+    <div class="steps">
       <ol>
-        <li>Read <b>Reading the wind</b> once (five minutes).</li>
-        <li>Play <b>Right now</b> with hints on until the calls feel natural, then <b>Beat the model</b>.</li>
-        <li>Run the <b>Benchmark</b> now and again later to see if you have improved.</li>
-        <li>Mix in the <b>Front drill</b> for where the systems are, not just how strong.</li>
+        <li>Read the <b>Peak wind guidance</b> (about five minutes).</li>
+        <li>Practise <b>Analysis</b> with hints on, then move to the <b>24-hour forecast</b>.</li>
+        <li>Run the <b>Benchmark</b> now and again later to measure progress.</li>
+<!--FRONTS_STEP-->
       </ol>
     </div>
   </section>
 </main>
-<footer>Maps: NOAA GFS, ECMWF open data, GOES imagery. Wind truth: ASCAT (Metop-B/C) from Remote Sensing Systems. Fronts: the OPC/WPC/NHC Unified Surface Analysis. Training use only; not an official forecast product.</footer>
+<footer>Data: NOAA GFS; ECMWF open data; NOAA GOES imagery; ASCAT (Metop-B/C) from Remote Sensing Systems; OPC/WPC/NHC Unified Surface Analysis. For training only; not an official forecast product.</footer>
 </body>
 </html>

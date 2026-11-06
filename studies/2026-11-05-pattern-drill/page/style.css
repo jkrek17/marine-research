@@ -321,3 +321,6 @@ a.brand{color:var(--on);text-decoration:none}
 details.points{margin-top:22px;padding:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px}
 details.points summary{cursor:pointer;font-weight:700}
 .top{justify-content:flex-start}
+/* hints toggle on the play screen (2026-11-06: the landing page is the menu) */
+.ptoggle{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ink2);cursor:pointer}
+.ptoggle input{margin:0}
