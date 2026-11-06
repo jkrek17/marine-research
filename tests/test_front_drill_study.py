@@ -1,0 +1,171 @@
+"""Offline tests of the front drill's pure pieces (studies/2026-11-06-front-drill/frontlib.py).
+Run: python3 tests/test_front_drill_study.py"""
+import datetime as dt
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "studies" / "2026-11-06-front-drill"))
+
+import numpy as np  # noqa: E402
+
+import frontlib as FL  # noqa: E402
+
+LAT_N, LON_W = 62.0, 290.0     # box: 62N..37N, 290E..330E
+
+
+def line(typ, lat, lon):
+    return {"type": typ, "lat": np.array(lat, float), "lon": np.array(lon, float)}
+
+
+def test_attach_and_type_set():
+    cold = line("cold", [50.0, 47.0], [310.0, 306.0])           # one end ~ at the low
+    far = line("warm", [60.0, 58.0], [330.0, 328.0])            # more than 300 km away
+    trough = line("trough", [50.0, 49.0], [310.0, 309.0])
+    fr = [cold, far, trough]
+    assert FL.type_set(fr, 50.5, 310.0) == ("cold",)
+    assert FL.type_set(fr, 59.0, 329.0) == ("warm",)
+    assert FL.type_set([trough], 50.0, 310.0) == ()
+    # an end 250 km away attaches, 350 km does not
+    assert FL.type_set([line("cold", [50.0, 40.0], [310.0, 310.0])], 50.0 + 250 / 111.19, 310.0) == ("cold",)
+    assert FL.type_set([line("cold", [50.0, 40.0], [310.0, 310.0])], 50.0 + 350 / 111.19, 310.0) == ()
+
+
+def test_types_match_across_times():
+    lows = [(990.0, 50.0, 310.0)]
+    cold_occ = [line("cold", [50, 45], [310, 306]), line("occluded", [50, 54], [310, 312])]
+    nb = (lows, cold_occ)
+    assert FL.types_match(nb, nb, ("cold", "occluded"), 50.0, 310.0)
+    # the type changes 6 h later
+    nb2 = (lows, [line("cold", [50, 45], [310, 306])])
+    assert not FL.types_match(nb, nb2, ("cold", "occluded"), 50.0, 310.0)
+    # an analysis is missing, or the low is gone
+    assert not FL.types_match(None, nb, ("cold", "occluded"), 50.0, 310.0)
+    assert not FL.types_match(nb, ([(990.0, 62.0, 330.0)], cold_occ), ("cold", "occluded"), 50.0, 310.0)
+    # the low moved 250 km: still linked and attached, trough fronts do not count
+    mv = ([(985.0, 50.0 + 250 / 111.19, 310.0)], cold_occ + [line("trough", [50, 52], [310, 311])])
+    assert FL.types_match(mv, mv, ("cold", "occluded"), 50.0, 310.0)
+
+
+def test_second_low():
+    lows = [(990.0, 50.0, 310.0), (1000.0, 53.0, 310.0)]      # 333 km apart
+    assert FL.has_second_low(lows, 50.0, 310.0)
+    assert not FL.has_second_low(lows[:1], 50.0, 310.0)
+    assert not FL.has_second_low([lows[0], (1000.0, 58.0, 310.0)], 50.0, 310.0)    # 890 km
+
+
+def test_link_tracks():
+    t0 = dt.datetime(2025, 1, 1, 0)
+    h = dt.timedelta(hours=6)
+    by_t = {t0: [(990.0, 50.0, 310.0), (1000.0, 40.0, 280.0)],
+            t0 + h: [(985.0, 40.5, 281.0), (988.0, 51.0, 312.0)],        # order swapped
+            t0 + 3 * h: [(980.0, 52.0, 314.0)]}                          # gap at +12 h: new track
+    ids = FL.link_tracks(by_t)
+    assert ids[(t0, 0)] == ids[(t0 + h, 1)] and ids[(t0, 1)] == ids[(t0 + h, 0)]
+    assert ids[(t0, 0)] != ids[(t0, 1)]
+    assert ids[(t0 + 3 * h, 0)] not in (ids[(t0, 0)], ids[(t0, 1)])
+
+
+def test_clip_fronts():
+    # a front crossing the whole box north-south at 310E, 62N..37N: clipped to 61N..38N, about 1,380 nm
+    f = line("cold", [66.0, 30.0], [310.0, 310.0])
+    out = FL.clip_fronts([f], LAT_N, LON_W)
+    assert len(out) == 1
+    lat = [p[0] for p in out[0]["pts"]]
+    assert max(lat) <= 61.0 + 1e-6 and min(lat) >= 38.0 - 1e-6
+    steps = np.diff(lat)
+    assert np.all(np.abs(steps) * 60 <= 25.5)                    # densified to 25 nm
+    # a short piece inside (under 150 nm) is dropped, a long one kept
+    short = line("warm", [50.0, 51.5], [310.0, 310.0])           # 90 nm
+    assert FL.clip_fronts([short], LAT_N, LON_W) == []
+    # a front that leaves the box and comes back gives two long pieces
+    loop = line("stationary", [60.0, 50.0, 45.0, 66.0, 70.0, 45.0, 40.0], [300, 300, 300, 300, 300, 300, 300])
+    loop = line("stationary", [45.0, 55.0, 61.5, 66.0, 61.5, 55.0, 45.0],
+                [295.0, 295.0, 295.0, 295.0, 299.0, 299.0, 299.0])
+    assert len(FL.clip_fronts([loop], LAT_N, LON_W)) == 2
+    # one entirely outside is dropped; the west and east margins apply (a front at 290.5E is outside)
+    assert FL.clip_fronts([line("cold", [60.0, 40.0], [290.5, 290.5])], LAT_N, LON_W) == []
+    assert FL.clip_fronts([line("cold", [60.0, 40.0], [329.5, 329.5])], LAT_N, LON_W) == []
+    assert len(FL.clip_fronts([line("cold", [60.0, 40.0], [291.5, 291.5])], LAT_N, LON_W)) == 1
+
+
+def test_lows_in_box():
+    lows = [(990.0, 50.0, 310.0), (1000.0, 70.0, 310.0), (1004.0, 50.0, 340.0)]
+    got = FL.lows_in_box(lows, LAT_N, LON_W)
+    assert [g["hpa"] for g in got] == [990.0]
+
+
+def grid_field(fn):
+    lat = LAT_N - np.arange(51) * 0.5
+    lon = LON_W + np.arange(81) * 0.5
+    LA, LO = np.meshgrid(lat, lon, indexing="ij")
+    return fn(LA, LO)
+
+
+def test_bilin_and_directions():
+    f = grid_field(lambda la, lo: la * 2 + lo)
+    v = FL.bilin(f, LAT_N, LON_W, np.array([50.25]), np.array([301.25]))
+    assert abs(v[0] - (50.25 * 2 + 301.25)) < 1e-9
+    assert np.isnan(FL.bilin(f, LAT_N, LON_W, np.array([20.0]), np.array([301.0]))[0])
+    assert abs(FL.wind_dir(0.0, -10.0) - 0.0) < 1e-9          # from the north
+    assert abs(FL.wind_dir(-10.0, 0.0) - 90.0) < 1e-9         # from the east
+    assert abs(FL.wrap180(350 - 10) - (-20.0)) < 1e-9
+
+
+def synthetic_cold_front():
+    """Front along 310E running south (pts from 55N to 42N). West of it cold, NW wind; east warm, SW wind."""
+    pts = [[55.0 - 0.2 * i, 310.0] for i in range(66)]
+    te = grid_field(lambda la, lo: np.where(lo < 310.0, 280.0, 296.0))
+    ang_w = np.radians(225.0)       # from the SW
+    ang_c = np.radians(315.0)       # from the NW
+    spd = 12.0
+    warm_u, warm_v = -spd * np.sin(ang_w), -spd * np.cos(ang_w)
+    cold_u, cold_v = -spd * np.sin(ang_c), -spd * np.cos(ang_c)
+    u = grid_field(lambda la, lo: np.where(lo < 310.0, cold_u, warm_u))
+    v = grid_field(lambda la, lo: np.where(lo < 310.0, cold_v, warm_v))
+    return pts, te, u, v
+
+
+def test_thermal_contrast_cold():
+    pts, te, u, v = synthetic_cold_front()
+    c = FL.thermal_contrast([pts], te, u, v, LAT_N, LON_W)
+    assert abs(c["dte"] - 16.0) < 0.5 and c["te_warm"] > c["te_cold"]
+    assert abs(c["turn"] - 90.0) < 5.0                        # SW -> NW veers 90 deg
+    # the same front drawn in the other direction gives the same answer (the warm side is found, not assumed)
+    c2 = FL.thermal_contrast([pts[::-1]], te, u, v, LAT_N, LON_W)
+    assert abs(c2["dte"] - c["dte"]) < 1e-6 and abs(c2["turn"] - c["turn"]) < 1e-6
+    h = FL.hint("cold", [pts], {"te850": te, "u10": u, "v10": v}, LAT_N, LON_W)
+    assert h.startswith("Cold front: 850 hPa theta-e falls 16 K") and "veers 90 deg" in h, h
+    # backing wind gives a warm-front style line
+    h2 = FL.hint("warm", [pts], {"te850": te, "u10": v, "v10": u}, LAT_N, LON_W)
+    assert "backs" in h2 or "veers" in h2
+
+
+def test_ridge_contrast():
+    pts = [[55.0 - 0.2 * i, 310.0] for i in range(66)]
+    te = grid_field(lambda la, lo: 285.0 + 10.0 * np.exp(-((lo - 310.0) / 1.0) ** 2))
+    r = FL.ridge_contrast([pts], te, LAT_N, LON_W)
+    assert 8.0 < r["ridge"] < 10.5 and abs(r["around"] - 285.0) < 0.5
+    flat = FL.ridge_contrast([pts], grid_field(lambda la, lo: 285.0 + 0 * la), LAT_N, LON_W)
+    assert abs(flat["ridge"]) < 1e-6
+
+
+def test_isobar_angle():
+    ns = [[55.0 - 0.2 * i, 310.0] for i in range(66)]          # runs north-south
+    along = grid_field(lambda la, lo: 1000.0 + 0.5 * (lo - 310.0))      # isobars run north-south too
+    across = grid_field(lambda la, lo: 1000.0 + 0.5 * (la - 50.0))      # isobars run east-west
+    a = FL.isobar_angle([ns], along, LAT_N, LON_W)
+    b = FL.isobar_angle([ns], across, LAT_N, LON_W)
+    assert a["angle"] < 5.0 and b["angle"] > 85.0
+    assert FL.isobar_angle([ns], grid_field(lambda la, lo: 1000.0 + 0 * la), LAT_N, LON_W) is None
+    h = FL.hint("stationary", [ns], {"msl": along}, LAT_N, LON_W)
+    assert h.startswith("Stationary front: the isobars run 0 deg off") or h.startswith("Stationary front: the isobars run 1 deg")
+    assert FL.hint("trough", [ns], {}, LAT_N, LON_W) is None
+
+
+if __name__ == "__main__":
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_"):
+            fn()
+            print("ok", name)

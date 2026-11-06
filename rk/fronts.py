@@ -5,7 +5,9 @@ Fetches one UTC day of bulletins per request (cached as raw text under
 degree) and returns lows, highs and fronts. Interface in rk/CONTRACT.md. Times are naive UTC, lon 0-360.
 """
 import datetime as dt
+import os
 import re
+import threading
 
 import numpy as np
 
@@ -218,7 +220,7 @@ def _raw(date):
         return None
     text = blob.content.decode("utf-8", "replace")  # nwp.get returns a requests Response
     if date < today - dt.timedelta(days=1) and "ASUS0" in text:
-        tmp = f.with_suffix(".tmp")
+        tmp = f.with_name("%s.%d.%d.tmp" % (f.stem, os.getpid(), threading.get_ident()))  # threads fetch the same day
         tmp.write_text(text)
         tmp.replace(f)
     return text
