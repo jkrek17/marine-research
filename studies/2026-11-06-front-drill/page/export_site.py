@@ -1,6 +1,6 @@
 """Write the built front drill into a static-site clone as <site folder>/fronts/ (relative paths only): index.html,
 app.js, style.css and deck/ (manifest.json + packs p00.json ..., the format make_single.py writes, the whole deck).
-Never key.csv or anything from work/. The folder's previous contents are replaced. The header (Training link to "../", Wind / Fronts nav) is in index.html itself. Does not touch git: push the site repo yourself.
+Never key.csv or anything from work/. The folder's previous contents are replaced. The header (Training link to "../", All exercises / Peak wind / Frontal analysis nav) is in index.html itself. Does not touch git: push the site repo yourself.
 
     python3 export_site.py <site folder> [--deck <deck folder>]
 """

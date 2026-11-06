@@ -356,9 +356,17 @@ table.conf th.rowh{text-align:left;white-space:nowrap}
   .brk td.mis{white-space:normal}
 }
 @media (max-width:420px){.brand{font-size:19px;letter-spacing:.03em;gap:6px}.pts{font-size:12px}}
-.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:8px 16px;background:#14233C;border-bottom:3px solid #6E1423;color:#F7F2E6}
-.brand{color:#F7F2E6;text-decoration:none;font-weight:700;font-size:18px;letter-spacing:.06em;text-transform:uppercase}
-.sitenav{display:flex;gap:4px}
-.sitenav a{color:#F7F2E6;text-decoration:none;padding:4px 10px;border-radius:999px;font-size:14px;opacity:.8}
-.sitenav a[aria-current=page]{background:rgba(247,242,230,.15);opacity:1}
+.top{justify-content:flex-start}
+a.brand{color:var(--on);text-decoration:none}
+.sitenav{display:flex;gap:4px;margin-left:12px}
+.sitenav a{color:var(--on);background:none;border:0;text-decoration:none;padding:4px 10px;border-radius:999px;font:inherit;font-size:14px;opacity:.8;white-space:nowrap}
+.sitenav [aria-current=page]{background:rgba(247,242,230,.15);opacity:1}
 .top .topright{margin-left:auto}
+@media (max-width:560px){.top{flex-wrap:wrap;gap:4px 8px}.sitenav{order:3;margin-left:0;width:100%;overflow-x:auto}}
+/* play-screen options (2026-11-06: the landing page is the menu, the drill opens on a case) */
+.pctl{margin-left:auto;display:inline-flex;align-items:center;gap:12px}
+.ptoggle{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ink2);cursor:pointer}
+.ptoggle input[type=checkbox]{margin:0}
+.ptoggle select{font:inherit;font-size:13px;padding:2px 4px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink)}
+details.points{margin-top:22px;padding:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:8px;font-size:14px}
+details.points summary{cursor:pointer;font-weight:700}
