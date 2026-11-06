@@ -1,0 +1,54 @@
+{
+ "fit_2024_26": [
+  0.68,
+  0.76,
+  0.82
+ ],
+ "now_in_sample": {
+  "n": 348,
+  "exact": 70,
+  "storm_plus_exact": 64,
+  "hf_caught": 16,
+  "hf": 28,
+  "hf_over": 6,
+  "storm": 112
+ },
+ "now_held_out": {
+  "n": 320,
+  "exact": 68,
+  "storm_plus_exact": 62,
+  "hf_caught": 32,
+  "hf": 67,
+  "hf_over": 4,
+  "storm": 159
+ },
+ "fc_in_sample": {
+  "n": 174,
+  "exact": 72,
+  "storm_plus_exact": 68,
+  "hf_caught": 6,
+  "hf": 16,
+  "hf_over": 2,
+  "storm": 50,
+  "gfs_exact": 67,
+  "gfs_storm_plus_exact": 48,
+  "gfs_hf_caught": 2
+ },
+ "fc_held_out": {
+  "n": 160,
+  "exact": 65,
+  "storm_plus_exact": 61,
+  "hf_caught": 19,
+  "hf": 35,
+  "hf_over": 7,
+  "storm": 79,
+  "gfs_exact": 54,
+  "gfs_storm_plus_exact": 44,
+  "gfs_hf_caught": 7
+ },
+ "f": [
+  0.7,
+  0.79,
+  0.83
+ ]
+}
