@@ -30,7 +30,7 @@
     <h2>Game</h2>
     <div class="choice" id="gameChoice" role="radiogroup" aria-label="Game">
       <button type="button" role="radio" data-v="now" class="opt on" aria-checked="true"><b>Right now</b><span>Maps at the time of an ASCAT pass. What did it show?</span></button>
-      <button type="button" role="radio" data-v="fc" class="opt" aria-checked="false"><b>Forecast +24 h</b><span>Maps now plus ASCAT now. Will the peak grow, hold or decay?</span></button>
+      <button type="button" role="radio" data-v="bm" class="opt" aria-checked="false"><b>Beat the model</b><span>GFS and ECMWF +24 h forecast maps. What will ASCAT show? Go above the models when the pattern says so.</span></button>
     </div>
 
     <h2>Mode</h2>
@@ -53,9 +53,10 @@
 
     <div class="points">
       <h2>Points</h2>
-      <p><b>Forecast game, change call</b> (grow, hold or decay against the ASCAT category now; under 5 kt of change counts as hold): right 60. Hold when it moved 15. Grow or decay when it held 25. Wrong direction 0. The category after it is optional and scored as below.</p>
+      <p><b>Beat the model</b>: your category for ASCAT at +24 h is scored like any category call, and each model's own category is scored the same way, so the stats show whether you beat GFS and ECMWF.</p>
+      <p><b>Benchmark and Pairs</b> still use the grow, hold or decay call (right 60, hold when it moved 15, grow or decay when it held 25, wrong direction 0).</p>
       <p><b>Category call</b>: exact 100. Over-call by one 50, by two or more 10. Under-call by one 25, by two or more 0. Missing an observed HF -25.</p>
-      <p class="fine">Categories: none under 34 kt, gale 34-47, storm 48-63, HF 64+. Truth is the strongest ASCAT 10 m wind anywhere on the map (3rd highest cell, so one stray cell does not set it); the circled low is the deepest on the map. Maps are GFS analyses. Dates are hidden.</p>
+      <p class="fine">Categories: none under 34 kt, gale 34-47, storm 48-63, HF 64+. Truth is the strongest ASCAT 10 m wind anywhere on the map (3rd highest cell, so one stray cell does not set it); the circled low is the deepest on the map. Maps are GFS analyses; Beat the model adds GFS and ECMWF +24 h forecasts (ECMWF only for 00/12Z runs from March 2025). Dates are hidden.</p>
     </div>
   </section>
 

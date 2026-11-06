@@ -39,3 +39,9 @@ Version 2 adds `"truth": "scene"` and per snapshot `plat`, `plon` (the ASCAT cel
 `cat`: 0 none, 1 gale, 2 storm, 3 HF. Valid times are not in the manifest (dates hidden); a separate `key.csv` beside it, not published, maps ids to times.
 
 `deck/<id>.bin`: two snapshots (t0 then t24), each = for every field in `fields` order a `ny x nx` uint8 array (row 0 = north, value = offset + scale x byte, 255 = missing), then ASCAT speed (kt, 1 kt steps, 255 = not seen; highest cell in each 0.5 deg box), ASCAT direction (meteorological degrees / 2, 255 = not seen), land (1 land or ice, 0 water).
+
+## Beat the model (Jason 2026-11-06)
+
+Replaces grow / hold / decay as the forecast game (Benchmark and Pairs still use the change call). The trainee sees each model's full +24 h forecast maps (`fc_deck.py`: GFS for every case, ECMWF open data for 00/12Z runs from March 2025), switchable with the analysis now, plus the model's own 10 m wind and its strongest wind on the map; calls the category ASCAT will show at +24 h; each model's own category is scored the same way. `deck/<id>_fc_<model>.bin` is one snapshot in the .bin layout with the model's 10 m wind speed and direction in the ASCAT layers; `case.fc[model] = {peak, cat}` in the manifest.
+
+Models on the 174-case deck (3rd-highest 10 m wind on the map vs ASCAT's): GFS exact 67% (persistence 45%), too low 20%, too high 13%; storm cases right 60% (38% low), HF right 12% (88% low). ECMWF (57 cases) exact 58%, too low 33%; median 3 kt under ASCAT.

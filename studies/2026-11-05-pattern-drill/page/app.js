@@ -86,6 +86,15 @@
   ];
   var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "w925": "the best single clue to how strong it is now. Over 916 lows ASCAT's peak in the low's own circulation ran about 85-90% of the strongest 925 mb wind near the low where the sea was under 2 C warmer than the 2 m air, and all of it or more where the sea was 5+ C warmer. Read it with the Sea - air tab.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 916 lows; read it with the 500 mb vorticity."};
   var REVEAL_TAB = { id: 'reveal', label: 'ASCAT', name: 'ASCAT wind over MSLP', reveal: true };
+  // Beat the model: each model's +24 h forecast maps (fc_deck.py); the 10 m wind tab is the model's own surface wind.
+  var MODEL_NAMES = { gfs: 'GFS', ifs: 'ECMWF' }, MODELS = ['gfs', 'ifs'];
+  var W10_TAB = { id: 'w10', label: '10 m wind', name: 'Model 10 m wind',
+    fill: { key: 'wspd10', levels: [20, 25, 30, 34, 41, 48, 56, 64],
+            colors: [null, '#9fbbd9', '#7aa0c9', '#5683b5', '#f7e68a', '#f2a93b', '#d4531f', '#9e1f1f', '#5c0f45'] },
+    contours: [{ key: 'msl', step: 4, width: 1.1, color: '#111', label: true, fmt: f0, minGap: 120 }],
+    legend: [{ title: 'Model 10 m wind speed (kt); ASCAT is judged against this', levels: [20, 25, 30, 34, 41, 48, 56, 64] }],
+    note: 'Black: MSLP every 4 hPa. Models usually run a few knots under ASCAT at the peak, more in cold air over warm sea.' };
+  HINTS.w10 = "the model's own answer. Read it against the 925 mb wind and Sea - air tabs: strong 925 wind over a warm sea means ASCAT is likely to come in above it.";
 
   // ------------------------------------------------------------------ helpers
   var $ = function (id) { return document.getElementById(id); };
@@ -98,7 +107,7 @@
   function rand(n) { return Math.floor(Math.random() * n); }
 
   // ------------------------------------------------------------------ session (in memory + sessionStorage)
-  var session = { records: [], played: { now: {}, fc: {} } };
+  var session = { records: [], played: { now: {}, fc: {}, bm: {} } };
   try { var raw = window.sessionStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.records && s.played) session = s; } } catch (e) { /* storage may be blocked */ }
   session.pairs = session.pairs || []; session.played.pair = session.played.pair || {};
   function saveSession() { try { window.sessionStorage.setItem(STORE_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ } }
@@ -180,13 +189,14 @@
       m.byId = {}; m.cases.forEach(function (c) { m.byId[c.id] = c; });
     });
   }
-  function parseBin(buf) {
+  function parseBin(buf, nsnap) {
+    nsnap = nsnap || 2;
     var ny = manifest.ny, nx = manifest.nx, n = ny * nx, nf = manifest.fields.length;
     var u8 = new Uint8Array(buf);
     var per = (nf + 3) * n;
-    if (u8.length < 2 * per) throw new Error('short .bin: ' + u8.length + ' < ' + 2 * per);
+    if (u8.length < nsnap * per) throw new Error('short .bin: ' + u8.length + ' < ' + nsnap * per);
     var snaps = [];
-    for (var s = 0; s < 2; s++) {
+    for (var s = 0; s < nsnap; s++) {
       var base = s * per, snap = { f: {} };
       manifest.fields.forEach(function (f, k) {
         var fx = unitFix(f), a = new Float32Array(n), o = base + k * n;
@@ -212,12 +222,33 @@
         // {"bin": base64 of the .bin, "img": {"t0_ir": data URL, ...}}: one file per case
         var j = JSON.parse(t);
         satData[id] = j.img || {};
+        if (j.fc) fcB64[id] = j.fc;
         var s = atob(j.bin), u = new Uint8Array(s.length);
         for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
         return u.buffer;
       }) : r.arrayBuffer();
     }).then(function (b) { var d = parseBin(b); caseCache[id] = d; return d; });
   }
+
+  // A model forecast file is one snapshot in the same layout; its "ASCAT" layers hold the model's 10 m wind.
+  var fcB64 = {}, fcCache = {};
+  function b64buf(t) { var s = atob(t), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
+  function asFc(buf) {
+    var sn = parseBin(buf, 1)[0], n = sn.spd.length, w = new Float32Array(n);
+    for (var i = 0; i < n; i++) w[i] = sn.spd[i] === 255 ? NaN : sn.spd[i];
+    sn.f.wspd10 = w; return sn;
+  }
+  function loadFc(c) {
+    if (fcCache[c.id]) return Promise.resolve(fcCache[c.id]);
+    var ms = MODELS.filter(function (m) { return c.fc && c.fc[m]; }), out = {};
+    var b64 = manifest && manifest.encoding === 'base64';
+    return Promise.all(ms.map(function (m) {
+      if (b64) { var t = fcB64[c.id] && fcB64[c.id][m]; if (t) out[m] = asFc(b64buf(t)); return null; }
+      return fetch('deck/' + c.id + '_fc_' + m + '.bin').then(function (r) { if (!r.ok) throw new Error(c.id + ' ' + m + ' ' + r.status); return r.arrayBuffer(); })
+        .then(function (b) { out[m] = asFc(b); });
+    })).then(function () { fcCache[c.id] = out; return out; });
+  }
+  function hasModel(c) { return !!(c.fc && c.fc.gfs); }
 
   var imgCache = {};
   function loadImage(url) {   // cached by url; resolves to an Image, or null if the file is missing
@@ -236,6 +267,7 @@
   // ------------------------------------------------------------------ case choice
   function pairsFor(game, c) {
     if (game === 'fc') return (c.t0 && c.t24) ? [{ c: c, snap: 't0', obs: c.t24.cat }] : [];
+    if (game === 'bm') return (c.t0 && c.t24 && hasModel(c)) ? [{ c: c, snap: 't0', obs: c.t24.cat }] : [];
     var out = [];
     // every snapshot in the deck already passed the builder's ASCAT coverage rule
     ['t0', 't24'].forEach(function (k) { if (c[k]) out.push({ c: c, snap: k, obs: c[k].cat }); });
@@ -253,7 +285,7 @@
     return best;
   }
   function pickCase(game, useWeak) {
-    var played = session.played[game];
+    var played = session.played[game] || (session.played[game] = {});
     var pool = manifest.cases.filter(function (c) { return !played[c.id] && !benchSet[c.id] && pairsFor(game, c).length; });
     if (!pool.length) return null;
     var recs = session.records.filter(function (r) { return r.game === game && !r.skip; });
@@ -579,7 +611,7 @@
       if (extra.tap) drawTap(ctx, g, extra.tap);
     } else {
       tab.contours.forEach(function (c) { if (snap.f[c.key]) drawContours(ctx, g, snap.f[c.key], c, labels); });
-      drawLow(ctx, g, extra.low.lat, extra.low.lon);
+      if (extra.low) drawLow(ctx, g, extra.low.lat, extra.low.lon);
       if (extra.tap) drawTap(ctx, g, extra.tap);
     }
   }
@@ -654,6 +686,30 @@
     var have = {}; (manifest && manifest.fields || []).forEach(function (f) { have[f.key] = 1; });
     return TABS.filter(function (t) { return !t.needs || have[t.needs]; });
   }
+  function bmTabs(src) { return src === 'now' ? availTabs() : [W10_TAB].concat(availTabs().filter(function (t) { return !t.sat; })); }
+  function buildSrc() {   // Beat the model: which maps the tabs show (each model's +24 h, or the analysis now)
+    var bar = $('srcbar');
+    if (!bar) { bar = el('div', 'srcbar'); bar.id = 'srcbar'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Maps from'); $('tabs').parentNode.insertBefore(bar, $('tabs')); }
+    bar.hidden = !(cur && cur.game === 'bm');
+    if (bar.hidden) return;
+    bar.innerHTML = '';
+    var srcs = MODELS.filter(function (m) { return cur.c.fc && cur.c.fc[m]; }).map(function (m) { return [m, MODEL_NAMES[m] + ' +24 h']; }).concat([['now', 'Analysis now']]);
+    srcs.forEach(function (x) {
+      var b = el('button', 'src' + (cur.src === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.setAttribute('aria-pressed', cur.src === x[0]);
+      b.addEventListener('click', function () { setSrc(x[0]); });
+      bar.appendChild(b);
+    });
+    if (!(cur.c.fc && cur.c.fc.ifs)) bar.appendChild(el('span', 'srcnote', 'No ECMWF for this case (not in the open archive)'));
+  }
+  function setSrc(src) {
+    if (!cur || cur.src === src) return;
+    var id = tabList[tabIdx] && tabList[tabIdx].id;
+    cur.src = src; buildSrc();
+    if (cur.answered) return draw();
+    tabList = bmTabs(src); buildTabs();
+    var k = tabList.map(function (t) { return t.id; }).indexOf(id);
+    setTab(k < 0 ? 0 : k);
+  }
   function buildTabs() {
     var t = $('tabs'); t.innerHTML = '';
     tabList.forEach(function (tb, i) {
@@ -686,15 +742,22 @@
   function draw() {
     if (!cur || !cur.data) return;
     var tab = tabList[tabIdx];
-    $('cap').textContent = tab.name + (tab.reveal && cur.game === 'fc' ? ' (+24 h)' : '');
+    var bm = cur.game === 'bm', model = bm && !tab.reveal && cur.src !== 'now' && !tab.sat;
+    $('cap').textContent = (model ? MODEL_NAMES[cur.src] + ' +24 h forecast: ' : bm && !tab.reveal ? 'Analysis now: ' : '') + tab.name + (tab.reveal && (cur.game === 'fc' || bm) ? ' (+24 h)' : '');
     buildLegend(tab);
     var hb = $('hint'); hb.hidden = !(opts.hints && !cur.bench && !tab.reveal && HINTS[tab.id]);
     hb.textContent = hb.hidden ? '' : 'Look for: ' + HINTS[tab.id];
-    var snapIdx = cur.game === 'fc' && tab.reveal ? 1 : (cur.snap === 't24' && cur.game === 'now' ? 1 : 0);
-    var info = cur.game === 'fc' && tab.reveal ? cur.c.t24 : cur.c[cur.snap];
+    if (model) {
+      var fs = cur.fcData && cur.fcData[cur.src];
+      if (!fs) return;
+      return renderMap($('map'), geom, fs, tab, { low: null, tap: null });
+    }
+    var later = (cur.game === 'fc' || bm) && tab.reveal;
+    var snapIdx = later ? 1 : (cur.snap === 't24' && cur.game === 'now' ? 1 : 0);
+    var info = later ? cur.c.t24 : cur.c[cur.snap];
     var extra = { low: info, tap: cur.tap || null };
     if (tab.reveal && cur.peak) extra.peak = cur.peak;
-    if (tab.reveal && cur.game === 'fc') extra.track = [cur.c.t0, cur.c.t24];
+    if (later) extra.track = [cur.c.t0, cur.c.t24];
     if (tab.sat) {
       var token = cur, tg = geom;
       if (!cur.c[cur.snap][tab.sat]) { renderSat($('map'), geom, cur.data[snapIdx], tab, extra, null); return; }
@@ -736,22 +799,24 @@
       goHome(); return;
     }
     var game = bench ? 'fc' : opts.game;
-    cur = { game: game, c: pick.c, snap: pick.snap, data: null, answered: false, t0: 0, bench: !!bench, stage: game === 'fc' ? 'change' : null, chCalled: null, tap: null, peak: null };
-    if (!bench) { session.played[opts.game][pick.c.id] = 1; saveSession(); }
-    tabList = availTabs(); buildTabs();
+    cur = { game: game, c: pick.c, snap: pick.snap, data: null, answered: false, t0: 0, bench: !!bench, stage: game === 'fc' ? 'change' : null, chCalled: null, tap: null, peak: null,
+            src: game === 'bm' ? 'gfs' : null, fcData: null };
+    if (!bench) { (session.played[opts.game] = session.played[opts.game] || {})[pick.c.id] = 1; saveSession(); }
+    tabList = game === 'bm' ? bmTabs('gfs') : availTabs(); buildTabs(); buildSrc();
     $('result').hidden = true; $('debrief').hidden = true; $('nextBtn').hidden = true; $('answers').hidden = false;
     $('mapLoad').hidden = false; $('mapLoad').textContent = 'Loading case...';
     var played = session.records.filter(function (r) { return r.game === opts.game; }).length;
     $('pCase').textContent = bench ? 'Benchmark ' + (bench.n + 1) + ' of ' + bench.ids.length : blitz ? 'Case ' + (blitz.n + 1) + ' of ' + BLITZ_N : 'Case ' + (played + 1);
-    $('pGame').textContent = game === 'now' ? 'Right now' : 'Forecast +24 h';
+    $('pGame').textContent = game === 'now' ? 'Right now' : game === 'bm' ? 'Beat the model' : 'Forecast +24 h';
     $('pBasin').textContent = pick.c.basin === 'natl' ? 'N Atlantic' : pick.c.basin === 'npac' ? 'N Pacific' : pick.c.basin;
     $('timerbar').hidden = $('pTimer').hidden = !blitz;
     buildQuestion();
     window.scrollTo(0, 0); focusPlay();
     var token = cur;
-    loadCase(pick.c.id).then(function (d) {
+    Promise.all([loadCase(pick.c.id), game === 'bm' ? loadFc(pick.c) : null]).then(function (both) {
+      var d = both[0];
       if (cur !== token) return;
-      cur.data = d; geom = makeGeom(pick.c); sizeCanvas();
+      cur.data = d; cur.fcData = both[1]; geom = makeGeom(pick.c); sizeCanvas();
       $('mapLoad').hidden = true; setTab(0);
       cur.t0 = Date.now();
       if (blitz) startTimer();
@@ -763,11 +828,17 @@
     });
   }
   function buildQuestion() {
-    var now = cur.game === 'now', fc = !now, st = cur.stage;
+    var now = cur.game === 'now', bm = cur.game === 'bm', fc = cur.game === 'fc', st = cur.stage;
     $('question').textContent = now ? 'Tap where the strongest wind is, then pick the category.'
+      : bm ? 'What will ASCAT show 24 h from now? (strongest wind anywhere on the map)'
       : st === 'change' ? 'Will the peak wind grow, hold or decay over the next 24 h?' : 'Optional: which category in 24 h?';
     var nl = $('nowline');
-    if (fc) { var t = cur.c.t0; nl.hidden = false; nl.textContent = 'ASCAT now: ' + CATS[t.cat] + ' (' + Math.round(t.peak) + ' kt)' + (st === 'change' ? '. Under ' + deadBand() + ' kt of change counts as Hold.' : '. You called ' + CH_NAMES[cur.chCalled + 1] + '.'); } else nl.hidden = true;
+    if (bm) {
+      var t0 = cur.c.t0, ms = MODELS.filter(function (m) { return cur.c.fc[m] && cur.c.fc[m].peak != null; });
+      nl.hidden = false;
+      nl.innerHTML = 'ASCAT now: <b>' + CATS[t0.cat] + '</b> (' + Math.round(t0.peak) + ' kt).<br>Strongest +24 h model wind on the map: ' +
+        ms.map(function (m) { var f = cur.c.fc[m]; return MODEL_NAMES[m] + ' <b>' + Math.round(f.peak) + ' kt</b> (' + CATS[f.cat] + ')'; }).join(' &middot; ') + '.';
+    } else if (fc) { var t = cur.c.t0; nl.hidden = false; nl.textContent = 'ASCAT now: ' + CATS[t.cat] + ' (' + Math.round(t.peak) + ' kt)' + (st === 'change' ? '. Under ' + deadBand() + ' kt of change counts as Hold.' : '. You called ' + CH_NAMES[cur.chCalled + 1] + '.'); } else nl.hidden = true;
     $('catNote').hidden = !(now ? session.records.length === 0 : st === 'cat' && !cur.bench && session.records.length < 3);   // legend note early in a session
     $('tapNote').hidden = !(now && !cur.answered);
     $('mapbox').classList.toggle('tappable', now && !cur.answered);
@@ -966,8 +1037,8 @@
   function answer(called, why) {   // called: category 0-3, or -1 (skipped, or time up)
     if (!cur || cur.answered || !cur.data) return;
     cur.answered = true; clearTimer();
-    var fc = cur.game === 'fc';
-    var obsInfo = fc ? cur.c.t24 : cur.c[cur.snap];
+    var fc = cur.game === 'fc', bm = cur.game === 'bm';
+    var obsInfo = fc || bm ? cur.c.t24 : cur.c[cur.snap];
     var o = obsInfo.cat, secs = Math.min((Date.now() - cur.t0) / 1000, 600);
     var timeUp = why === 'time';
     if (timeUp) secs = BLITZ_SECS;
@@ -977,7 +1048,8 @@
     var pts = cpts + chPts;
     var rec = { id: cur.c.id, game: cur.game, called: called, obs: o, start: cur.c.t0.cat, pts: pts, cpts: cpts, t: Math.round(secs * 10) / 10, mode: cur.bench ? 'bench' : opts.mode };
     if (fc) { rec.chCalled = cur.chCalled; rec.chObs = chObs; rec.chPts = chPts; rec.skip = skipped; }
-    if (!fc) {
+    if (bm) { rec.models = {}; MODELS.forEach(function (m) { if (cur.c.fc[m] && cur.c.fc[m].cat != null) rec.models[m] = cur.c.fc[m].cat; }); cur.peak = peakCell(geom, cur.data[1], cur.c.t24); }
+    if (!fc && !bm) {
       var low = cur.c[cur.snap];
       cur.peak = peakCell(geom, cur.data[cur.snap === 't24' ? 1 : 0], low);
       if (cur.tap && cur.peak) { cur.tapNm = distKm(cur.tap.lat, cur.tap.lon, cur.peak.lat, cur.peak.lon) * NM_PER_KM; rec.tapNm = Math.round(cur.tapNm); }
@@ -1009,6 +1081,14 @@
       var d = cur.c.t0.hpa - cur.c.t24.hpa, dd = Math.round(Math.abs(d));
       h += '<div class="rline">' + (dd === 0 ? 'No pressure change' : (d > 0 ? 'Deepened ' : 'Filled ') + dd + ' hPa') +
         ' (' + Math.round(cur.c.t0.hpa) + ' to ' + Math.round(cur.c.t24.hpa) + ' hPa)</div>';
+    } else if (bm) {
+      h += '<div class="rline">ASCAT at +24 h: <b>' + Math.round(obsInfo.peak) + ' kt</b> (' + CATS[o] + '), from ' + Math.round(cur.c.t0.peak) + ' kt now. Ringed on the ASCAT tab.</div>';
+      MODELS.forEach(function (m) {
+        var f = cur.c.fc[m]; if (!f || f.cat == null) return;
+        var you = called < 0 ? 9 : Math.abs(called - o), them = Math.abs(f.cat - o);
+        var v = called < 0 ? '' : you < them ? ' <span class="pill g">you beat it</span>' : you === them ? ' <span class="pill">level</span>' : ' <span class="pill d">it beat you</span>';
+        h += '<div class="rline">' + MODEL_NAMES[m] + ' said ' + Math.round(f.peak) + ' kt (' + CATS[f.cat] + '), ' + (f.cat === o ? 'right' : f.cat < o ? 'too low' : 'too high') + v + '</div>';
+      });
     } else {
       h += '<div class="rline">ASCAT peak ' + Math.round(obsInfo.peak) + ' kt (' + CATS[o] + ')</div>';
       h += '<div class="rline">Low centre about ' + Math.round(cur.c[cur.snap].hpa) + ' hPa</div>';
@@ -1022,7 +1102,7 @@
     var nb = $('nextBtn'); nb.hidden = false;
     nb.textContent = blitz && blitz.n >= BLITZ_N ? 'See results' : 'Next case';
     // reveal tab
-    tabList = availTabs().concat([REVEAL_TAB]); buildTabs(); setTab(tabList.length - 1);
+    tabList = (bm ? bmTabs(cur.src) : availTabs()).concat([REVEAL_TAB]); buildTabs(); setTab(tabList.length - 1);
     focusPlay();
     if (window.innerWidth < 900) {   // result sits below the map on narrow screens: bring it up under the sticky bars
       var top = res.getBoundingClientRect().top + window.pageYOffset - chromeH() - 8;
@@ -1088,9 +1168,24 @@
     }
     return h + '</div>';
   }
+  // You vs each model: exact category and points on the same cases (a model counts only where it had a forecast).
+  function vsModelHTML(recs) {
+    var h = '';
+    MODELS.forEach(function (m) {
+      var rs = recs.filter(function (r) { return r.called >= 0 && r.models && r.models[m] != null; });
+      if (!rs.length) return;
+      var you = 0, it = 0, yp = 0, ip = 0, up = 0, dn = 0;
+      rs.forEach(function (r) { if (r.called === r.obs) you++; if (r.models[m] === r.obs) it++; yp += score(r.called, r.obs); ip += score(r.models[m], r.obs); if (r.models[m] < r.obs) up++; if (r.models[m] > r.obs) dn++; });
+      var n = rs.length, pc = function (x) { return Math.round(100 * x / n) + '%'; };
+      h += '<div class="persist"><b>You vs ' + MODEL_NAMES[m] + '</b><span>You: ' + pc(you) + ' exact, ' + yp + ' pts. ' + MODEL_NAMES[m] + ': ' + pc(it) + ' exact, ' + ip + ' pts over the same ' + n + ' case' + (n > 1 ? 's' : '') +
+        '. ' + (yp > ip ? 'You are beating it.' : yp === ip ? 'Level.' : 'It is ahead.') + ' It was too low ' + up + ' times and too high ' + dn + '.</span></div>';
+    });
+    return h;
+  }
   function gameSection(title, recs, game) {
     var h = '<h3 class="gh">' + title + '</h3>';
     if (!recs.length) return h + '<div class="empty">No cases yet.</div>';
+    if (game === 'bm') { var cf = confusion(recs); return h + vsModelHTML(recs) + '<div class="read">' + readLine(cf) + '</div>' + biasHTML(recs, game) + tableHTML(cf); }
     var conf = confusion(recs);
     return h + (game === 'fc' ? changeHTML(recs) : tapHTML(recs)) + '<div class="read">' + readLine(conf) + '</div>' + (game === 'fc' ? persistHTML(recs) : '') + biasHTML(recs, game) + (game === 'fc' ? '<div class="bh2">Category (optional second call)</div>' : '') + tableHTML(conf);
   }
@@ -1112,7 +1207,9 @@
         '<button type="button" class="btn small" id="statsNext">Next case</button></div>';
     } else {
       h += gameSection('Right now', all.filter(function (r) { return r.game === 'now'; }), 'now');
-      h += gameSection('Forecast +24 h', all.filter(function (r) { return r.game === 'fc'; }), 'fc');
+      h += gameSection('Beat the model', all.filter(function (r) { return r.game === 'bm'; }), 'bm');
+      var old = all.filter(function (r) { return r.game === 'fc'; });
+      if (old.length) h += gameSection('Forecast +24 h (grow, hold, decay)', old, 'fc');
     }
     h += pairsStatHTML() + benchHistHTML(null);
     statsOpener = document.activeElement;
@@ -1145,6 +1242,7 @@
     var h = '<div class="level"><b>' + t.pts + ' pts</b><span>' + pct + '% exact &middot; best streak ' + t.best + '</span></div>';
     h += levelHTML(totals(session.records).pts);
     if (blitz.recs.length && blitz.recs[0].game === 'fc') h += changeHTML(blitz.recs);
+    if (blitz.recs.length && blitz.recs[0].game === 'bm') h += vsModelHTML(blitz.recs);
     h += '<div class="read">' + readLine(conf) + '</div>' + biasHTML(blitz.recs, blitz.recs.length && blitz.recs[0].game) + tableHTML(conf);
     $('endTitle').textContent = 'Blitz done'; $('endBody').innerHTML = h; show('end');
   }
@@ -1252,7 +1350,7 @@
     var chn = function (v) { return v === null || v === undefined ? '' : CH_NAMES[v + 1]; };
     var cat = function (v) { return v === null || v === undefined || v < 0 ? '' : CATS[v]; };
     session.records.forEach(function (r, i) {
-      rows.push(['session', '', '', r.game === 'fc' ? 'forecast' : 'right_now', r.mode, r.id || '', cat(r.start), chn(r.chCalled), r.chObs === undefined ? '' : CH_OBS[r.chObs + 1], r.chPts, cat(r.called), cat(r.obs), r.cpts !== undefined ? r.cpts : r.pts, r.pts, r.t, r.tapNm, '', '']);
+      rows.push(['session', '', '', r.game === 'fc' ? 'forecast' : r.game === 'bm' ? 'beat_the_model' : 'right_now', r.mode, r.id || '', cat(r.start), chn(r.chCalled), r.chObs === undefined ? '' : CH_OBS[r.chObs + 1], r.chPts, cat(r.called), cat(r.obs), r.cpts !== undefined ? r.cpts : r.pts, r.pts, r.t, r.tapNm, '', '']);
     });
     benchHist.forEach(function (run, k) {
       (run.recs || []).forEach(function (r) {

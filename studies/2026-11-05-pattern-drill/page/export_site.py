@@ -20,6 +20,7 @@ m = json.loads((deck / "manifest.json").read_text())
 keep = {"manifest.json", "pairs.json", "bench.json"}
 for c in m["cases"]:
     keep.add(c["id"] + ".bin")
+    keep.update("%s_fc_%s.bin" % (c["id"], k) for k in c.get("fc", {}))
     keep.update(p.name for p in deck.glob(c["id"] + "_*.jpg"))
 for name in keep:
     if (deck / name).exists():
