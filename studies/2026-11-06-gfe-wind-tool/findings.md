@@ -131,6 +131,12 @@ Held-out (scored once):
 - Settings are grid-specific: ECMWF alone wants an earlier start (30), GFS alone runs hot and no tested setting fit.
 - "Highest model, then the ramp" over-draws storm 1.6x (Atl) to 2.9x (Pac) with 2.4x the false storm tiles; it is an HF-area tool (Atl HF 71-75% at ~2x).
 
+## Follow-up: targeted HF core (Jason, 17:23Z)
+
+"if the forecaster is trying to add value, then lets add it where it counts the most ... we dont want to blanket HF. it should be targeted to the right areas". On top of the current tool (ramps 38-42 / 48-52 of the stronger model): an extra 0 -> E kt over U..U+4 of the stronger model, only where GFS 925 mb wind x drill stability factor >= G kt (G0 = everywhere); E 4-10, U 48-56, G 0/55/60/65/70; cases with 925 mb data (`tool_score.py --hf`). Rule on tune: storm unchanged, Atl HF area <= 1.0x, most Atl HF tile catch, ties to fewer false HF tiles. Pick: **0 -> 6 kt over 52-56, gate 55 kt** (tune Atl HF 40% -> 53% at 0.96x).
+
+Held-out (scored once): Atl HF 59% -> 70% (81/115), HF area 0.92x -> 1.67x, false HF tiles 37 -> 68; Pac HF 3 -> 6 of 15 (false 4 -> 7); storm catch, area and gales unchanged. Same lift without the gate: 71% at 1.76x (74 false) Atl, 6 of 15 (12 false) Pac. On tune the gate matched an ungated lift of equal area (no better targeting than the model's own strength); held-out it trimmed false HF ~10% Atl / ~40% Pac for one tile. HF area overshot on held-out again (0.96x -> 1.67x). In awips-tools Make_BestWind as the "HF core" option, Off by default.
+
 ## Lessons
 
 - **A lower switch is a slide along the curve, not a win.** Threshold 42 against 44 added 5-7 pts catch and the same share of false tiles, with storm CSI unchanged. Report CSI next to catch whenever a rule lowers a threshold.
