@@ -301,7 +301,7 @@ def test_export_has_no_key_or_absolute_paths():
             (td / "key.csv").unlink()
         files = [p for p in out.rglob("*") if p.is_file()]
         names = {p.name for p in files}
-        assert "key.csv" not in names and "stale.txt" not in names and "index.html" in names and "manifest.json" in names
+        assert "key.csv" not in names and "stale.txt" not in names and "index.html" in names and "guide.html" in names and "manifest.json" in names
         assert not any("work" in p.relative_to(out).parts for p in files)
         for p in files:
             if p.suffix in (".html", ".js", ".css", ".json"):
