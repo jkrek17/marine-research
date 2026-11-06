@@ -414,29 +414,44 @@ def isobar_angle(fronts_pts, msl, lat_n, lon_w, res=0.5, min_grad=0.05):
     return {"angle": float(np.mean(ang)), "grad": float(np.mean(gr)), "n": int(len(ang))}
 
 
-def _turn_text(turn):
-    if turn is None:
-        return ""
-    return " and the 10 m wind %s %d deg going from the warm side to the cold side" % (
-        "veers" if turn >= 0 else "backs", round(abs(turn)))
+HINT_MIN_DTE = 3.0      # K: quote the 850 hPa theta-e contrast only from this
+HINT_MIN_TURN = 20.0    # deg: quote the 10 m wind turn only from this
+HINT_MIN_CONV = 0.5     # 1e-5 per s: quote the convergence contrast only from this
+GENERIC_HINT = {
+    "cold": "Cold front: look for the wind shift and the leading edge of the colder air.",
+    "warm": "Warm front: look for the poleward edge of the warm advection and the wind backing ahead of it.",
+    "occluded": "Occluded front: look for the convergence line and the warm ridge curling into the low.",
+}
 
 
 def hint(typ, fronts_pts, fields, lat_n, lon_w):
     """One line for the reveal about this case's fronts of one type, numbers from the fields
-    (fields: dict with msl, te850, u10, v10 on the box grid), or None when they cannot be computed."""
+    (fields: dict with msl, te850, u10, v10 on the box grid), or None when they cannot be computed. A signal is quoted only
+    when it is strong enough to teach from (HINT_MIN_*); a front with none of them gets the short generic line."""
     if typ in ("cold", "warm"):
         c = thermal_contrast(fronts_pts, fields["te850"], fields["u10"], fields["v10"], lat_n, lon_w)
         if c is None:
             return None
-        if typ == "cold":
-            return ("Cold front: 850 hPa theta-e falls %.0f K from the warm side to the cold side (%.0f to %.0f K, "
-                    "150 km either side)%s." % (c["dte"], c["te_warm"], c["te_cold"], _turn_text(c["turn"])))
-        return ("Warm front: 850 hPa theta-e is %.0f K higher on the warm side (%.0f against %.0f K, "
-                "150 km either side)%s." % (c["dte"], c["te_warm"], c["te_cold"], _turn_text(c["turn"])))
+        te = abs(c["dte"]) >= HINT_MIN_DTE
+        turn = c["turn"] is not None and abs(c["turn"]) >= HINT_MIN_TURN
+        if not te and not turn:
+            return GENERIC_HINT[typ]
+        name = "Cold front" if typ == "cold" else "Warm front"
+        parts = []
+        if te:
+            parts.append(("850 hPa theta-e falls %.0f K from the warm side to the cold side (%.0f to %.0f K, 150 km either side)"
+                          if typ == "cold" else "850 hPa theta-e is %.0f K higher on the warm side (%.0f against %.0f K, 150 km either side)")
+                         % (c["dte"], c["te_warm"], c["te_cold"]))
+        if turn:
+            parts.append("the 10 m wind %s %d deg going from the warm side to the cold side"
+                         % ("veers" if c["turn"] >= 0 else "backs", round(abs(c["turn"]))))
+        return "%s: %s." % (name, " and ".join(parts))
     if typ == "occluded":
         r = conv_contrast(fronts_pts, convergence(fields["u10"], fields["v10"], lat_n, 0.5), lat_n, lon_w)
         if r is None:
             return None
+        if r["excess"] < HINT_MIN_CONV:
+            return GENERIC_HINT["occluded"]
         return ("Occluded front: 10 m convergence along the front is %.1f (x1e-5 per s), %+.1f against the air 250 km either "
                 "side (%.1f): look for the convergence line curling into the low." % (r["on"], r["excess"], r["around"]))
     if typ == "stationary":

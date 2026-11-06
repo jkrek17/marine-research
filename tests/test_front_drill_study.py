@@ -243,6 +243,28 @@ def test_convergence():
     assert abs(float(np.max(np.abs(FL.convergence(np.full_like(la, 7.0), np.full_like(la, -3.0), LAT_N)[5:-5, 5:-5])))) < 0.2
 
 
+def test_weak_signals_not_quoted():
+    pts = [[55.0 - 0.2 * i, 310.0] for i in range(66)]
+    zero = grid_field(lambda la, lo: 0.0 * la)
+    # no theta-e step, no wind turn: the generic line, with no numbers
+    te_flat = grid_field(lambda la, lo: 285.0 + 0 * la)
+    wind = grid_field(lambda la, lo: 10.0 + 0 * la)
+    h = FL.hint("cold", [pts], {"te850": te_flat, "u10": wind, "v10": zero, "msl": zero}, LAT_N, LON_W)
+    assert h == FL.GENERIC_HINT["cold"], h
+    assert FL.hint("warm", [pts], {"te850": te_flat + 0.0, "u10": wind, "v10": zero, "msl": zero}, LAT_N, LON_W) == FL.GENERIC_HINT["warm"]
+    # a 12 K step with no turn quotes theta-e only; a 90 deg turn with no step quotes the wind only
+    te_step = grid_field(lambda la, lo: 285.0 + 12.0 / (1 + np.exp(-(lo - 310.0) / 0.3)))
+    h = FL.hint("cold", [pts], {"te850": te_step, "u10": wind, "v10": zero, "msl": zero}, LAT_N, LON_W)
+    assert "theta-e" in h and "10 m wind" not in h, h
+    turn = grid_field(lambda la, lo: np.where(lo < 310.0, 10.0, 0.0))
+    turnv = grid_field(lambda la, lo: np.where(lo < 310.0, 0.0, 10.0))
+    h = FL.hint("cold", [pts], {"te850": te_flat, "u10": turn, "v10": turnv, "msl": zero}, LAT_N, LON_W)
+    assert "theta-e" not in h and "10 m wind" in h, h
+    # weak convergence (under 0.5) on an occluded front: generic line
+    u = grid_field(lambda la, lo: -0.05 * np.tanh((lo - 310.0) / 1.0))
+    assert FL.hint("occluded", [pts], {"u10": u, "v10": zero, "msl": zero, "te850": zero}, LAT_N, LON_W) == FL.GENERIC_HINT["occluded"]
+
+
 def test_conv_contrast_and_occluded_hint():
     pts = [[55.0 - 0.2 * i, 310.0] for i in range(66)]
     cv = grid_field(lambda la, lo: 3.0 * np.exp(-((lo - 310.0) / 0.7) ** 2))

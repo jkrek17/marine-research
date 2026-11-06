@@ -313,30 +313,33 @@ def manifest(rows, out):
 
 
 def rehint(out):
-    """Rewrite hints["occluded"] in out/manifest.json from the case's own .bin (10 m convergence along the occluded
-    fronts, FL.hint). Reads local files only; fronts, fields and imagery are not touched."""
+    """Rewrite hints in out/manifest.json from each case's own .bin (FL.hint: weak signals are not quoted). Reads local
+    files only; fronts, fields and imagery are not touched. Prints how many hints changed."""
     p = out / "manifest.json"
     m = json.loads(p.read_text())
     ix = {f["key"]: (k, f) for k, f in enumerate(m["fields"])}
-    ny, nx, n = m["ny"], m["nx"], 0
+    ny, nx, n, changed = m["ny"], m["nx"], 0, 0
     for c in m["cases"]:
-        if "occluded" not in (c.get("hints") or {}):
+        if not c.get("hints"):
             continue
         raw = np.frombuffer((out / (c["id"] + ".bin")).read_bytes(), np.uint8)
         fld = {}
-        for key in ("u10", "v10"):
+        for key in ("msl", "te850", "u10", "v10"):
             k, f = ix[key]
             b = raw[k * ny * nx:(k + 1) * ny * nx].reshape(ny, nx)
             fld[key] = np.where(b == 255, np.nan, f["offset"] + f["scale"] * b)
-        pts = [f["pts"] for f in c["fronts"] if f.get("sys", True) and f["type"] == "occluded"]
-        h = FL.hint("occluded", pts, fld, c["lat0"], c["lon0"])
-        if h:
-            c["hints"]["occluded"] = h
-        else:
-            del c["hints"]["occluded"]
-        n += 1
+        for typ in list(c["hints"]):
+            pts = [f["pts"] for f in c["fronts"] if f.get("sys", True) and f["type"] == typ]
+            h = FL.hint(typ, pts, fld, c["lat0"], c["lon0"]) if pts else None
+            n += 1
+            if h != c["hints"][typ]:
+                changed += 1
+            if h:
+                c["hints"][typ] = h
+            else:
+                del c["hints"][typ]
     p.write_text(json.dumps(m, separators=(",", ":")))
-    print("rehinted", n, "cases in", p)
+    print("rehinted %d hints in %s: %d changed" % (n, p, changed))
 
 
 def main():
@@ -344,7 +347,7 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "deck"))
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--rehint", action="store_true", help="no downloads, no rebuild: rewrite the occluded hint of the deck's manifest from the cases' own u10 / v10 (10 m convergence)")
+    ap.add_argument("--rehint", action="store_true", help="no downloads, no rebuild: rewrite the hints of the deck's manifest from the cases' own .bin (weak signals not quoted)")
     ap.add_argument("--manifest-only", action="store_true", help="no downloads: write the manifest from the cases already built")
     a = ap.parse_args()
     out = Path(a.out)
