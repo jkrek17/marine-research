@@ -6,8 +6,10 @@ Per case, a 25 x 40 deg box at 0.5 deg centred on the analysed low: GFS f000 map
 (our own `want`, the pattern drill's DRILL plus 700 hPa and 10 m), 3 h MSLP change against the previous cycle's f003,
 ASCAT (the drill's ascat_box, +-90 min; "ascat" true when it covers >= 15% of the box water), GOES air-mass RGB
 (IR from GridSat-B1 where that has no usable picture), the analysed fronts and lows (rk.fronts, merged, densified
-to 25 nm, clipped to the box minus 1 deg, pieces under 150 nm dropped) and one hint line per non-trough front type
-from the case's own fields. Resumable: a case whose work/<id>.json exists for the same time and position is skipped (delete it to redo). The deck
+to 25 nm, clipped to the box minus 1 deg, pieces under 150 nm dropped), each flagged "sys" when it belongs to the case
+low's system (FL.mark_system) with the ring radius "sys_r_nm", and one hint line per system non-trough front type from
+the case's own fields. Cases with under 250 nm of system front are dropped from the manifest. Air-mass RGB only for
+lows at or south of 55N, GridSat IR otherwise. Resumable: a case whose work/<id>.json exists for the same time and position is skipped (delete it to redo). The deck
 (<out>/manifest.json, <id>.bin, <id>_am.jpg or <id>_ir.jpg) and key.csv (never published) go under
 rk.paths.data("extra", "front-drill"); the deck is never committed.
 """
@@ -110,13 +112,16 @@ def maps(g, gp, lat_n, lon_w):
     return {k: diag.subsample(v[sl], 2) for k, v in out.items()}, diag.subsample((~water)[sl], 2)
 
 
-def imagery(valid, lat_n, lon_w, lon_c, stem, out):
-    """Air-mass RGB where the box centre is inside the GOES-East disk and the picture covers the box, else
-    GridSat IR -> "am" | "ir" | None; writes <stem>_am.jpg or <stem>_ir.jpg."""
+AM_MAX_LAT = 55.0         # the air-mass RGB turns false purple near the disk edge: only for lows at or south of this
+
+
+def imagery(valid, lat_n, lon_w, lon_c, stem, out, low_lat):
+    """Air-mass RGB where the case low is at or south of AM_MAX_LAT, the box centre is inside the GOES-East disk and
+    the picture covers the box, else GridSat IR -> "am" | "ir" | None; writes <stem>_am.jpg or <stem>_ir.jpg."""
     from PIL import Image
     from rk import satellite
     lat, lon = D._sat_grid(lat_n, lon_w)
-    if lon_c <= 335.0:    # east of 25W is outside the GOES-East disk
+    if lon_c <= 335.0 and low_lat <= AM_MAX_LAT:    # east of 25W is outside the GOES-East disk
         a = satellite.airmass_box(BASIN, valid)
         if a is not None:
             s = D._sample(a, lat, lon, ["b08", "b10", "b12", "b13"])
@@ -160,6 +165,15 @@ def one(row, out):
         same = old.get("src") == src or ("src" not in old and old["low"] == {
             "lat": float(row["lat"]), "lon": float(row["lon"]), "hpa": float(row["hpa"])})
         if same:
+            if old.get("img") == "am" and old["low"]["lat"] > AM_MAX_LAT:     # imagery rule changed: only the picture is redone
+                valid = dt.datetime.strptime(row["valid"], "%Y%m%d%H")
+                lat_n, lon_w = old["lat0"], old["lon0"]
+                lon_c = (lon_w + (NX - 1) * RES / 2) % 360
+                old["img"] = imagery(valid, lat_n, lon_w, lon_c, cid, out, old["low"]["lat"])
+                tmp = WORK / (cid + ".tmp")
+                tmp.write_text(json.dumps(old))
+                tmp.replace(pj)
+                return "imagery"
             return "skip"
     valid = dt.datetime.strptime(row["valid"], "%Y%m%d%H")
     lat, lon, hpa = float(row["lat"]), float(row["lon"]), float(row["hpa"])
@@ -179,24 +193,15 @@ def one(row, out):
     ascat = cover >= EDGE_FRAC
     if not ascat:
         spd[:], dirn[:] = 255, 255
-    img = imagery(valid, lat_n, lon_w, lon_c, cid, out)
+    img = imagery(valid, lat_n, lon_w, lon_c, cid, out, lat)
 
     a = fronts.analysis(valid)
     if a is None:
         return "no analysis"
     fr = FL.clip_fronts(FL.merged(a), lat_n, lon_w, NY, NX, RES)
     lows = FL.lows_in_box(a["lows"], lat_n, lon_w, NY, NX, RES)
-    pts_by_type = {}
-    for f in fr:
-        pts_by_type.setdefault(f["type"], []).append(f["pts"])
-    hints = {}
-    for typ in FL.NON_TROUGH:
-        if typ in pts_by_type:
-            h = FL.hint(typ, pts_by_type[typ], m, lat_n, lon_w)
-            if h:
-                hints[typ] = h
     rec = {"id": cid, "lat0": lat_n, "lon0": lon_w, "low": {"lat": lat, "lon": lon, "hpa": hpa}, "lows": lows,
-           "fronts": fr, "img": img, "ascat": ascat, "hints": hints, "ascat_cover": round(cover, 3), "src": src}
+           "fronts": fr, "img": img, "ascat": ascat, "ascat_cover": round(cover, 3), "src": src}
 
     parts = []
     for k, _, _, off, sc in FIELDS:
@@ -226,24 +231,52 @@ def _safe(r, out):
         return "error %r" % e
 
 
+def finish(rec):
+    """Work record -> manifest case: mark the case low's system fronts ("sys"), the ring radius ("sys_r_nm") and
+    the hints of the system's non-trough front types (from the case's saved maps). None when the system has under
+    FL.SYS_MIN_NM of non-trough front."""
+    rec["sys_r_nm"] = FL.mark_system(rec["fronts"], rec["low"]["lat"], rec["low"]["lon"])
+    if FL.sys_length_nm(rec["fronts"]) < FL.SYS_MIN_NM:
+        return None
+    with np.load(WORK / (rec["id"] + ".npz")) as z:
+        m = {k: z[k].astype(float) for k in z.files}
+    pts_by_type = {}
+    for f in rec["fronts"]:
+        if f["sys"] and f["type"] in FL.NON_TROUGH:
+            pts_by_type.setdefault(f["type"], []).append(f["pts"])
+    rec["hints"] = {}
+    for typ in FL.NON_TROUGH:
+        if typ in pts_by_type:
+            h = FL.hint(typ, pts_by_type[typ], m, rec["lat0"], rec["lon0"])
+            if h:
+                rec["hints"][typ] = h
+    return rec
+
+
 def manifest(rows, out):
     cases, dropped = [], []
     for r in rows:
         p = WORK / (r["id"] + ".json")
         if not p.exists() or not (out / (r["id"] + ".bin")).exists():
             continue
-        rec = json.loads(p.read_text())
-        if not any(f["type"] in FL.NON_TROUGH for f in rec["fronts"]):
+        rec = finish(json.loads(p.read_text()))
+        if rec is None:
             dropped.append(r["id"])
             continue
         rec.pop("ascat_cover", None)
         rec.pop("src", None)
+        for k in ("am", "ir"):                       # a picture the case no longer uses
+            if rec["img"] != k and (out / ("%s_%s.jpg" % (r["id"], k))).exists():
+                (out / ("%s_%s.jpg" % (r["id"], k))).unlink()
         cases.append(rec)
     m = {"version": 1, "res": RES, "ny": NY, "nx": NX,
          "fields": [{"key": k, "name": n, "units": u, "offset": o, "scale": s} for k, n, u, o, s in FIELDS],
          "cases": cases}
     (out / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
     keep = {c["id"] for c in cases}
+    for f in list(out.glob("f*")):                   # files of cases dropped from the deck
+        if f.name.split(".")[0].split("_")[0] not in keep:
+            f.unlink()
     with open(ROOT / "key.csv", "w", newline="") as f:      # never published
         w = csv.writer(f)
         w.writerow(["id", "valid", "lat", "lon", "hpa", "types", "lengths_nm"])
@@ -275,7 +308,7 @@ def main():
         if f.name.split(".")[0].split("_")[0] not in ids:
             f.unlink()
     k, dropped = manifest(todo, out)
-    print("manifest", k, "cases; dropped (no non-trough front inside):", dropped)
+    print("manifest", k, "cases; dropped (system under %d nm of non-trough front):" % FL.SYS_MIN_NM, dropped)
     print("streamed this run: GFS %.2f GB, GOES ABI %.2f GB" % (_bytes["gfs"] / 1e9, _bytes["abi"] / 1e9))
 
 

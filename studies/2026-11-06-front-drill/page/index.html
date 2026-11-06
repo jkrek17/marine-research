@@ -20,15 +20,15 @@
 
   <section id="start" class="screen" hidden>
     <h1>Draw the fronts, place the low</h1>
-    <p class="lead">One storm system per case, with the model maps around it. Tap points along each front, pick its type, finish it, then place the low. Submit to see the Unified Surface Analysis (OPC / WPC / NHC) over your drawing. Rapid fire: there is no time on the desk to dwell.</p>
-    <p class="policy">Position is scored generously (full credit within 150 nm, none at 300 nm). Front type is scored strictly and counts twice as much. Troughs are never scored, missed or extra.</p>
+    <p class="lead">One storm system per case: a dashed ring marks it, with the model maps around it. Tap points along each of its fronts, pick the type, finish it, then place its low. Submit to see the Unified Surface Analysis (OPC / WPC / NHC) over your drawing. Rapid fire: there is no time on the desk to dwell.</p>
+    <p class="policy">Position is scored generously (full credit within 150 nm, none at 300 nm). Front type is scored strictly and counts twice as much. Only the fronts of the system in the ring are scored. Troughs are never scored, missed or extra, and fronts drawn outside the ring cost nothing.</p>
     <label class="toggle"><input type="checkbox" id="useTimer" checked> <span><b>Clock</b> <small id="clockSmall">90 s a case. At zero, what you have drawn is submitted.</small></span></label>
     <p id="startMsg" class="fine" role="status"></p>
     <button id="startBtn" class="btn primary big" type="button">Start</button>
     <div class="points">
       <h2>How it is scored</h2>
-      <p><b>Fronts</b>: each analysed front (not troughs) is matched to one of yours, one to one. Position credit 1 within 150 nm of the analysed line, falling to 0 at 300 nm. Type credit counts twice as much and is scaled by position: exact type 1; half for occluded or stationary against cold, and stationary against warm; cold against warm 0.</p>
-      <p><b>Misses</b> cost the front's share of the total analysed length, weighted up when it is near the low. Extra fronts with no match cost a little. <b>Low</b>: full credit within 60 nm, none at 120 nm.</p>
+      <p><b>Fronts</b>: each analysed front of the system in the ring (not troughs, not other systems) is matched to one of yours, one to one. Position credit 1 within 150 nm of the analysed line, falling to 0 at 300 nm. Type credit counts twice as much and is scaled by position: exact type 1; half for occluded or stationary against cold, and stationary against warm; cold against warm 0.</p>
+      <p><b>Misses</b> cost the front's share of the total analysed length, weighted up when it is near the low. Extra fronts inside the ring with no match cost a little. <b>Low</b>: the nearest analysed low in the ring; full credit within 60 nm, none at 120 nm. The ring is centred a little off the low, so it does not give the L away.</p>
       <p class="fine">Maps are GFS analyses (0.5 deg). Truth is the coded Unified Surface Analysis. Dates are hidden. Training use only.</p>
     </div>
   </section>
@@ -42,6 +42,7 @@
           <span id="pTimer" class="timer" hidden></span>
         </div>
         <div id="timerbar" class="timerbar" hidden><i></i></div>
+        <div id="ringPrompt" class="ringprompt" hidden><b>Analyse the system inside the ring:</b> place its low and draw its fronts.</div>
         <div class="tabs" id="tabs" role="tablist" aria-label="Map"></div>
         <div class="viewrow">
           <div class="cap" id="cap"></div>

@@ -1,5 +1,5 @@
 /* Front drill: static page, plain JS + canvas. Reads deck/manifest.json and deck/<id>.bin (+ imagery JPEG)
-   in the format of ../design.md ("Deck format"). One case = one storm system at one analysis hour: the trainee taps
+   in the format of ../design.md ("Deck format"). One case = one storm system at one analysis hour (a dashed ring marks it): the trainee taps
    points to lay the fronts, picks each type, places the low, submits; the reveal overlays the analysed fronts.
    Sibling of the pattern drill (../../2026-11-05-pattern-drill/page/): map drawing, deck loading and look are reused. */
 (function () {
@@ -23,6 +23,8 @@
     NEAR_MIN: 0.5,
     EXTRA_PEN: 0.25,           // each extra drawn non-trough front with no match (units: a front is POS_W+TYPE_W, the low LOW_W)
     EXTRA_MAX: 1,
+    RING_OFFSET_NM: 120,       // the ring centre is off the true low by 0-RING_OFFSET_NM (deterministic per case) so it does not give away the L
+    EXTRA_IN_RING: 0.5,        // a drawn front with no match counts as extra only if at least this share of it lies inside the ring
     LOW_FULL_NM: 60,           // low: full credit within this ...
     LOW_ZERO_NM: 120,          // ... none from here
     LOW_W: 1,
@@ -84,7 +86,7 @@
     { id: 'te850', label: '850 theta-e', name: '850 hPa equivalent potential temperature', key: 'te850', fill: teFill,
       legend: { title: '850 hPa theta-e (K), bands of 3 K', lo: 255, hi: 342, step: 3, every: 15, color: teFill },
       contours: [{ key: 'te850', step: 3, width: function (l) { return l % 15 === 0 ? 1.2 : 0.6; }, color: 'rgba(50,25,10,.75)', label: true, fmt: f0, minGap: 170, only: function (l) { return l % 6 === 0; } }],
-      note: 'Thin: MSLP every 4 hPa. Brown contours: theta-e every 3 K; a front is a tight packing of them.' },
+      note: 'Thin: MSLP every 4 hPa. Brown contours: theta-e every 3 K; a front is a tight packing of them, and analysts draw it on the warm edge of that packing.' },
     { id: 'te700', label: '700 theta-e', name: '700 hPa equivalent potential temperature', key: 'te700', fill: teFill,
       legend: { title: '700 hPa theta-e (K), bands of 3 K', lo: 255, hi: 342, step: 3, every: 15, color: teFill },
       contours: [{ key: 'te700', step: 3, width: function (l) { return l % 15 === 0 ? 1.2 : 0.6; }, color: 'rgba(50,25,10,.75)', label: true, fmt: f0, minGap: 170, only: function (l) { return l % 6 === 0; } }],
@@ -135,6 +137,24 @@
     return out;
   }
 
+  // ------------------------------------------------------------------ the system (ring)
+  function hash01(str, salt) {   // FNV-1a -> [0, 1)
+    var h = 2166136261 >>> 0, t = salt + str;
+    for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return h / 4294967296;
+  }
+  function destPt(p, brgDeg, nm) {
+    var b = brgDeg * RAD, dlat = nm * Math.cos(b) / NM_PER_DEG, dlon = nm * Math.sin(b) / (NM_PER_DEG * Math.cos(p.lat * RAD));
+    return { lat: p.lat + dlat, lon: (((p.lon + dlon) % 360) + 360) % 360 };
+  }
+  function ringOf(c) {   // {lat, lon, r} or null (a deck without sys_r_nm has no ring: every front is scored)
+    if (!(c.sys_r_nm > 0)) return null;
+    var c0 = destPt(c.low, hash01(c.id, 'b') * 360, hash01(c.id, 'd') * SCORE.RING_OFFSET_NM);
+    return { lat: c0.lat, lon: c0.lon, r: c.sys_r_nm };
+  }
+  function inRing(ring, p) { return !ring || distNm(ring, p) <= ring.r; }
+  function isSys(f) { return f.sys !== false; }   // an older deck has no flag: everything is the system
+
   // ------------------------------------------------------------------ scoring
   function typeCredit(truthType, drawnType) {
     if (truthType === drawnType) return 1;
@@ -153,8 +173,10 @@
   }
   // c: case; drawn: [{type, pts:[{lat,lon}]}]; low: {lat,lon} or null. Returns the whole breakdown.
   function scoreCase(c, drawn, low) {
-    var lows = (c.lows && c.lows.length ? c.lows : [c.low]);
-    var truths = c.fronts.filter(function (f) { return f.type !== 'trough'; }).map(function (f, i) {
+    var ring = ringOf(c);
+    var lows = (c.lows && c.lows.length ? c.lows : [c.low]).filter(function (l) { return inRing(ring, l); });
+    if (!lows.length) lows = [c.low];
+    var truths = c.fronts.filter(function (f) { return f.type !== 'trough' && isSys(f); }).map(function (f, i) {
       var pts = f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; });
       var near = Infinity;
       pts.forEach(function (p) { lows.forEach(function (l) { var d = distNm(p, l); if (d < near) near = d; }); });
@@ -194,7 +216,11 @@
       return r;
     });
     var extras = [];
-    dr.forEach(function (d, di) { if (usedD[di] === undefined && d.type !== 'trough') extras.push(di); });
+    dr.forEach(function (d, di) {   // a front drawn out beyond the ring is not penalised
+      if (usedD[di] !== undefined || d.type === 'trough') return;
+      var inside = d.dense.filter(function (p) { return inRing(ring, p); }).length / d.dense.length;
+      if (inside >= SCORE.EXTRA_IN_RING) extras.push(di);
+    });
     var extraPen = Math.min(SCORE.EXTRA_MAX, extras.length * SCORE.EXTRA_PEN);
     var lowRes = { dist: null, credit: 0, nearest: null };
     lows.forEach(function (l) { if (low) { var d = distNm(low, l); if (lowRes.dist === null || d < lowRes.dist) { lowRes.dist = d; lowRes.nearest = l; } } });
@@ -209,7 +235,7 @@
   }
   // triple point: where an occluded front's end meets both a cold and a warm front (within 120 nm); null if none
   function triplePoint(c) {
-    var by = function (t) { return c.fronts.filter(function (f) { return f.type === t; }); };
+    var by = function (t) { return c.fronts.filter(function (f) { return f.type === t && isSys(f); }); };
     var occ = by('occluded'), cold = by('cold'), warm = by('warm');
     if (!occ.length || !cold.length || !warm.length) return null;
     var best = null, toPts = function (f) { return f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }); };
@@ -294,8 +320,17 @@
     snap.land = land;
     return snap;
   }
+  var imgData = {};   // base64 decks (Artifact preview): id -> image data URI
+  function b64buf(s) { var bin = atob(s), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+  function imgSrc(c) { return imgData[c.id] || ('deck/' + c.id + '_' + c.img + '.jpg'); }
   function loadCase(id) {
     if (caseCache[id]) return Promise.resolve(caseCache[id]);
+    if (manifest.encoding === 'base64') {   // one JSON per case: {bin, img}
+      return fetch('deck/' + id + '.json').then(function (r) {
+        if (!r.ok) throw new Error(id + ' ' + r.status);
+        return r.json();
+      }).then(function (j) { if (j.img) imgData[id] = j.img; var d = parseBin(b64buf(j.bin)); caseCache[id] = d; return d; });
+    }
     return fetch('deck/' + id + '.bin').then(function (r) {
       if (!r.ok) throw new Error(id + ' ' + r.status);
       return r.arrayBuffer();
@@ -574,6 +609,7 @@
   // o: { lw, u (symbol unit px), outline (dark colour under the line), alpha, dots }
   function drawFront(ctx, g, f, o) {
     var P = f.pts.map(function (p) { return proj(g, p.lat, p.lon); }), ft = FT[f.type];
+    if (o.tint) ft = { c: o.tint, c2: o.tint, name: ft.name };   // other systems: one grey
     ctx.save(); ctx.globalAlpha = o.alpha == null ? 1 : o.alpha; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash([]);
     if (P.length < 2) {
       if (P.length === 1) { ctx.beginPath(); ctx.arc(P[0][0], P[0][1], 5, 0, 7); ctx.fillStyle = ft.c; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
@@ -623,6 +659,15 @@
     ctx.restore();
     halo(ctx, 'L', p[0], p[1] + 0.5, '800 ' + Math.round(r * 1.05) + 'px system-ui,sans-serif', o.color);
     if (o.sub) halo(ctx, o.sub, p[0], Math.min(g.ch - 9, p[1] + r + 9), '700 11px system-ui,sans-serif', o.color);
+  }
+  function drawRing(ctx, g, ring) {   // soft dashed navy circle (true circle on the sphere, so it bends a little on the map)
+    var pts = [];
+    for (var k = 0; k <= 120; k++) { var q = destPt(ring, k * 3, ring.r); pts.push(proj(g, q.lat, q.lon)); }
+    ctx.save(); ctx.lineJoin = 'round';
+    ctx.beginPath(); pts.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); });
+    ctx.setLineDash([]); ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.stroke();
+    ctx.setLineDash([9, 7]); ctx.lineWidth = 2.2; ctx.strokeStyle = 'rgba(13,42,92,.8)'; ctx.stroke();
+    ctx.restore();
   }
   function drawTriple(ctx, g, tp) {
     var p = proj(g, tp.lat, tp.lon);
@@ -731,7 +776,7 @@
         if (iso) drawIsotachs(ctx, g, snap, []);
         return done();
       }
-      loadImage('deck/' + cur.c.id + '_' + cur.c.img + '.jpg').then(function (img) {
+      loadImage(imgSrc(cur.c)).then(function (img) {
         if (tok !== baseTok) return;
         if (!img) { ctx.fillStyle = '#e8ebef'; ctx.fillRect(0, 0, g.cw, g.ch); ctx.fillStyle = '#44505f'; ctx.font = '600 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText('Imagery file missing', g.cw / 2, g.ch / 2); drawGrid(ctx, g); }
         else baseSat(ctx, g, snap, img, iso);
@@ -751,10 +796,17 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(baseCv, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var u = clamp(g.cw / 80, 3.8, 6.5), showT = cur.submitted && $('showTruth').checked, showM = !cur.submitted || $('showMine').checked;
+    var ring = ringOf(cur.c);
+    if (ring) drawRing(ctx, g, ring);
     if (showT) {
-      cur.c.fronts.forEach(function (f) { drawFront(ctx, g, { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }, { lw: 3.4, u: u * 1.2, outline: '#0c1220' }); });
+      var toPts = function (f) { return { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }; };
+      cur.c.fronts.filter(function (f) { return !isSys(f); }).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 1.7, u: u * 0.8, tint: '#7c8693', alpha: 0.8 }); });
+      cur.c.fronts.filter(isSys).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 3.4, u: u * 1.2, outline: '#0c1220' }); });
       if (cur.triple) drawTriple(ctx, g, cur.triple);
-      (cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low]).forEach(function (l) { drawLowMark(ctx, g, l.lat, l.lon, { color: '#d00018', sub: l.hpa != null ? String(Math.round(l.hpa)) : '' }); });
+      (cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low]).forEach(function (l) {
+        var sub = l.hpa != null ? String(Math.round(l.hpa)) : '';
+        drawLowMark(ctx, g, l.lat, l.lon, { color: inRing(ring, l) ? '#d00018' : '#7c8693', sub: sub });
+      });
     }
     if (showM) {
       cur.drawn.forEach(function (f) { drawFront(ctx, g, f, { lw: 2.4, u: u, alpha: cur.submitted ? 0.85 : 1 }); });
@@ -780,7 +832,7 @@
     $('delBtn').disabled = !(cur.active || cur.drawn.length);
     $('clrBtn').disabled = !(cur.active || cur.drawn.length || cur.low);
     var have = cur.drawn.length + ' front' + (cur.drawn.length === 1 ? '' : 's') + (cur.low ? ', low placed' : ', no low yet');
-    if (!cur.tool) msg('Pick a front type, then tap points on the map. Place L sets the low. (' + have + ')');
+    if (!cur.tool) msg('Pick a front type, then tap points on the map. Place L sets the low of the system. (' + have + ')');
     else if (cur.tool === 'L') msg('Tap the map to place the low (tap again to move it). (' + have + ')');
     else if (!n) msg(FT[cur.tool].name + ': tap points along the front, in order. (' + have + ')');
     else msg(FT[cur.tool].name + ', ' + n + ' point' + (n === 1 ? '' : 's') + ': keep tapping, then tap ' + FT[cur.tool].name + ' again, Finish front, or double-tap the last point. (' + have + ')');
@@ -862,6 +914,7 @@
     $('drawPane').hidden = false; $('revealPane').hidden = true;
     $('mapLoad').hidden = false; $('mapLoad').textContent = 'Loading case...';
     $('pCase').textContent = 'Case ' + (stats.records.length + 1);
+    $('ringPrompt').hidden = !(c.sys_r_nm > 0);
     $('pTimer').hidden = $('timerbar').hidden = true;
     updateTools();
     var tok = cur;
@@ -870,7 +923,7 @@
       cur.data = d; geom = makeGeom(c); sizeCanvas();
       $('mapLoad').hidden = true; setTab(0);
       cur.t0 = Date.now();
-      if (c.img) loadImage('deck/' + c.id + '_' + c.img + '.jpg');
+      if (c.img && manifest.encoding !== 'base64') loadImage(imgSrc(c));
       startTimer();
     }).catch(function (e) {
       $('mapLoad').textContent = 'Could not load this case (' + e.message + '). Tap Next.';
@@ -887,6 +940,7 @@
     var secs = Math.max(0, (Date.now() - cur.t0 - cur.paused) / 1000);
     var res = scoreCase(cur.c, cur.drawn, cur.low);
     cur.result = res; cur.triple = triplePoint(cur.c);
+    $('ringPrompt').hidden = true;
     stats.records.push({ pct: Math.round(res.pct * 10) / 10, t: Math.round(secs * 10) / 10, pairs: res.pairs, low: Math.round(res.low.credit * 100) / 100, extras: res.extras.length, auto: !!auto });
     saveStats(); updateTop();
     $('drawPane').hidden = true; $('revealPane').hidden = false;
@@ -910,15 +964,17 @@
       }
     });
     h += '<tr><td colspan="6">Low' + (res.low.dist === null ? ' <span class="fine">(not placed)</span>' : ' <span class="fine">' + Math.round(res.low.dist) + ' nm from the nearest analysed low</span>') + '</td><td class="n">' + (res.lowPts * unit).toFixed(0) + ' / ' + (SCORE.LOW_W * unit).toFixed(0) + '</td></tr>';
-    if (res.extras.length) h += '<tr><td colspan="6">Extra drawn front' + (res.extras.length > 1 ? 's' : '') + ' with no analysed match (' + res.extras.map(function (i) { return FT[res.drawnDense[i].type].name.toLowerCase(); }).join(', ') + ')</td><td class="n">-' + (res.extraPen * unit).toFixed(0) + '</td></tr>';
-    h += '</table><p class="fine">Troughs are not scored. Position is generous (full within ' + SCORE.POS_FULL_NM + ' nm, none at ' + SCORE.POS_ZERO_NM + '); type counts ' + SCORE.TYPE_W + 'x position and is scaled by it.</p>';
+    if (res.extras.length) h += '<tr><td colspan="6">Extra drawn front' + (res.extras.length > 1 ? 's' : '') + ' in the ring with no analysed match (' + res.extras.map(function (i) { return FT[res.drawnDense[i].type].name.toLowerCase(); }).join(', ') + ')</td><td class="n">-' + (res.extraPen * unit).toFixed(0) + '</td></tr>';
+    h += '</table><p class="fine">Only the fronts of the system in the ring are scored; troughs, other systems and fronts drawn outside the ring are not. Position is generous (full within ' + SCORE.POS_FULL_NM + ' nm, none at ' + SCORE.POS_ZERO_NM + '); type counts ' + SCORE.TYPE_W + 'x position and is scaled by it.</p>';
     r.innerHTML = h;
     var d = $('debrief'), types = [];
-    cur.c.fronts.forEach(function (f) { if (types.indexOf(f.type) < 0) types.push(f.type); });
+    cur.c.fronts.forEach(function (f) { if (isSys(f) && types.indexOf(f.type) < 0) types.push(f.type); });
+    var nOther = cur.c.fronts.filter(function (f) { return !isSys(f); }).length;
     var dh = '<h3>What to look for in this case</h3>';
     types.forEach(function (t) { var hint = cur.c.hints && cur.c.hints[t]; if (hint) dh += '<div class="hintrow" style="--c:' + FT[t].c + '"><b>' + FT[t].name + '.</b> ' + hint + '</div>'; });
     if (cur.triple) dh += '<div class="hintrow" style="--c:#111"><b>Triple point</b> (ringed): occluded, cold and warm fronts meet here.</div>';
-    dh += '<p class="fine">Thick outlined lines: the analysis (OPC / WPC / NHC). Thinner lines: yours. Red L: analysed low. Blue L: yours.</p>';
+    dh += '<p class="fine">Analysts put a front on the warm edge of the temperature change and at the wind shift, so expect your line on that edge rather than in the middle of the theta-e gradient.</p>';
+    dh += '<p class="fine">Thick outlined lines: the analysis (OPC / WPC / NHC) for the system in the ring. ' + (nOther ? 'Thin grey lines and L: other systems, not scored. ' : '') + 'Thinner coloured lines: yours. Red L: analysed low. Blue L: yours.</p>';
     d.innerHTML = dh;
   }
   function goHome() { clearTimer(); cur = null; show('start'); }
@@ -960,6 +1016,6 @@
     var r = $('map').getBoundingClientRect(), q = proj(geom, lat, lon);
     return { x: r.left + q[0] * r.width / geom.cw, y: r.top + q[1] * r.height / geom.ch };
   }
-  window.FD = { toClient: toClient, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
+  window.FD = { toClient: toClient, ringOf: ringOf, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
   init();
 })();

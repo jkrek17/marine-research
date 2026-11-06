@@ -302,6 +302,8 @@ table.conf td.diag{background:var(--navytint)}
 .viewrow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .chk{display:inline-flex;align-items:center;gap:8px;font-size:14px;min-height:36px;cursor:pointer}
 .chk input{width:20px;height:20px;flex:none}
+.ringprompt{font-size:14px;color:var(--navy);margin:0 0 6px;padding:5px 10px;background:#fff;border:1px dashed var(--navy);border-radius:6px}
+.ringprompt[hidden]{display:none}
 .toolmsg{font-size:14px;color:var(--ink2);min-height:40px;margin:6px 0;padding:6px 10px;background:var(--navytint);border-left:3px solid var(--navy);border-radius:0 6px 6px 0}
 .mapbox.tappable canvas{cursor:crosshair;touch-action:manipulation}
 .types{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}

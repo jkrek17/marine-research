@@ -8,7 +8,8 @@ Run: python3 make_test_deck.py [outdir]   (default: testdeck/ next to this file;
 To try the page, serve a folder holding index.html, app.js, style.css and this output as deck/.
 
 Cases:
-  t0001  one cold front (+ a trough, which is never scored), imagery "am", no ASCAT
+  t0001  one cold front (+ a trough, which is never scored, + a warm front of ANOTHER system far outside the ring:
+         "sys": false, greyed at the reveal, never scored), imagery "am", no ASCAT
   t0002  occluded + cold + warm meeting at a triple point, imagery "ir", no ASCAT
   t0003  stationary + cold, no imagery (img null), ASCAT barbs
 """
@@ -46,7 +47,8 @@ CASES = [
     {"id": "t0001", "lat0": 62.0, "lon0": 300.0, "img": "am", "ascat": False,
      "lows": [(49.0, 318.0, 988)],
      "fronts": [("cold", [(47.5, 318.5), (44.0, 316.5), (40.5, 317.0), (38.5, 319.0)]),
-                ("trough", [(52.0, 322.0), (55.0, 325.0), (58.0, 326.0)])]},
+                ("trough", [(52.0, 322.0), (55.0, 325.0), (58.0, 326.0)]),
+                ("warm", [(60.0, 303.0), (58.0, 309.0), (57.0, 313.0)], False)]},
     {"id": "t0002", "lat0": 62.0, "lon0": 300.0, "img": "ir", "ascat": False,
      "lows": [(50.0, 320.0, 976)],
      "fronts": [("occluded", [(50.3, 320.3), (52.0, 322.5), (53.5, 325.0)]),
@@ -76,6 +78,13 @@ def densify(pts, step=STEP_NM):
     return out
 
 
+def nm(la1, lo1, la2, lo2):
+    """Great-circle distance, nm."""
+    p1, p2 = math.radians(la1), math.radians(la2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lo2 - lo1) / 2) ** 2
+    return 2 * 3440.07 * math.asin(math.sqrt(a))
+
+
 def q(v, off, sc):
     b = np.round((v - off) / sc)
     b = np.clip(b, 0, 254)
@@ -99,7 +108,7 @@ def build(case, rng):
     g = np.exp(-(r / 650.0) ** 2)
     g2 = np.exp(-(r / 1100.0) ** 2)
     # longitude of the cold front as a function of latitude (low's own longitude if none)
-    cold = [f for t, f in case["fronts"] if t in ("cold",)]
+    cold = [fr[1] for fr in case["fronts"] if fr[0] == "cold"]
     if cold:
         c = sorted(cold[0])
         clon = np.interp(lat, [p[0] for p in c], [p[1] for p in c])
@@ -179,13 +188,18 @@ def main():
             sat_image(c, img, rng).save(OUT / ("%s_%s.jpg" % (c["id"], img)), quality=80)
         types = []
         fr = []
-        for t, pts in c["fronts"]:
+        r = 0.0
+        for t, pts, *rest in c["fronts"]:
             d = densify(pts)
-            fr.append({"type": t, "pts": [[round(a, 3), round(b, 3)] for a, b in d]})
-            if t not in types:
-                types.append(t)
+            sysf = rest[0] if rest else True
+            fr.append({"type": t, "pts": [[round(a, 3), round(b, 3)] for a, b in d], "sys": sysf})
+            if sysf:
+                r = max([r] + [nm(c["lows"][0][0], c["lows"][0][1], a, b) for a, b in d])
+                if t not in types:
+                    types.append(t)
         lows = [{"lat": a, "lon": b, "hpa": h} for a, b, h in c["lows"]]
         cases.append({"id": c["id"], "lat0": c["lat0"], "lon0": c["lon0"], "low": lows[0], "lows": lows,
+                      "sys_r_nm": min(900, round(r + 60)),
                       "fronts": fr, "img": img, "ascat": bool(c["ascat"]),
                       "hints": {t: HINTS[t] for t in types}})
     man = {"version": 1, "res": RES, "ny": NY, "nx": NX,

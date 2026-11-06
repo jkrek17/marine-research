@@ -96,6 +96,31 @@ def test_lows_in_box():
     assert [g["hpa"] for g in got] == [990.0]
 
 
+def test_mark_system():
+    low = (50.0, 310.0)
+    occ = {"type": "occluded", "pts": [[50.3, 310.0], [52.0, 311.0], [53.5, 312.0]]}            # end at the low: seed
+    cold = {"type": "cold", "pts": [[53.5, 312.3], [51.0, 313.0], [46.0, 312.0]]}               # end 15 nm from the occlusion's end
+    tro = {"type": "trough", "pts": [[46.2, 312.2], [44.0, 316.0], [42.0, 319.0]]}              # trough off the cold front's end
+    far = {"type": "warm", "pts": [[58.0, 296.0], [58.0, 300.0], [57.0, 304.0]]}                # another system
+    far_tro = {"type": "trough", "pts": [[50.0, 300.0], [50.0, 297.0], [50.0, 294.0]]}          # trough nowhere near it
+    fr = [occ, cold, tro, far, far_tro]
+    r = FL.mark_system(fr, *low)
+    assert [f["sys"] for f in fr] == [True, True, True, False, False]
+    # ring: farthest system point from the low (the trough's far end, ~560 nm) + 60 nm
+    assert 600 <= r <= 680, r
+    assert FL.sys_length_nm(fr) > 400
+    # nothing within 300 km of the low: no system, radius 0, no length
+    fr2 = [dict(far)]
+    assert FL.mark_system(fr2, *low) == 0 and fr2[0]["sys"] is False and FL.sys_length_nm(fr2) == 0
+    # a front 100 nm from the system front's end is not chained (60 nm rule); the radius is capped at 900
+    gap = {"type": "stationary", "pts": [[46.0 - 100 / 60, 312.0], [40.0, 312.0]]}
+    long_occ = {"type": "occluded", "pts": [[50.3, 310.0], [38.0, 312.0]]}
+    r3 = FL.mark_system([long_occ, gap], *low)
+    assert r3 > 0
+    far_end = {"type": "cold", "pts": [[50.3, 310.0], [30.0, 330.0]]}
+    assert FL.mark_system([far_end], *low) == 900
+
+
 def grid_field(fn):
     lat = LAT_N - np.arange(51) * 0.5
     lon = LON_W + np.arange(81) * 0.5

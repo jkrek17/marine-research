@@ -138,6 +138,56 @@ def clip_fronts(fronts, lat_n, lon_w, ny=51, nx=81, res=0.5, margin=1.0, min_nm=
     return out
 
 
+SYS_SEED_KM = 300.0        # a non-trough front with an end this close to the case low belongs to its system
+SYS_CHAIN_NM = 60.0        # ... and so does a front whose end is this close to a point of a system front
+SYS_PAD_NM = 60.0          # the ring around the system: farthest system point from the low plus this
+SYS_MAX_NM = 900.0
+SYS_MIN_NM = 250.0         # a case needs this much non-trough system front after clipping
+
+
+def mark_system(fronts, low_lat, low_lon):
+    """Flag the clipped fronts ([{"type", "pts": [[lat, lon], ...]}], modified in place) that belong to the case
+    low's system: "sys" true for a non-trough front with an end within SYS_SEED_KM of the low, then repeatedly for
+    any front (a trough too) with an end within SYS_CHAIN_NM of a point of a non-trough system front (the cold front
+    trailing from the triple point of an occlusion, a stationary continuation). Troughs are attached but never
+    extend the system. Returns the ring radius in nm: the farthest system point from the low plus SYS_PAD_NM,
+    capped at SYS_MAX_NM (0 when no front is in the system)."""
+    P = [np.asarray(f["pts"], float) for f in fronts]
+    sysf = [False] * len(fronts)
+    for i, f in enumerate(fronts):
+        if f["type"] in NON_TROUGH:
+            p = P[i]
+            ends = km(low_lat, low_lon, p[[0, -1], 0], p[[0, -1], 1])
+            sysf[i] = bool(np.min(ends) <= SYS_SEED_KM)
+    changed = True
+    while changed:
+        changed = False
+        for i, f in enumerate(fronts):
+            if sysf[i]:
+                continue
+            ends = P[i][[0, -1]]
+            for j, g in enumerate(fronts):
+                if not sysf[j] or g["type"] not in NON_TROUGH:
+                    continue
+                d = F.distance_nm(ends[:, 0][:, None], ends[:, 1][:, None], P[j][:, 0][None, :], P[j][:, 1][None, :])
+                if float(np.min(d)) <= SYS_CHAIN_NM:
+                    sysf[i] = True
+                    changed = True
+                    break
+    r = 0.0
+    for i, f in enumerate(fronts):
+        f["sys"] = sysf[i]
+        if sysf[i]:
+            r = max(r, float(np.max(F.distance_nm(low_lat, low_lon, P[i][:, 0], P[i][:, 1]))))
+    return min(SYS_MAX_NM, round(r + SYS_PAD_NM)) if r > 0 else 0
+
+
+def sys_length_nm(fronts):
+    """Total length (nm) of the non-trough fronts flagged "sys"."""
+    return sum(length_nm([p[0] for p in f["pts"]], [p[1] for p in f["pts"]])
+               for f in fronts if f.get("sys") and f["type"] in NON_TROUGH)
+
+
 def lows_in_box(lows, lat_n, lon_w, ny=51, nx=81, res=0.5):
     """Analysed lows inside the box edges -> [{"lat", "lon", "hpa"}]."""
     out = []
