@@ -105,6 +105,58 @@ def hf_specs():
     return s
 
 
+PAGE_BASE = (38, 48)   # model-trigger ramps of the GFE tool (0 -> 6 over 38-42, 0 -> 4 more over 48-52)
+
+
+def page_specs():
+    """Follow-up (Jason 18:56Z: "do we need to update our web pages ... can we apply the ensemble method with the new
+    core lift?"): the ramps on the PAGE blend (r10: GFS/ECMWF/AIFS + spread), all keeping the page's gale floor
+    (gale-core chance >= 60% -> >= 34 kt). Baselines CL (page today) and CL8 (+8 kt in cores).
+      PM_A<a>_U<u>          ramps triggered by the stronger of GFS/ECMWF: 0 -> 6 over a..a+4, 0 -> 4 more over u..u+4
+      PO_A<a>_U<u>          same ramps triggered by the page blend's own wind
+      PE_A<a>_U<u>_p<p>     PM scaled by the ensemble core likelihood: x clip(P / p%, 0, 1)
+      PG_A<a>_U<u>_p<p>     PM only where core likelihood >= p%
+      PK_A<a>_U<u>_G<g>     PM + HF core 0 -> 6 over 52-56 of the stronger model where GFS 925 x stability >= g
+      PH_A<a>_U<u>_p<p>     PM + the same HF core where GEFS P48 (neighbourhood) >= p% instead
+    Rows go to rows_<split>_page.csv.gz."""
+    s = ["D", "CL", "CL8", "R_L6_T40_M4_U50_W4_C1"]
+    s += ["PM_A%d_U%d" % (a, u) for a in (34, 36, 38, 40, 42) for u in (44, 46, 48, 50, 52) if u >= a + 6]
+    s += ["PO_A%d_U%d" % (a, u) for a in (32, 34, 36, 38, 40) for u in (40, 42, 44, 46, 48) if u >= a + 4]
+    for a, u in ((36, 46), (38, 48), (36, 48), (34, 44)):
+        s += ["PE_A%d_U%d_p%d" % (a, u, p) for p in (10, 20, 35, 50)]
+        s += ["PG_A%d_U%d_p%d" % (a, u, p) for p in (5, 10, 20, 35)]
+    for a, u in ((36, 46), (38, 48)):
+        s += ["PK_A%d_U%d_G%d" % (a, u, g) for g in (0, 55, 60)]
+        s += ["PH_A%d_U%d_p%d" % (a, u, p) for p in (30, 50, 70)]
+    return s
+
+
+def page_make(kind, p, d):
+    if "r10" not in d or d["strong"] is None:
+        return None
+    oc, r10, sf = d["ocean"], d["r10"], np.nan_to_num(d["strong"], nan=-1.0)
+    trig = np.nan_to_num(r10, nan=-1.0) if kind == "PO" else sf
+    add = ramp(trig, 6, p["A"] + 4, 4, 0) + ramp(trig, 4, p["U"] + 4, 4, 0)
+    if kind == "PE":
+        add = add * np.clip(d["P"] / (p["p"] / 100.0), 0, 1)
+    elif kind == "PG":
+        add = np.where(d["P"] >= p["p"] / 100.0, add, 0)
+    elif kind == "PK":
+        if not d["has_low"]:
+            return None
+        hf = ramp(sf, 6, 56, 4, 0)
+        if p["G"] > 0:
+            ceil = features.hf_ceiling(r10, d["s925"], d["sa"])[1]
+            hf = np.where(np.nan_to_num(ceil, nan=-1.0) >= p["G"], hf, 0)
+        add = add + hf
+    elif kind == "PH":
+        if "p48nb_h" not in d:
+            return None
+        add = add + np.where(d["p48nb_h"] >= p["p"] / 100.0, ramp(sf, 6, 56, 4, 0), 0)
+    w = np.where(oc, r10 + add, r10)
+    return np.where(oc & (d["Pg"] >= 0.6), np.maximum(w, 34.0), w).astype(np.float32)
+
+
 def ramp(s, lift, t, w, centred):
     lo = t - (w / 2.0 if centred else w)
     return np.float32(lift) * np.clip((s - lo) / float(w), 0, 1)
@@ -120,6 +172,8 @@ def make(label, d, x):
     kind, p = parse(label)
     if kind in ("D", "DG", "CL", "CL8"):
         return S.make((kind, None, None, None), d)
+    if kind in ("PM", "PO", "PE", "PG", "PK", "PH"):
+        return page_make(kind, p, d)
     oc = d["ocean"]
     if kind == "H":
         if "det_ah" not in x or d["strong"] is None:
@@ -226,13 +280,16 @@ def main():
     ap.add_argument("--combo", action="store_true", help="score combo_specs() into rows_<split>_combo.csv.gz")
     ap.add_argument("--ramp", action="store_true", help="score ramp_specs() into rows_<split>_ramp.csv.gz")
     ap.add_argument("--hf", action="store_true", help="score hf_specs() into rows_<split>_hf.csv.gz")
+    ap.add_argument("--page", action="store_true", help="score page_specs() into rows_<split>_page.csv.gz")
     ap.add_argument("--self", dest="selfq", action="store_true", help="score self_specs() into rows_<split>_self.csv.gz")
     a = ap.parse_args()
-    tag = "_combo" if a.combo else "_ramp" if a.ramp else "_self" if a.selfq else "_hf" if a.hf else ""
+    tag = ("_combo" if a.combo else "_ramp" if a.ramp else "_self" if a.selfq else "_hf" if a.hf
+           else "_page" if a.page else "")
     out = paths.data("extra", "gfe-wind-tool") / ("rows_%s%s.csv.gz" % (a.split, tag))
     if a.split == "held_out" and out.exists():  # once per product set
         sys.exit("held-out rows exist (%s): scored once already" % out)
-    labels = (combo_specs() if a.combo else ramp_specs() if a.ramp else self_specs() if a.selfq else hf_specs() if a.hf else specs())
+    labels = (combo_specs() if a.combo else ramp_specs() if a.ramp else self_specs() if a.selfq else hf_specs() if a.hf
+              else page_specs() if a.page else specs())
     jobs = [(b, c, s, p, labels) for b in a.basins.split(",") for c, s, p in S.load_cases(b, a.split)]
     print("%d cases, %d products" % (len(jobs), len(labels)), flush=True)
     t0, allrows = time.time(), []
