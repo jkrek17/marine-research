@@ -1,4 +1,4 @@
-"""Copy the built wind drill into the Training site (a clone of jkrek17/pattern-drill for GitHub Pages).
+"""Copy the built wind drill into the Training site (a clone of jkrek17/training for GitHub Pages).
 
 Layout (2026-11-06, Jason: "rename it training and clean up the page"):
     <site>/index.html   landing page (site/index.html), with a Front drill card when <site>/fronts/ exists
@@ -26,7 +26,7 @@ for old in ("app.js", "style.css"):                  # old root layout
 if (site / "deck").is_dir():
     shutil.rmtree(site / "deck")
 (site / ".nojekyll").write_text("")
-card = ('    <a class="card" href="fronts/"><h2>Front drill</h2><p>Analyse the fronts on a real Atlantic storm, then compare with '
+card = ('    <a class="card" href="fronts/"><h2>Front drill</h2><p>Draw the fronts on a real storm (North Atlantic and Northeast Pacific), then compare with '
         'the OPC unified surface analysis.</p><span class="go">Open the front drill &rarr;</span></a>')
 landing = (here / "site" / "index.html").read_text()
 (site / "index.html").write_text(landing.replace("<!--FRONTS-->", card if (site / "fronts" / "index.html").exists() else ""))
