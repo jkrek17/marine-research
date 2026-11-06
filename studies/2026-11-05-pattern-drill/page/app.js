@@ -679,13 +679,13 @@
   // ------------------------------------------------------------------ game state / UI
   var opts = { game: 'now', mode: 'practice', weak: false, hints: true };
   try { if (window.sessionStorage.getItem('pdrill-hints') === '0') opts.hints = false; } catch (e) { /* ignore */ }
-  var lastEnd = 'blitz', bench = null, benchIds = null, benchSet = {}, pairsData = null, pair = null, ptabIdx = 0, ptabList = null;
+  var lastEnd = 'blitz', bench = null, benchIds = null, benchSet = {};
   var cur = null, blitz = null, geom = null, tabIdx = 0, tabList = TABS, timerId = null;
 
   var lastScreen = 'start';
   function show(id) {
     if (id !== 'ingr') lastScreen = id;
-    ['start', 'play', 'end', 'ingr', 'pairs'].forEach(function (s) { $(s).hidden = s !== id; });
+    ['start', 'play', 'end', 'ingr'].forEach(function (s) { $(s).hidden = s !== id; });
     $('loadMsg').hidden = true;
     $('leaveBanner').hidden = true;
     window.scrollTo(0, 0);
@@ -697,7 +697,7 @@
   }
   function chromeH() {   // sticky header (+ sticky map tabs on narrow screens)
     var h = document.querySelector('header.top').offsetHeight;
-    if (window.innerWidth <= 720) h += ($('pairs').hidden ? $('tabs') : $('prTabs')).offsetHeight;
+    if (window.innerWidth <= 720) h += $('tabs').offsetHeight;
     return h;
   }
   function updateTop() {
@@ -804,7 +804,6 @@
   function startGame() {
     $('startMsg').textContent = '';
     lastEnd = 'blitz'; bench = null;
-    if (opts.mode === 'pairs') return startPairs();
     blitz = opts.mode === 'blitz' ? { n: 0, recs: [] } : null;
     tabList = availTabs();
     show('play');
@@ -813,7 +812,7 @@
   function startBench() {   // fixed 20 Beat the model cases, no hints, no feedback until the summary
     if (!benchIds || !benchIds.length) return;
     $('startMsg').textContent = '';
-    lastEnd = 'bench'; blitz = null; pair = null;
+    lastEnd = 'bench'; blitz = null;
     bench = { n: 0, ids: benchIds.slice(), recs: [], t: Date.now() };
     tabList = availTabs();
     show('play');
@@ -1315,7 +1314,7 @@
       var old = all.filter(function (r) { return r.game === 'fc'; });
       if (old.length) h += gameSection('Forecast +24 h (grow, hold, decay)', old, 'fc');
     }
-    h += pairsStatHTML() + benchHistHTML(null);
+    h += benchHistHTML(null);
     statsOpener = document.activeElement;
     $('statsBody').innerHTML = h; $('drawer').hidden = false;
     $('closeStats').focus();
@@ -1351,7 +1350,7 @@
     h += '<div class="read">' + readLine(conf) + '</div>' + biasHTML(blitz.recs, blitz.recs.length && blitz.recs[0].game) + tableHTML(conf);
     $('endTitle').textContent = 'Blitz done'; $('endBody').innerHTML = h; show('end');
   }
-  function goHome() { clearTimer(); cur = null; pair = null; show('start'); }
+  function goHome() { clearTimer(); cur = null; show('start'); }
   // startMsg is cleared whenever a game starts (see startGame)
 
   // ------------------------------------------------------------------ keys, change-call stats
@@ -1392,11 +1391,6 @@
     if (!d.length) return '';
     return '<div class="persist"><b>Where the strongest wind is</b><span>Median miss ' + Math.round(median(d)) + ' nm over ' + d.length + ' tap' + (d.length > 1 ? 's' : '') +
       (SCENE() ? ' (to the ringed cell: the 3rd-highest ASCAT cell on the map).' : ' (to the ringed cell: the 3rd-highest ASCAT cell within 500 km).') + '</span></div>';
-  }
-  function pairsStatHTML() {
-    var ps = session.pairs; if (!ps.length) return '';
-    var right = ps.filter(function (p) { return p.right; }).length;
-    return '<h3 class="gh">Pairs</h3><div class="persist"><b>Which one grew?</b><span>' + right + ' of ' + ps.length + ' right (' + Math.round(100 * right / ps.length) + '%; guessing gets 50%).</span></div>';
   }
 
   // ------------------------------------------------------------------ benchmark: history on this device, summary, CSV
@@ -1466,7 +1460,6 @@
         rows.push(['benchmark', k + 1, run.ts, 'beat_the_model', 'bench', r.id, cat(r.start), '', '', '', cat(r.called), cat(r.obs), r.pts, r.pts, r.t, '', '', '']);
       });
     });
-    session.pairs.forEach(function (p) { rows.push(['pair', '', '', 'forecast', 'pairs', p.a + '|' + p.b, '', '', '', '', '', '', '', '', p.t, '', p.pick.toUpperCase(), p.right ? 1 : 0]); });
     var csv = rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n') + '\r\n';
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     a.href = url; a.download = 'pattern-drill-results.csv'; a.style.display = 'none';
@@ -1476,148 +1469,10 @@
     $('startMsg').textContent = msg; $('exportMsg').textContent = msg;
   }
 
-  // ------------------------------------------------------------------ pairs: two similar lows, one grew
-  function pairKey(p) { return p.a + '|' + p.b; }
-  function pairsPool() {
-    return (pairsData || []).filter(function (p) { return !session.played.pair[pairKey(p)] && !benchSet[p.a] && !benchSet[p.b]; });
-  }
-  function startPairs() {
-    if (!pairsData) return;
-    if (!pairsPool().length) { $('startMsg').textContent = 'You have seen every pair this session. Close the tab to reset.'; return; }
-    blitz = null; bench = null; cur = null; show('pairs'); nextPair();
-  }
-  function buildPTabs() {
-    var t = $('prTabs'); t.innerHTML = '';
-    ptabList.forEach(function (tb, i) {
-      var b = el('button', 'tab' + (tb.reveal ? ' reveal' : ''), tb.label);
-      b.type = 'button'; b.setAttribute('role', 'tab'); b.addEventListener('click', function () { setPTab(i); });
-      t.appendChild(b);
-    });
-  }
-  function sizePairs() {
-    ['a', 'b'].forEach(function (s) {
-      var g = pair.g[s], col = $('prCol' + s.toUpperCase()), w = col.clientWidth;
-      if (window.innerWidth >= 900) w = Math.min(w, Math.max(300, (window.innerHeight - 330) * g.aspect));
-      w = Math.floor(w);
-      var h = Math.round(w / g.aspect), dpr = Math.min(window.devicePixelRatio || 1, 2);
-      g.cw = w; g.ch = h; g.dpr = dpr;
-      var cv = $('prMap' + s.toUpperCase()); cv.style.width = w + 'px'; cv.style.height = h + 'px';
-      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-      $('prBox' + s.toUpperCase()).style.width = w + 'px';
-    });
-  }
-  function drawPairs() {
-    if (!pair || !pair.d.a) return;
-    var tab = ptabList[ptabIdx], token = pair;
-    ['a', 'b'].forEach(function (s) {
-      var c = s === 'a' ? pair.ca : pair.cb, g = pair.g[s], cv = $('prMap' + s.toUpperCase()), d = pair.d[s];
-      var extra = { low: tab.reveal ? c.t24 : c.t0 };
-      if (tab.reveal) extra.track = [c.t0, c.t24];
-      if (tab.sat) {
-        if (!c.t0[tab.sat]) { renderSat(cv, g, d[0], tab, extra, null); return; }
-        loadImage(satUrl(c, 't0', tab.sat)).then(function (img) {
-          if (pair !== token || ptabList[ptabIdx] !== tab) return;
-          renderSat(cv, g, d[0], tab, extra, img);
-        });
-        return;
-      }
-      renderMap(cv, g, d[tab.reveal ? 1 : 0], tab, extra);
-    });
-  }
-  function setPTab(i) {
-    ptabIdx = (i + ptabList.length) % ptabList.length;
-    var tab = ptabList[ptabIdx];
-    [].forEach.call($('prTabs').children, function (b, k) {
-      b.classList.toggle('on', k === ptabIdx); b.setAttribute('aria-selected', k === ptabIdx);
-      if (k === ptabIdx && b.scrollIntoView) { try { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* old browsers */ } }
-    });
-    $('prCap').textContent = tab.name + (tab.reveal ? ' (+24 h), both lows' : ', both lows');
-    buildLegend(tab, $('prLegend'));
-    var hb = $('prHint'); hb.hidden = !(opts.hints && !tab.reveal && HINTS[tab.id]);
-    hb.textContent = hb.hidden ? '' : 'Look for: ' + HINTS[tab.id];
-    drawPairs();
-  }
-  function basinName(c) { return c.basin === 'natl' ? 'N Atlantic' : c.basin === 'npac' ? 'N Pacific' : c.basin; }
-  function nextPair() {
-    var pool = pairsPool();
-    if (!pool.length) { $('startMsg').textContent = 'You have seen every pair this session. Close the tab to reset.'; goHome(); return; }
-    var p = pool[rand(pool.length)];
-    session.played.pair[pairKey(p)] = 1; saveSession();
-    var token = pair = { p: p, ca: manifest.byId[p.a], cb: manifest.byId[p.b], d: {}, g: {}, answered: false, t0: 0 };
-    ptabList = availTabs(); ptabIdx = 0; buildPTabs();
-    $('prResult').hidden = true; $('prDebrief').hidden = true; $('prNext').hidden = true;
-    var an = $('prAnswers'); an.hidden = false; an.innerHTML = '';
-    ['a', 'b'].forEach(function (s) {
-      var b = el('button', 'ans', '<b>' + s.toUpperCase() + ' grew <kbd>' + (s === 'a' ? 1 : 2) + '</kbd></b><span>' + (s === 'a' ? 'left map' : 'right map') + '</span>');
-      b.type = 'button'; b.dataset.side = s; b.addEventListener('click', function () { answerPair(s); });
-      an.appendChild(b);
-    });
-    $('prLoad').hidden = false; $('prLoad').textContent = 'Loading pair...';
-    $('prCase').textContent = 'Pair ' + (session.pairs.length + 1);
-    $('prStart').textContent = 'Both lows started ' + (p.start === 0 ? 'below gale' : 'at ' + SNAME[p.start]) + ' in ASCAT';
-    ['a', 'b'].forEach(function (s) {
-      var c = s === 'a' ? pair.ca : pair.cb;
-      $('prLab' + s.toUpperCase()).innerHTML = '<b>' + s.toUpperCase() + '</b> <span>ASCAT now ' + CATS[c.t0.cat] + ' (' + Math.round(c.t0.peak) + ' kt) &middot; ' + basinName(c) + '</span>';
-    });
-    window.scrollTo(0, 0);
-    Promise.all([loadCase(p.a), loadCase(p.b)]).then(function (ds) {
-      if (pair !== token) return;
-      pair.d.a = ds[0]; pair.d.b = ds[1]; pair.g.a = makeGeom(pair.ca); pair.g.b = makeGeom(pair.cb);
-      sizePairs(); $('prLoad').hidden = true; setPTab(0); pair.t0 = Date.now();
-      [pair.ca, pair.cb].forEach(function (c) { ['ir', 'am'].forEach(function (k) { if (c.t0[k]) loadImage(satUrl(c, 't0', k)); }); });
-      var f = $('prAnswers').querySelector('.ans'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } }
-    }).catch(function (e) {
-      if (pair !== token) return;
-      $('prLoad').textContent = 'Could not load this pair (' + e.message + '). Tap Next.';
-      $('prAnswers').hidden = true; $('prNext').hidden = false;
-    });
-  }
-  function answerPair(side) {
-    if (!pair || pair.answered || !pair.d.a) return;
-    pair.answered = true;
-    var P = pair.p, right = side === P.grew, secs = Math.round(Math.min((Date.now() - pair.t0) / 1000, 600) * 10) / 10;
-    session.pairs.push({ a: P.a, b: P.b, pick: side, right: right, t: secs }); saveSession();
-    var rt = session.pairs.filter(function (p) { return p.right; }).length;
-    var h = '<div class="rhead">' + (right ? 'Right: ' + P.grew.toUpperCase() + ' grew' : 'It was ' + P.grew.toUpperCase() + ' that grew') + '</div>';
-    ['a', 'b'].forEach(function (s) {
-      var c = s === 'a' ? pair.ca : pair.cb, ch = obsChange(c);
-      h += '<div class="rline"><b>' + s.toUpperCase() + '</b>: ' + CH_OBS[ch + 1] + '. ASCAT peak ' + Math.round(c.t0.peak) + ' to ' + Math.round(c.t24.peak) + ' kt (' + CATS[c.t0.cat] + ' to ' + CATS[c.t24.cat] + '), ' +
-        Math.round(c.t0.hpa) + ' to ' + Math.round(c.t24.hpa) + ' hPa.</div>';
-    });
-    h += '<div class="rstats">Pairs this session: ' + rt + ' of ' + session.pairs.length + ' right</div>';
-    var res = $('prResult'); res.className = 'result ' + (right ? 'good' : 'bad'); res.innerHTML = h; res.hidden = false;
-    var rows = '';
-    P.diff.forEach(function (d) {
-      var hi = d.z > 0 ? 'A higher' : 'B higher';
-      rows += '<div class="drow"><span class="nm">' + d.name + '</span><span class="vl">A ' + nf(d.a) + ', B ' + nf(d.b) + ' ' + d.units + '</span><span class="pill">' + hi + '</span></div>';
-    });
-    var db = $('prDebrief');
-    db.innerHTML = '<h3>What differed</h3><div class="dbase">These two lows had nearly the same ingredient profile. The three ingredients that differed most (in units of their spread across the deck):</div>' + rows +
-      '<div class="ikey">The differences are small by design, so read them as odds, not rules. Open Ingredients for how each one has behaved over ' + ((manifest.ingredients && manifest.ingredients.n) || 916) + ' lows.</div>';
-    db.hidden = false; $('prAnswers').hidden = true; $('prNext').hidden = false;
-    ptabList = availTabs().concat([REVEAL_TAB]); buildPTabs(); setPTab(ptabList.length - 1);
-    try { res.setAttribute('tabindex', '-1'); res.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
-    if (window.innerWidth < 900) {
-      var top = res.getBoundingClientRect().top + window.pageYOffset - chromeH() - 8;
-      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    }
-  }
-  function pairsKey(e) {
-    var onBtn = e.target.closest && e.target.closest('button');
-    if ((e.key === 'Enter' || e.key === ' ') && onBtn && onBtn !== $('prNext')) return;
-    if (e.key === 'ArrowRight') { setPTab(ptabIdx + 1); e.preventDefault(); }
-    else if (e.key === 'ArrowLeft') { setPTab(ptabIdx - 1); e.preventDefault(); }
-    else if (pair && !pair.answered && /^[1aA]$/.test(e.key)) answerPair('a');
-    else if (pair && !pair.answered && /^[2bB]$/.test(e.key)) answerPair('b');
-    else if ((e.key === 'Enter' || e.key === ' ') && !$('prNext').hidden) { e.preventDefault(); nextPair(); }
-  }
-  function loadOptional() {   // bench.json and pairs.json are optional: without them the Benchmark button and Pairs mode stay hidden
-    var jf = function (u) { return fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
-    return Promise.all([jf('deck/bench.json'), jf('deck/pairs.json')]).then(function (r) {
-      var b = r[0], p = r[1];
+  function loadOptional() {   // bench.json is optional: without it the Benchmark button stays hidden
+    return fetch('deck/bench.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (b) {
       if (b && b.ids) { benchIds = b.ids.filter(function (id) { return manifest.byId[id]; }); benchIds.forEach(function (id) { benchSet[id] = 1; }); if (!benchIds.length) benchIds = null; }
-      if (p && p.pairs) { pairsData = p.pairs.filter(function (x) { return manifest.byId[x.a] && manifest.byId[x.b]; }); if (!pairsData.length) pairsData = null; }
-      $('benchBtn').hidden = !benchIds;   // Pairs is retired (Jason 2026-11-06); old session records still show in the stats
+      $('benchBtn').hidden = !benchIds;
     });
   }
 
@@ -1641,14 +1496,14 @@
     var setHdr = function () { document.documentElement.style.setProperty('--hdr', document.querySelector('header.top').offsetHeight + 'px'); };
     setHdr(); window.addEventListener('resize', setHdr); window.addEventListener('load', setHdr);
     $('nextBtn').addEventListener('click', nextCase);
-    $('prNext').addEventListener('click', nextPair);
     $('benchBtn').addEventListener('click', startBench);
     $('exportBtn').addEventListener('click', exportCSV);
     $('statsExport').addEventListener('click', exportCSV);
     $('map').addEventListener('click', mapTap);
     $('tapNote').addEventListener('click', function (e) { if (e.target.id === 'tapClear' && cur && !cur.answered) { cur.tap = null; updateTapNote(); draw(); } });
-    var prt; window.addEventListener('resize', function () { clearTimeout(prt); prt = setTimeout(function () { if (pair && pair.d.a && !$('pairs').hidden) { sizePairs(); drawPairs(); } }, 120); });
     $('ingBtn').addEventListener('click', openIngredients);
+    $('ingLink').addEventListener('click', openIngredients);
+    fetch('../fronts/index.html', { method: 'HEAD' }).then(function (r) { if (r.ok) $('navFronts').hidden = false; }).catch(function () { /* no front drill yet */ });
     $('statsIng').addEventListener('click', openIngredients);
     $('ingBack').addEventListener('click', function () { show(lastScreen); });
     $('statsBtn').addEventListener('click', openStats);
@@ -1657,7 +1512,6 @@
     document.addEventListener('keydown', function (e) {
       if (!$('drawer').hidden) { if (e.key === 'Escape') closeStats(); return; }
       if (!$('leaveBanner').hidden) { if (e.key === 'Escape') askLeave(false); return; }
-      if (!$('pairs').hidden) return pairsKey(e);
       if ($('play').hidden) return;
       var onBtn = e.target.closest && e.target.closest('button');
       if ((e.key === 'Enter' || e.key === ' ') && onBtn && onBtn !== $('nextBtn')) return;   // let the focused button act
