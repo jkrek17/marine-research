@@ -22,7 +22,7 @@
 
 **Data:** none new. Panels are drawn from the deck's own fields (`deck/<id>.bin`, `_am.jpg` / `_ir.jpg`); no GFS, GOES or ASCAT pull. Claude API spend for the pilot: estimated $0.20-0.40 per case on Opus 5.5 (six panel images ~4k tokens, two worked examples ~8k, cached; ~8 turns; thinking ~5-8k output tokens), so about $15-20 for 50 cases, about $25-30 with the Sonnet comparison. Hard cap $40.
 
-**Needs:** an Anthropic API key in the cloud environment as `ANTHROPIC_API_KEY` (this session has none).
+**Run as done (Jason 2026-11-06: "why do we need a key. can you run the test"):** the pilot ran inside the Claude Code session with no API key. Ten Claude agents played five cases each from blind case folders (panels, given lows and stationary fronts, worked examples, tool) and were told to open nothing else. A scripted API run (key as `ANTHROPIC_API_KEY`) is the step after, for exact cost and repeat runs.
 
 **Reused / new:**
 - Reused: the drill deck and manifest, `page/app.js` scoring (loaded under node, not copied), `rk.fronts.smooth`, `rk.diag.theta_e`, the drill's box geometry.

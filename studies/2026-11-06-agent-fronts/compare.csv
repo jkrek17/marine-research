@@ -1,0 +1,13 @@
+method,basin,cases,mean_pct,analysed_fronts,matched,type_right,median_dist_nm,extras,zero_score_cases
+agent,all,50,68.3,128,92,81,51.0,7,1
+agent,natl,30,62.5,77,51,43,46.0,6,1
+agent,npac,20,77.1,51,41,38,55.0,1,0
+tfp,all,50,52.4,128,107,84,92.0,122,3
+tfp,natl,30,53.0,77,68,51,87.0,83,3
+tfp,npac,20,51.6,51,39,33,104.0,39,0
+persist,all,50,65.6,128,93,85,74.0,20,8
+persist,natl,30,64.0,77,54,47,72.0,18,4
+persist,npac,20,67.9,51,39,38,90.0,2,4
+agent - tfp,all,50,15.9,,90% 7.6 to 27.8,wins 36 losses 14,,,14 storms
+agent - persist,all,50,2.8,,90% -4.7 to 11.9,wins 20 losses 28,,,14 storms
+persist - tfp,all,50,13.1,,90% 7.7 to 20.8,wins 31 losses 19,,,14 storms
