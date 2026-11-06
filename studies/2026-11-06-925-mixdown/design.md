@@ -1,6 +1,6 @@
 # Does a strong 925 mb wind mix down to gales? Design card
 
-*Draft for Jason's answers. If he does not answer, the study runs on the recommended answers (marked **R**).*
+*Ran on the recommended answers (Jason did not change them); results in findings.md.*
 
 **Question** (Jason's words): "but what if the wind is 40 kts at 925, and 15 kts at the surface. can you mix down 40 kts to get gales if the SeaMinusAir is +10" ... "i guess this still comes back to most likely wind vs warned area."
 
