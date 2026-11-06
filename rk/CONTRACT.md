@@ -223,3 +223,15 @@ Pure numpy on already-pulled MSLP and wind; no network. Lows come from `rk.bomb.
 - `coriolis(lats)`, `ddx(a, lats, lons)`, `ddy(a, lats)` (centred differences on the sphere), `advection(s, u, v, lats, lons)` = -(V . grad s) (positive = warm advection for temperature), `theta(t, p)`, `theta_e(t, rh, p)` (Bolton 1980; RH in %).
 - `eady(u_lo, v_lo, z_lo, t_lo, p_lo, u_hi, v_hi, z_hi, t_hi, p_hi, lats, n2_min=None)`: maximum Eady growth rate 0.31 |f| |dV/dz| / N for the layer between two levels (1/s); NaN where N^2 <= 0. `n2_min` (s^-2, e.g. 2.5e-5) floors N^2 so near-neutral cells do not blow up.
 - `smooth(a, sigma)` Gaussian (cells) ignoring NaN; `coarsen(a, k, how="mean"|"max")` block reduce; `subsample(a, k)` every k-th cell.
+
+## rk/fronts.py (WPC coded surface analysis, CODSUS, from the IEM archive)
+- Source: `https://mesonet.agron.iastate.edu/cgi-bin/afos/retrieve.py?pil=CODSUS&sdate=D&edate=D+1&limit=200&fmt=text`, one request per UTC day through `rk.fetch.get` (retries, build-window wait). Raw text is cached per day in `rk.paths.data("extra", "fronts", "codsus", "YYYYMMDD.txt")` and a cached day is never refetched; today and yesterday (UTC) are not stored. A day the server does not return gives no analyses (never filled).
+- Parsed: ASUS02 bulletins only (7-digit LLLLOOO, tenths of a degree, N and W; ASUS01 whole-degree blocks are skipped). Tokens, not lines (pairs wrap); a bulletin ends at `$$` or the next header; the last issued bulletin for a valid time wins (corrections); year from the issue-time line (December/January rollover handled); consecutive duplicate points dropped. Fronts with fewer than 2 points are dropped.
+- `analysis(valid: datetime) -> dict | None`: `{"valid": dt, "lows": [(hpa, lat, lon)], "highs": [(hpa, lat, lon)], "fronts": [{"type": "cold"|"warm"|"occluded"|"stationary"|"trough", "lat": np.ndarray, "lon": np.ndarray}], "issued": dt}`; lon 0-360 (west longitude 104.4 is 255.6); None when no analysis is valid at that time. The point lists are the analyst's points, not a grid.
+- `day(date) -> list[dict]`: all analyses valid that UTC day (date or datetime), sorted by valid time (reads that day's and the next day's bulletins).
+- `synoptic(valid) -> bool`: hour in 0, 6, 12, 18.
+- `densify(lat, lon, step_nm=25) -> (lat, lon)`: great-circle fill, vertices kept, lon 0-360.
+- `smooth(lat, lon, step_nm=25) -> (lat, lon)`: centripetal Catmull-Rom spline through the coded points (local equirectangular projection centred on the front, longitude wrapped so 0-360 and the date line work), sampled about every step_nm; every coded point is kept exactly, ends not extended, two points give a straight line; lon 0-360. Use it instead of `densify` for fronts that are drawn or scored.
+- `merge_segments(fronts, join_nm=30) -> fronts`: joins same-type segments whose ends are within join_nm (reversing as needed); returns only `type`, `lat`, `lon`.
+- `distance_nm(lat1, lon1, lat2, lon2)`: great-circle nautical miles, vectorised.
+- `parse(text) -> list[dict]`: pure parser behind the above (no network), one analysis per valid time, sorted.
