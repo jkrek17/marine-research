@@ -193,6 +193,12 @@
   function inRing(ring, p) { return !ring || distNm(ring, p) <= ring.r; }
   function isSys(f) { return f.sys !== false; }   // an older deck has no flag: everything is the system
 
+  function givenOf(c) {   // what the trainee is given before submitting: the system's stationary fronts and its analysed lows in the ring
+    var ring = ringOf(c);
+    return { fronts: c.fronts.filter(function (f) { return isSys(f) && GIVEN[f.type]; }),
+             lows: (c.lows && c.lows.length ? c.lows : [c.low]).filter(function (l) { return inRing(ring, l); }) };
+  }
+
   // ------------------------------------------------------------------ scoring
   function typeCredit(truthType, drawnType) {
     if (truthType === drawnType) return 1;
@@ -363,10 +369,25 @@
     return snap;
   }
   var imgData = {};   // base64 decks (Artifact preview): id -> image data URI
+  var packs = {};    // pack name -> promise of its parsed JSON
   function b64buf(s) { var bin = atob(s), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
   function imgSrc(c) { return imgData[c.id] || ('deck/' + c.id + '_' + c.img + '.jpg'); }
   function loadCase(id) {
     if (caseCache[id]) return Promise.resolve(caseCache[id]);
+    if (manifest.encoding === 'pack') {   // Artifact preview: several cases per JSON file ("pack" in the case), each {z: base64 of the zlib-deflated .bin, img: data URI or absent}
+      var pk = manifest.byId[id].pack;
+      if (!packs[pk]) packs[pk] = fetch('deck/' + pk + '.json').then(function (r) {
+        if (!r.ok) throw new Error(pk + ' ' + r.status);
+        return r.json();
+      });
+      return packs[pk].then(function (P) {
+        var j = P[id]; if (!j) throw new Error(id + ' missing from ' + pk);
+        if (j.img) imgData[id] = j.img;
+        if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot unpack the preview');
+        var ds = new DecompressionStream('deflate');
+        return new Response(new Blob([b64buf(j.z)]).stream().pipeThrough(ds)).arrayBuffer();
+      }).then(function (buf) { var d = parseBin(buf); caseCache[id] = d; return d; });
+    }
     if (manifest.encoding === 'base64') {   // one JSON per case: {bin, img}
       return fetch('deck/' + id + '.json').then(function (r) {
         if (!r.ok) throw new Error(id + ' ' + r.status);
@@ -497,6 +518,11 @@
     }
     ctx.putImageData(img, 0, 0);
   }
+  function lonLabel(lo) {   // continuous longitude (may pass 180 or 360) -> '170E', '180', '170W', '0'
+    var l = ((lo + 540) % 360) - 180;
+    if (l === 0) return '0';
+    return Math.abs(l) === 180 ? '180' : l < 0 ? -l + 'W' : l + 'E';   // 180 is the date line, neither E nor W
+  }
   function drawGrid(ctx, g) {
     var lat1 = g.lat0 - (g.ny - 1) * g.res, lon1 = g.lon0 + (g.nx - 1) * g.res;
     ctx.save();
@@ -510,8 +536,7 @@
     for (var lo = Math.ceil(g.lon0 / 5) * 5; lo <= lon1; lo += 5) {
       var x = proj(g, g.lat0, lo)[0];
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, g.ch); ctx.stroke();
-      var l = ((lo + 540) % 360) - 180;
-      lab.push([l === 0 ? '0' : l < 0 ? -l + 'W' : l + 'E', x, g.ch - 8, 'center']);
+      lab.push([lonLabel(lo), x, g.ch - 8, 'center']);
     }
     ctx.restore();
     lab.forEach(function (t) {
@@ -872,8 +897,8 @@
     if (ring) drawRing(ctx, g, ring);
     if (!showT) {   // given to the trainee: the system's stationary fronts and its analysed lows
       var toPtsG = function (f) { return { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }; };
-      cur.c.fronts.filter(function (f) { return isSys(f) && GIVEN[f.type]; }).forEach(function (f) { drawFront(ctx, g, toPtsG(f), { lw: 3, u: u * 1.1, outline: '#0c1220', ref: cur.c.low }); });
-      (cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low]).filter(function (l) { return inRing(ring, l); }).forEach(function (l) {
+      givenOf(cur.c).fronts.forEach(function (f) { drawFront(ctx, g, toPtsG(f), { lw: 3, u: u * 1.1, outline: '#0c1220', ref: cur.c.low }); });
+      givenOf(cur.c).lows.forEach(function (l) {
         drawLowMark(ctx, g, l.lat, l.lon, { color: '#d00018', sub: l.hpa != null ? String(Math.round(l.hpa)) : '' });
       });
     }
@@ -994,6 +1019,7 @@
     $('drawPane').hidden = false; $('revealPane').hidden = true;
     $('mapLoad').hidden = false; $('mapLoad').textContent = 'Loading case...';
     $('pCase').textContent = 'Case ' + (stats.records.length + 1);
+    $('pBasin').textContent = c.basin === 'npac' ? 'N Pacific' : 'N Atlantic';   // a deck without basin is the Atlantic one
     $('ringPrompt').hidden = !(c.sys_r_nm > 0);
     $('pTimer').hidden = $('timerbar').hidden = true;
     updateTools();
@@ -1097,6 +1123,6 @@
     var r = $('map').getBoundingClientRect(), q = proj(geom, lat, lon);
     return { x: r.left + q[0] * r.width / geom.cw, y: r.top + q[1] * r.height / geom.ch };
   }
-  window.FD = { toClient: toClient, crSpline: crSpline, smoothGeo: smoothGeo, ringOf: ringOf, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
+  window.FD = { toClient: toClient, lonLabel: lonLabel, givenOf: givenOf, crSpline: crSpline, smoothGeo: smoothGeo, ringOf: ringOf, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
   init();
 })();

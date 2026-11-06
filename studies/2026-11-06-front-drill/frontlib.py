@@ -18,6 +18,7 @@ ATTACH_KM = 300.0          # a front belongs to a low when one of its ends is th
 LINK_KM = 600.0            # the same low in the next or previous analysis
 SECOND_LOW_KM = 500.0
 NON_TROUGH = ("cold", "warm", "occluded", "stationary")
+DRAWN = ("cold", "warm", "occluded")      # what the trainee draws (the stationary fronts and the low are given)
 
 # WPC's coded bulletin clipped fronts at its slanted map edge until this analysis and covers the Atlantic to ~0W from it.
 # First analysis with the full domain (searched by day, then by analysis): 2026-08-12 15Z has 28 fronts, easternmost
@@ -87,6 +88,23 @@ def types_match(prev, nxt, current_types, lat, lon):
         if lw is None or type_set(nb[1], lw[1], lw[2]) != tuple(current_types):
             return False
     return True
+
+
+def types_match_relaxed(prev, nxt, current_types, lat, lon):
+    """Relaxed type check: every cold, warm or occluded type present now was also present (attached to the nearest
+    analysed low within LINK_KM) 6 h before or 6 h after. A missing neighbour is skipped; with no neighbour that has
+    the low, False."""
+    need = set(current_types) & set(DRAWN)
+    got, seen = set(), False
+    for nb in (prev, nxt):
+        if nb is None:
+            continue
+        lw = nearest_low(nb[0], lat, lon)
+        if lw is None:
+            continue
+        seen = True
+        got |= set(type_set(nb[1], lw[1], lw[2]))
+    return seen and need <= got
 
 
 def link_tracks(lows_by_time, max_km=LINK_KM):
@@ -392,6 +410,25 @@ def old_edge():
     import csv
     rows = list(csv.DictReader(open(Path(__file__).with_name("old_edge.csv"))))
     return (np.array([float(r["lat_band_south"]) + 0.5 for r in rows]), np.array([float(r["edge_lon"]) for r in rows]))
+
+
+# WPC's coded bulletin stops at 180 and at 359.0 (checked over 13 Aug-5 Nov 2026: no coded point west of 180W or east of 1W).
+BASIN_EDGE = {"npac": (180.0, None), "natl": (None, 359.0)}     # (west edge lon, east edge lon) of the coded analysis
+
+
+def basin_edge_clipped(fronts, basin, tol=EDGE_TOL_DEG):
+    """True when an end of a system non-trough front (already flagged "sys") lies within tol degrees of the edge of the
+    coded domain: 180 in the North Pacific, 1W in the Atlantic (the analysis stops there, the front may go on)."""
+    west, east = BASIN_EDGE[basin]
+    for f in fronts:
+        if not f.get("sys") or f["type"] not in NON_TROUGH:
+            continue
+        for p in (f["pts"][0], f["pts"][-1]):
+            if west is not None and west <= p[1] <= west + tol:
+                return True
+            if east is not None and p[1] >= east - tol:
+                return True
+    return False
 
 
 def edge_clipped(fronts, tol=EDGE_TOL_DEG):

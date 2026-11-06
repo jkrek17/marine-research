@@ -12,6 +12,7 @@ Cases:
          "sys": false, greyed at the reveal, never scored), imagery "am", no ASCAT
   t0002  occluded + cold + warm meeting at a triple point, imagery "ir", no ASCAT
   t0003  stationary + cold, no imagery (img null), ASCAT barbs
+  t0004  North Pacific (basin "npac"), the box straddles 180: occluded + cold + warm + a given stationary front, imagery "ir"
 """
 import json
 import math
@@ -48,7 +49,7 @@ CASES = [
      "lows": [(49.0, 318.0, 988)],
      "fronts": [("cold", [(47.5, 318.5), (44.0, 316.5), (40.5, 317.0), (38.5, 319.0)]),
                 ("trough", [(52.0, 322.0), (55.0, 325.0), (58.0, 326.0)]),
-                ("warm", [(60.0, 303.0), (58.0, 309.0), (57.0, 313.0)], False)]},
+                ("warm", [(61.0, 301.0), (60.5, 304.0), (60.0, 307.0)], False)]},
     {"id": "t0002", "lat0": 62.0, "lon0": 300.0, "img": "ir", "ascat": False,
      "lows": [(50.0, 320.0, 976)],
      "fronts": [("occluded", [(50.3, 320.3), (52.0, 322.5), (53.5, 325.0)]),
@@ -58,6 +59,12 @@ CASES = [
      "lows": [(46.0, 330.0, 1002)],
      "fronts": [("stationary", [(44.0, 322.0), (43.5, 328.0), (44.0, 334.0), (44.5, 338.0)]),
                 ("cold", [(45.0, 330.5), (42.0, 329.0), (39.0, 330.0)])]},
+    {"id": "t0004", "lat0": 62.0, "lon0": 170.0, "img": "ir", "ascat": False, "basin": "npac",
+     "lows": [(50.0, 195.0, 984)],
+     "fronts": [("occluded", [(50.3, 195.3), (52.0, 197.5), (53.5, 200.0)]),
+                ("cold", [(53.5, 200.0), (51.0, 202.0), (46.0, 200.0), (41.0, 197.5)]),
+                ("warm", [(53.5, 200.0), (54.0, 204.0), (55.0, 208.0)]),
+                ("stationary", [(50.0, 193.0), (49.0, 188.0), (49.5, 183.0)])]},
 ]
 HINTS = {
     "cold": "Winds veer across it and theta-e drops about 12 K behind it (test numbers).",
@@ -198,7 +205,7 @@ def main():
                 if t not in types:
                     types.append(t)
         lows = [{"lat": a, "lon": b, "hpa": h} for a, b, h in c["lows"]]
-        cases.append({"id": c["id"], "lat0": c["lat0"], "lon0": c["lon0"], "low": lows[0], "lows": lows,
+        cases.append({"id": c["id"], "basin": c.get("basin", "natl"), "lat0": c["lat0"], "lon0": c["lon0"], "low": lows[0], "lows": lows,
                       "sys_r_nm": min(900, round(r + 60)),
                       "fronts": fr, "img": img, "ascat": bool(c["ascat"]),
                       "hints": {t: HINTS[t] for t in types}})

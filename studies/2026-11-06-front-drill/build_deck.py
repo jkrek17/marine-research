@@ -1,15 +1,14 @@
 """Front drill, step 2: the deck (format in design.md, "Deck format") for every case in picked.csv.
 
-    python3 build_deck.py [--out <deck folder>] [--workers 4] [--limit N]
+    python3 build_deck.py [--out <deck folder>] [--workers 4] [--limit N] [--manifest-only]
 
 Per case, a 25 x 40 deg box at 0.5 deg centred on the analysed low: GFS f000 maps through rk.fetch.gfs_global
 (our own `want`, the pattern drill's DRILL plus 700 hPa and 10 m), 3 h MSLP change against the previous cycle's f003,
-ASCAT (the drill's ascat_box, +-90 min; "ascat" true when it covers >= 15% of the box water), GOES air-mass RGB
-(IR from GridSat-B1 where that has no usable picture), the analysed fronts and lows (rk.fronts, merged, curved (rk.fronts.smooth)
+ASCAT (the drill's ascat_box, +-90 min; "ascat" true when it covers >= 15% of the box water), GOES air-mass RGB (GOES-East in the Atlantic, GOES-West in the Pacific; IR from GridSat-B1 where that has no usable picture), the analysed fronts and lows (rk.fronts, merged, curved (rk.fronts.smooth)
 to 25 nm, clipped to the box minus 1 deg, pieces under 150 nm dropped), each flagged "sys" when it belongs to the case
 low's system (FL.mark_system) with the ring radius "sys_r_nm", and one hint line per system non-trough front type from
 the case's own fields. Cases with under 250 nm of system front are dropped from the manifest, and so are cases before
-FL.COVERAGE_FULL_FROM whose system has a front ending at WPC's old map edge. Truth fronts are curves (rk.fronts.smooth). Air-mass RGB only for
+FL.COVERAGE_FULL_FROM whose system has a front ending at WPC's old map edge; cases whose system has a front ending at the edge of the coded analysis (180 in the Pacific, 1W in the Atlantic, FL.basin_edge_clipped) or no cold, warm or occluded front are left out too. Ids g0001... (the first deck's f* files stay on disk). Truth fronts are curves (rk.fronts.smooth). Air-mass RGB only for
 lows at or south of 55N, GridSat IR otherwise. Resumable: a case whose work/<id>.json exists for the same time and position is skipped (delete it to redo). The deck
 (<out>/manifest.json, <id>.bin, <id>_am.jpg or <id>_ir.jpg) and key.csv (never published) go under
 rk.paths.data("extra", "front-drill"); the deck is never committed.
@@ -46,7 +45,7 @@ RES, NY, NX, MARGIN = D.RES, D.NY, D.NX, D.MARGIN
 ROOT = paths.data("extra", "front-drill")
 WORK = ROOT / "work"
 EDGE_FRAC = 0.15            # ASCAT must cover this share of the box water
-BASIN = "natl"
+ID_PREFIX = "g"             # the second deck (both basins); the first deck's f0001... files stay on disk, out of the manifest
 
 WANT = {"PRMSL:mean sea level": "msl", "HGT:1000 mb": "z1000", "HGT:500 mb": "z500",
         "TMP:850 mb": "t850", "RH:850 mb": "rh850", "TMP:700 mb": "t700", "RH:700 mb": "rh700",
@@ -116,14 +115,15 @@ def maps(g, gp, lat_n, lon_w):
 AM_MAX_LAT = 55.0         # the air-mass RGB turns false purple near the disk edge: only for lows at or south of this
 
 
-def imagery(valid, lat_n, lon_w, lon_c, stem, out, low_lat):
-    """Air-mass RGB where the case low is at or south of AM_MAX_LAT, the box centre is inside the GOES-East disk and
-    the picture covers the box, else GridSat IR -> "am" | "ir" | None; writes <stem>_am.jpg or <stem>_ir.jpg."""
+def imagery(valid, lat_n, lon_w, lon_c, stem, out, low_lat, basin):
+    """Air-mass RGB (GOES-East in the Atlantic, GOES-West in the Pacific) where the case low is at or south of AM_MAX_LAT,
+    the Atlantic box centre is inside the GOES-East disk and the picture covers the box, else GridSat IR -> "am" | "ir" |
+    None; writes <stem>_am.jpg or <stem>_ir.jpg."""
     from PIL import Image
     from rk import satellite
     lat, lon = D._sat_grid(lat_n, lon_w)
-    if lon_c <= 335.0 and low_lat <= AM_MAX_LAT:    # east of 25W is outside the GOES-East disk
-        a = satellite.airmass_box(BASIN, valid)
+    if (basin == "npac" or lon_c <= 335.0) and low_lat <= AM_MAX_LAT:    # east of 25W is outside the GOES-East disk
+        a = satellite.airmass_box(basin, valid)
         if a is not None:
             s = D._sample(a, lat, lon, ["b08", "b10", "b12", "b13"])
             ok = np.all([np.isfinite(s[k]) for k in s], axis=0)
@@ -132,7 +132,7 @@ def imagery(valid, lat_n, lon_w, lon_c, stem, out, low_lat):
                 img = np.where(ok[..., None], np.nan_to_num(rgb) * 255, D.GREY).astype(np.uint8)
                 Image.fromarray(img, "RGB").save(out / (stem + "_am.jpg"), quality=80)
                 return "am"
-    b = satellite.box(BASIN, valid)
+    b = satellite.box(basin, valid)
     if b is not None:
         tb = D._sample(b, lat, lon, ["tb"])["tb"]
         if np.isfinite(tb).mean() > 0.2:
@@ -177,13 +177,14 @@ def one(row, out):
                 valid = dt.datetime.strptime(row["valid"], "%Y%m%d%H")
                 lat_n, lon_w = old["lat0"], old["lon0"]
                 lon_c = (lon_w + (NX - 1) * RES / 2) % 360
-                old["img"] = imagery(valid, lat_n, lon_w, lon_c, cid, out, old["low"]["lat"])
+                old["img"] = imagery(valid, lat_n, lon_w, lon_c, cid, out, old["low"]["lat"], old.get("basin", row["basin"]))
                 tmp = WORK / (cid + ".tmp")
                 tmp.write_text(json.dumps(old))
                 tmp.replace(pj)
                 return "imagery"
             return "skip"
     valid = dt.datetime.strptime(row["valid"], "%Y%m%d%H")
+    basin = row["basin"]
     lat, lon, hpa = float(row["lat"]), float(row["lon"]), float(row["hpa"])
     lat_n, lon_w = box_for(lat, lon)
     lon_c = (lon_w + (NX - 1) * RES / 2) % 360
@@ -195,20 +196,20 @@ def one(row, out):
         _bytes["gfs"] += gfs_bytes(valid, 0, WANT) + (gfs_bytes(valid - dt.timedelta(hours=6), 3, WANT_P) if gp else 0)
     m, land = maps(g, gp, lat_n, lon_w)
     del g
-    spd, dirn = D.ascat_box(BASIN, valid, lat_n, lon_w)
+    spd, dirn = D.ascat_box(basin, valid, lat_n, lon_w)
     water = ~land
     cover = float(((spd != 255) & water).sum() / max(1, water.sum()))
     ascat = cover >= EDGE_FRAC
     if not ascat:
         spd[:], dirn[:] = 255, 255
-    img = imagery(valid, lat_n, lon_w, lon_c, cid, out, lat)
+    img = imagery(valid, lat_n, lon_w, lon_c, cid, out, lat, basin)
 
     a = fronts.analysis(valid)
     if a is None:
         return "no analysis"
     fr = FL.clip_fronts(FL.merged(a), lat_n, lon_w, NY, NX, RES)
     lows = FL.lows_in_box(a["lows"], lat_n, lon_w, NY, NX, RES)
-    rec = {"id": cid, "lat0": lat_n, "lon0": lon_w, "low": {"lat": lat, "lon": lon, "hpa": hpa}, "lows": lows,
+    rec = {"id": cid, "basin": basin, "lat0": lat_n, "lon0": lon_w, "low": {"lat": lat, "lon": lon, "hpa": hpa}, "lows": lows,
            "fronts": fr, "img": img, "ascat": ascat, "ascat_cover": round(cover, 3), "src": src}
 
     parts = []
@@ -254,6 +255,10 @@ def finish(rec):
         return None, "short"
     if valid < FL.COVERAGE_FULL_FROM and FL.edge_clipped(rec["fronts"]):
         return None, "edge"
+    if FL.basin_edge_clipped(rec["fronts"], rec["basin"]):      # a system front ends at 180 or 1W, where the coded analysis stops
+        return None, "edge"
+    if not any(f["sys"] and f["type"] in FL.DRAWN for f in rec["fronts"]):
+        return None, "short"                                    # only a stationary front left: nothing for the trainee to draw
     with np.load(WORK / (rec["id"] + ".npz")) as z:
         m = {k: z[k].astype(float) for k in z.files}
     pts_by_type = {}
@@ -295,15 +300,15 @@ def manifest(rows, out):
     WORK.mkdir(parents=True, exist_ok=True)
     (WORK / "dropped.json").write_text(json.dumps(gone))
     keep = {c["id"] for c in cases}
-    for f in list(out.glob("f*")):                   # files of cases dropped from the deck
+    for f in list(out.glob(ID_PREFIX + "*")):        # files of cases dropped from the deck
         if f.name.split(".")[0].split("_")[0] not in keep:
             f.unlink()
     with open(ROOT / "key.csv", "w", newline="") as f:      # never published
         w = csv.writer(f)
-        w.writerow(["id", "valid", "lat", "lon", "hpa", "types", "lengths_nm"])
+        w.writerow(["id", "valid", "basin", "lat", "lon", "hpa", "types", "lengths_nm"])
         for r in rows:
             if r["id"] in keep:
-                w.writerow([r["id"], r["valid"], r["lat"], r["lon"], r["hpa"], r["types"], r["lengths_nm"]])
+                w.writerow([r["id"], r["valid"], r["basin"], r["lat"], r["lon"], r["hpa"], r["types"], r["lengths_nm"]])
     return len(cases), dropped, edge
 
 
@@ -312,25 +317,30 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "deck"))
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--manifest-only", action="store_true", help="no downloads: write the manifest from the cases already built")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     _patch_abi_bytes()
+    for name in ("key.csv",):                        # the first deck's key stays as key_v1.csv
+        if (out / "manifest.json").exists() and (ROOT / name).exists() and not (ROOT / "key_v1.csv").exists():
+            (ROOT / "key_v1.csv").write_bytes((ROOT / name).read_bytes())
+            (out / "manifest_v1.json").write_bytes((out / "manifest.json").read_bytes())
     rows = list(csv.DictReader(open(ROOT / "picked.csv")))
     todo = rows[:a.limit] if a.limit else rows
     n = 0
     with ThreadPoolExecutor(a.workers) as ex:
-        for r, res in zip(todo, ex.map(lambda r: _safe(r, out), todo)):
+        for r, res in zip([] if a.manifest_only else todo, [] if a.manifest_only else ex.map(lambda r: _safe(r, out), todo)):
             n += 1
             if res != "skip":
                 print(n, len(todo), r["id"], res, "gfs %.2f GB abi %.2f GB" % (_bytes["gfs"] / 1e9, _bytes["abi"] / 1e9), flush=True)
     ids = {r["id"] for r in rows}
-    for f in list(out.glob("f*")):                   # files of cases no longer picked
+    for f in list(out.glob(ID_PREFIX + "*")):        # files of cases no longer picked
         if f.name.split(".")[0].split("_")[0] not in ids:
             f.unlink()
     k, dropped, edge = manifest(todo, out)
     print("manifest", k, "cases; dropped (system under %d nm of non-trough front):" % FL.SYS_MIN_NM, dropped)
-    print("dropped, a system front ends at the old coverage edge (before %s): %d" % (FL.COVERAGE_FULL_FROM, len(edge)), edge)
+    print("dropped, a system front ends at the edge of the coded analysis (180, 1W): %d" % len(edge), edge)
     print("streamed this run: GFS %.2f GB, GOES ABI %.2f GB" % (_bytes["gfs"] / 1e9, _bytes["abi"] / 1e9))
 
 

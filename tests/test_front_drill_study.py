@@ -48,6 +48,45 @@ def test_types_match_across_times():
     assert FL.types_match(mv, mv, ("cold", "occluded"), 50.0, 310.0)
 
 
+def test_types_match_relaxed():
+    lows = [(990.0, 50.0, 310.0)]
+    cold_occ = (lows, [line("cold", [50, 45], [310, 306]), line("occluded", [50, 54], [310, 312])])
+    cold_only = (lows, [line("cold", [50, 45], [310, 306])])
+    occ_only = (lows, [line("occluded", [50, 54], [310, 312])])
+    # the cold and the occluded front were each present 6 h before or 6 h after (not strict: the sets differ)
+    assert FL.types_match_relaxed(cold_only, occ_only, ("cold", "occluded"), 50.0, 310.0)
+    assert not FL.types_match(cold_only, occ_only, ("cold", "occluded"), 50.0, 310.0)
+    # a type that was in neither neighbour fails; a stationary front now is not needed in the neighbours
+    assert not FL.types_match_relaxed(cold_only, cold_only, ("cold", "occluded"), 50.0, 310.0)
+    assert FL.types_match_relaxed(cold_occ, cold_occ, ("cold", "stationary"), 50.0, 310.0)
+    # one missing analysis is skipped, both missing (or no low in either) is False
+    assert FL.types_match_relaxed(None, cold_occ, ("cold", "occluded"), 50.0, 310.0)
+    assert not FL.types_match_relaxed(None, None, ("cold",), 50.0, 310.0)
+    assert not FL.types_match_relaxed(([(990.0, 62.0, 330.0)], cold_occ[1]), None, ("cold",), 50.0, 310.0)
+
+
+def test_basin_edge_clipped():
+    def sysf(typ, a, b):
+        return {"type": typ, "sys": True, "pts": [a, b]}
+    assert FL.basin_edge_clipped([sysf("cold", [45.0, 180.4], [40.0, 190.0])], "npac")        # starts on the 180 edge
+    assert not FL.basin_edge_clipped([sysf("cold", [45.0, 186.0], [40.0, 190.0])], "npac")
+    assert FL.basin_edge_clipped([sysf("warm", [50.0, 340.0], [52.0, 358.8])], "natl")        # ends at the 1W edge
+    assert not FL.basin_edge_clipped([sysf("warm", [50.0, 340.0], [52.0, 350.0])], "natl")
+    # not the system, or a trough: ignored
+    assert not FL.basin_edge_clipped([{"type": "cold", "sys": False, "pts": [[45.0, 180.0], [40.0, 190.0]]}], "npac")
+    assert not FL.basin_edge_clipped([sysf("trough", [45.0, 180.0], [40.0, 190.0])], "npac")
+
+
+def test_find_cases_basins():
+    import find_cases as FC
+    assert FC.basin_of(300.0) == "natl" and FC.basin_of(200.0) == "npac" and FC.basin_of(150.0) is None and FC.basin_of(359.0) is None
+    assert FC.excluded_water("natl", 27.0, 270.0) and not FC.excluded_water("natl", 27.0, 285.0)        # Gulf of Mexico vs off Florida
+    assert FC.excluded_water("natl", 55.0, 280.0) and FC.excluded_water("natl", 48.0, 295.0)            # Hudson Bay, Gulf of St Lawrence
+    assert not FC.excluded_water("natl", 55.0, 320.0)
+    assert FC.excluded_water("npac", 28.0, 246.0) and FC.excluded_water("npac", 49.0, 237.0)            # Gulf of California, Strait of Georgia
+    assert not FC.excluded_water("npac", 50.0, 200.0) and not FC.excluded_water("npac", 49.0, 232.0)
+
+
 def test_second_low():
     lows = [(990.0, 50.0, 310.0), (1000.0, 53.0, 310.0)]      # 333 km apart
     assert FL.has_second_low(lows, 50.0, 310.0)

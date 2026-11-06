@@ -1,16 +1,20 @@
 """Front drill, step 1: find and pick the cases (design.md, "Cases").
 
-    python3 find_cases.py [--estimate] [--workers 6] [--n 200]
+    python3 find_cases.py [--estimate] [--workers 6] [--end 2026110518] [--relax auto|yes|no]
 
-Atlantic only; 00/06/12/18 UTC, November-March of the winters 2024-25 and 2025-26 plus 13 Aug-4 Nov 2026 (full WPC coverage, lows to 10W). For every analysed low
-(rk.fronts, the Unified Surface Analysis as coded by WPC) over open water (GFS land mask) between 25W and
-100W and 25-67N with a non-trough front end within 300 km (after merge_segments):
+Both basins; 00/06/12/18 UTC from the first full-coverage analysis (FL.COVERAGE_FULL_FROM + 6 h) to --end (the latest
+complete UTC day). For every analysed low (rk.fronts, the Unified Surface Analysis as coded by WPC) over open water
+(GFS land mask, per-basin crop; no sea ice; not the Gulf of Mexico, Gulf of St Lawrence, Hudson Bay, Gulf of California or
+Puget Sound) in the North Atlantic (100W to 3W) or the North Pacific east of 180 (180 to 116W; the bulletin codes nothing west
+of 180), 25-67N, with a cold, warm or occluded front end within 300 km (after merge_segments; what the trainee draws):
   second_low   no second analysed low within 500 km (kept when none)
-  types_match  the low's non-trough front types are the same in the analyses 6 h before and after
+  types_match  the low's non-trough front types are the same in the analyses 6 h before and after (strict), or
+               (relaxed) the cold/warm/occluded types present now were also present 6 h before or after
   gfs          a GFS f000 MSLP minimum within 150 km of the low and within 4 hPa of its analysed pressure
   day          at most one case per low (tracked across 6 h steps, nearest within 600 km) per UTC day
+All passing cases are taken (no cap). The relaxed match is used when the strict one leaves under 250 cases (--relax auto).
 Writes under rk.paths.data("extra", "front-drill"): candidates.csv (every candidate with the flag of each
-filter), picked.csv (about --n cases balanced on front types, winters and months), msl/<YYYYMMDDHH>.npz (small GFS
+filter), picked.csv (every passing case), msl/<YYYYMMDDHH>.npz (small GFS
 f000 MSLP crops, the cache that makes the run resumable) and landmask.npy. GFS MSLP is fetched only for lows that
 passed the cheaper filters; --estimate prints the bytes that would stream (from the .idx files) and stops.
 """
@@ -34,15 +38,39 @@ from rk import fetch, fronts, paths  # noqa: E402
 OUT = paths.data("extra", "front-drill")
 # Periods: two winters in WPC's old (clipped) domain, then the full-coverage months. The new period starts one
 # analysis after FL.COVERAGE_FULL_FROM so the 6 h neighbour used by the type filter is also full coverage.
-WINTERS = {"2024-25": (dt.datetime(2024, 11, 1), dt.datetime(2025, 3, 31, 18)),
-           "2025-26": (dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31, 18)),
-           "2026-fall": (FL.COVERAGE_FULL_FROM + dt.timedelta(hours=6), dt.datetime(2026, 11, 4, 18))}
+PERIOD_START = FL.COVERAGE_FULL_FROM + dt.timedelta(hours=6)
+PERIOD_END = dt.datetime(2026, 11, 5, 18)       # last synoptic time of the latest complete UTC day (today is 2026-11-06)
+PERIOD = "fall2026"
 LAT_MIN, LAT_MAX = 25.0, 67.0
-LON_MIN = 260.0                          # 100W
-LON_MAX_OF = {"2024-25": 335.0, "2025-26": 335.0, "2026-fall": 350.0}     # 25W; 10W once the coverage is full
 GFS_KM, GFS_DP = 150.0, 4.0
-CROP = {"lat_n": 70.0, "lon_w": 240.0, "ny": 241, "nx": 480}   # 0.25 deg: 70N-10N, 240-359.75E (the first runs cached 240-345E)
+MIN_STRICT = 250                         # fewer strict-match cases than this -> the relaxed match
+# Per-basin GFS crops (0.25 deg). The Atlantic one is the cache of the first runs (msl/, ice/, landmask480.npy);
+# the Pacific has its own. seed: a point in the open ocean that the water mask must connect to.
+BASINS = {
+    "natl": {"lat_n": 70.0, "lon_w": 240.0, "ny": 241, "nx": 480, "seed": (45.0, 330.0), "lon": (255.0, 357.0),
+             "msl": "msl", "ice": "ice", "land": "landmask480.npy"},
+    "npac": {"lat_n": 70.0, "lon_w": 170.0, "ny": 241, "nx": 360, "seed": (45.0, 200.0), "lon": (180.0, 255.0),
+             "msl": "msl_npac", "ice": "ice_npac", "land": "landmask_npac.npy"},
+}
 MSL_KEY = {"PRMSL:mean sea level": "msl"}
+
+
+def basin_of(lon):
+    """"natl" / "npac" for a low longitude (0-360), or None outside both."""
+    for b, d in BASINS.items():
+        if d["lon"][0] <= lon <= d["lon"][1]:
+            return b
+    return None
+
+
+def excluded_water(basin, lat, lon):
+    """Enclosed or coastal water that is not the open ocean (inside the GFS ocean mask, so it needs a box):
+    Gulf of Mexico, Hudson and James Bay, Gulf of St Lawrence (natl); Gulf of California, Puget Sound and the
+    Strait of Georgia (npac)."""
+    if basin == "natl":
+        return ((lat < 31.0 and 260.0 <= lon <= 279.0) or (lat >= 51.0 and lon <= 284.0)
+                or (46.0 <= lat <= 52.0 and 289.0 <= lon <= 300.5))
+    return (lat < 32.0 and lon >= 244.0) or (47.0 <= lat <= 50.5 and lon >= 236.0)
 
 
 def synoptic_times(t0, t1):
@@ -53,9 +81,10 @@ def synoptic_times(t0, t1):
     return out
 
 
-def crop_of(g):
-    r0, c0 = int(round((90 - CROP["lat_n"]) / 0.25)), int(round(CROP["lon_w"] / 0.25))
-    return g[r0:r0 + CROP["ny"], c0:c0 + CROP["nx"]]
+def crop_of(g, basin="natl"):
+    C = BASINS[basin]
+    r0, c0 = int(round((90 - C["lat_n"]) / 0.25)), int(round(C["lon_w"] / 0.25))
+    return g[r0:r0 + C["ny"], c0:c0 + C["nx"]]
 
 
 # ---------------------------------------------------------------- inputs
@@ -72,57 +101,60 @@ def load_analyses(days, workers):
     return {a["valid"]: a for r in res for a in r}
 
 
-def landmask(valid):
-    p = OUT / "landmask480.npy"
+def landmask(valid, basin="natl"):
+    p = OUT / BASINS[basin]["land"]
     if p.exists():
         return np.load(p)
     g = fetch.gfs_global(valid, 0, {"LAND:surface": "land"})
     if g is None:
         raise RuntimeError("no GFS LAND")
-    m = crop_of(g["land"]).astype(np.float32)
+    m = crop_of(g["land"], basin).astype(np.float32)
     np.save(p, m)
     return m
 
 
-def _widen(a, fill):
+def _widen(a, fill, basin="natl"):
     """A crop cached before the crop grew from 421 to 480 columns, padded east with `fill`."""
-    return a if a.shape[1] >= CROP["nx"] else np.pad(a, ((0, 0), (0, CROP["nx"] - a.shape[1])), constant_values=fill)
+    nx = BASINS[basin]["nx"]
+    return a if a.shape[1] >= nx else np.pad(a, ((0, 0), (0, nx - a.shape[1])), constant_values=fill)
 
 
-def ocean_mask(land):
-    """Water cells connected to the open Atlantic (drops the Great Lakes and other inland water)."""
+def ocean_mask(land, basin="natl"):
+    """Water cells connected to the open ocean of the basin (drops the Great Lakes and other inland water)."""
     from scipy.ndimage import label
+    C = BASINS[basin]
     lab, _ = label(land < 0.5, structure=np.ones((3, 3)))
-    y, x = int(round((CROP["lat_n"] - 45.0) / 0.25)), int(round((330.0 - CROP["lon_w"]) / 0.25))
+    y, x = int(round((C["lat_n"] - C["seed"][0]) / 0.25)), int(round((C["seed"][1] - C["lon_w"]) / 0.25))
     return lab == lab[y, x]
 
 
-def is_water(ocean, lat, lon, ice=None):
+def is_water(ocean, lat, lon, ice=None, basin="natl"):
     """Over open water: GFS land mask (ocean-connected cells only), no sea ice (ICEC < 0.15 when given), and
-    not Hudson or James Bay (inside the ocean mask through Hudson Strait, but ice-covered or enclosed)."""
-    y = int(round((CROP["lat_n"] - lat) / 0.25))
-    x = int(round((lon - CROP["lon_w"]) / 0.25))
+    not one of the enclosed or coastal waters of excluded_water()."""
+    C = BASINS[basin]
+    y = int(round((C["lat_n"] - lat) / 0.25))
+    x = int(round((lon - C["lon_w"]) / 0.25))
     if not (0 <= y < ocean.shape[0] and 0 <= x < ocean.shape[1]) or not ocean[y, x]:
         return False
-    if lat >= 51.0 and lon <= 284.0:
+    if excluded_water(basin, lat, lon):
         return False
     return ice is None or not ice[y, x] >= 0.15
 
 
-def ice_file(valid):
-    return OUT / "ice" / (valid.strftime("%Y%m%d%H") + ".npz")
+def ice_file(valid, basin="natl"):
+    return OUT / BASINS[basin]["ice"] / (valid.strftime("%Y%m%d%H") + ".npz")
 
 
-def fetch_ice(valid):
+def fetch_ice(valid, basin="natl"):
     """GFS f000 ICEC crop (fraction) for a valid time, cached -> array or None."""
-    p = ice_file(valid)
+    p = ice_file(valid, basin)
     if p.exists():
         with np.load(p) as z:
-            return _widen(z["ice"], 0.0)
+            return _widen(z["ice"], 0.0, basin)
     g = fetch.gfs_global(valid, 0, {"ICEC:surface": "ice"})
     if g is None:
         return None
-    m = np.nan_to_num(crop_of(g["ice"]), nan=0.0).astype(np.float16)
+    m = np.nan_to_num(crop_of(g["ice"], basin), nan=0.0).astype(np.float16)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.stem + ".tmp.npz")
     np.savez_compressed(tmp, ice=m)
@@ -130,20 +162,20 @@ def fetch_ice(valid):
     return m
 
 
-def msl_file(valid):
-    return OUT / "msl" / (valid.strftime("%Y%m%d%H") + ".npz")
+def msl_file(valid, basin="natl"):
+    return OUT / BASINS[basin]["msl"] / (valid.strftime("%Y%m%d%H") + ".npz")
 
 
-def fetch_msl(valid):
+def fetch_msl(valid, basin="natl"):
     """GFS f000 MSLP (hPa) crop for a valid time -> array or None (cached; a missing time is retried next run)."""
-    p = msl_file(valid)
+    p = msl_file(valid, basin)
     if p.exists():
         with np.load(p) as z:
-            return _widen(z["msl"], 1100.0)
+            return _widen(z["msl"], 1100.0, basin)
     g = fetch.gfs_global(valid, 0, MSL_KEY)
     if g is None:
         return None
-    m = (crop_of(g["msl"]) / 100.0).astype(np.float32)
+    m = (crop_of(g["msl"], basin) / 100.0).astype(np.float32)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(p.stem + ".tmp.npz")
     np.savez_compressed(tmp, msl=m)
@@ -151,12 +183,13 @@ def fetch_msl(valid):
     return m
 
 
-def gfs_check(msl, lat, lon, hpa):
+def gfs_check(msl, lat, lon, hpa, basin="natl"):
     """Deepest local minimum (13 x 13 window) of the crop within GFS_KM of the low -> (distance km, GFS hPa
     minus analysed hPa), or (None, None) when there is none."""
     from scipy.ndimage import minimum_filter
-    la = CROP["lat_n"] - np.arange(msl.shape[0]) * 0.25
-    lo = CROP["lon_w"] + np.arange(msl.shape[1]) * 0.25
+    C = BASINS[basin]
+    la = C["lat_n"] - np.arange(msl.shape[0]) * 0.25
+    lo = C["lon_w"] + np.arange(msl.shape[1]) * 0.25
     LA, LO = np.meshgrid(la, lo, indexing="ij")
     d = FL.km(lat, lon, LA, LO)
     is_min = msl == minimum_filter(msl, size=13, mode="nearest")
@@ -169,8 +202,9 @@ def gfs_check(msl, lat, lon, hpa):
 
 
 # ---------------------------------------------------------------- stages
-def stage_a(an, ocean, times, winter_of, ice_of=None):
-    """Candidates: analysed lows over open water in the region with an attached non-trough front."""
+def stage_a(an, oceans, times, ice_of=None):
+    """Candidates: analysed lows over open water in either basin with an attached cold, warm or occluded front
+    (what the trainee draws; the types column also lists a stationary front)."""
     rows = []
     mem = {}
     for t in times:
@@ -178,13 +212,21 @@ def stage_a(an, ocean, times, winter_of, ice_of=None):
         if a is None:
             continue
         mf = mem.setdefault(t, FL.merged(a))
+        seen = []
         for i, (hpa, lat, lon) in enumerate(a["lows"]):
-            if not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX_OF[winter_of[t]]) or not is_water(ocean, lat, lon, ice_of(t) if ice_of else None):
+            if any(abs(lat - la) < 0.05 and abs(lon - lo) < 0.05 for la, lo in seen):    # the bulletin lists some lows twice
+                continue
+            seen.append((lat, lon))
+            basin = basin_of(lon)
+            if basin is None or not (LAT_MIN <= lat <= LAT_MAX):
+                continue
+            ice = ice_of(t, basin) if ice_of else None
+            if not is_water(oceans[basin], lat, lon, ice, basin):
                 continue
             att = FL.attached(mf, lat, lon)
-            if not att:
+            if not att or not any(f["type"] in FL.DRAWN for f in att):
                 continue
-            rows.append({"valid": t, "idx": i, "lat": lat, "lon": lon, "hpa": hpa,
+            rows.append({"valid": t, "idx": i, "lat": lat, "lon": lon, "hpa": hpa, "basin": basin,
                          "types": tuple(sorted({f["type"] for f in att})),
                          "lengths": "|".join("%s:%d" % (f["type"], round(FL.length_nm(f["lat"], f["lon"]))) for f in att),
                          "total_nm": sum(FL.length_nm(f["lat"], f["lon"]) for f in att)})
@@ -219,38 +261,37 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--estimate", action="store_true")
     ap.add_argument("--workers", type=int, default=6)
-    ap.add_argument("--n", type=int, default=200, help="cases to pick when there is no picked.csv yet")
-    ap.add_argument("--n-new", type=int, default=60, help="cases to pick from the full-coverage period (old picks are kept)")
+    ap.add_argument("--end", default=PERIOD_END.strftime("%Y%m%d%H"), help="last synoptic time, YYYYMMDDHH")
+    ap.add_argument("--relax", default="auto", choices=("auto", "yes", "no"),
+                    help="relaxed 6 h type match: auto = only when the strict match leaves under %d cases" % MIN_STRICT)
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    times, winter_of = [], {}
-    for w, (t0, t1) in WINTERS.items():
-        ts = synoptic_times(t0, t1)
-        times += ts
-        winter_of.update({t: w for t in ts})
+    times = synoptic_times(PERIOD_START, dt.datetime.strptime(a.end, "%Y%m%d%H"))
     days = sorted({(t + dt.timedelta(hours=h)).date() for t in times for h in (-6, 0, 6)})
     an = load_analyses(days, a.workers)
     print("analyses loaded: %d of %d synoptic times (+neighbours)" % (sum(t in an for t in times), len(times)), flush=True)
-    ocean = ocean_mask(landmask(times[0]))
+    oceans = {b: ocean_mask(landmask(times[0], b), b) for b in BASINS}
 
     # sea ice (GFS ICEC, small records) is needed only at times with a low over water and a front end near it
-    pre = stage_a(an, ocean, times, winter_of)
-    ice_times = sorted({c["valid"] for c in pre})
+    pre = stage_a(an, oceans, times)
+    ice_jobs = sorted({(c["valid"], c["basin"]) for c in pre})
     ice = {}
 
-    def getice(t):
+    def getice(job):
         try:
-            return t, fetch_ice(t)
+            return job, fetch_ice(*job)
         except Exception as e:
-            print("ice", t, "error", e, flush=True)
-            return t, None
+            print("ice", job, "error", e, flush=True)
+            return job, None
     with ThreadPoolExecutor(a.workers) as ex:
-        ice.update(dict(ex.map(getice, ice_times)))
-    cand = stage_a(an, ocean, times, winter_of, lambda t: ice.get(t))
-    print("before the sea-ice and Hudson Bay cut: %d candidates; ice missing at %d of %d times" % (
-        len(pre), sum(v is None for v in ice.values()), len(ice_times)))
+        ice.update(dict(ex.map(getice, ice_jobs)))
+    cand = stage_a(an, oceans, times, lambda t, b: ice.get((t, b)))
+    print("before the sea-ice cut: %d candidates; ice missing at %d of %d (time, basin)" % (
+        len(pre), sum(v is None for v in ice.values()), len(ice_jobs)))
     n_lows = sum(len(an[t]["lows"]) for t in times if t in an)
-    print("analysed lows %d; candidates (open water, 100W to 25W (10W in the full-coverage period), 25-67N, non-trough front end within 300 km): %d" % (n_lows, len(cand)))
+    nb = Counter(c["basin"] for c in cand)
+    print("analysed lows %d; candidates (open water, 25-67N, cold/warm/occluded front end within 300 km): %d (N Atlantic %d, N Pacific %d)" % (
+        n_lows, len(cand), nb["natl"], nb["npac"]))
 
     mem = {}
     for c in cand:
@@ -258,145 +299,119 @@ def main():
         c["second"] = FL.has_second_low(an[t]["lows"], c["lat"], c["lon"])
         prev, nxt = neighbours(an, t, mem)
         c["match"] = FL.types_match(prev, nxt, c["types"], c["lat"], c["lon"])
+        c["match_relaxed"] = FL.types_match_relaxed(prev, nxt, c["types"], c["lat"], c["lon"])
         c["gfs_dist"] = c["gfs_dp"] = None
         c["gfs_ok"] = None
     s1 = [c for c in cand if not c["second"]]
-    s2 = [c for c in s1 if c["match"]]
-    print("no second low within 500 km: %d (of %d); types match +-6 h: %d (cumulative), %d alone" % (
-        len(s1), len(cand), len(s2), sum(c["match"] for c in cand)))
+    s2 = [c for c in s1 if c["match_relaxed"]]          # the relaxed set contains the strict one
+    print("no second low within 500 km: %d (of %d); type match +-6 h: strict %d, relaxed %d (cumulative with the second-low filter)" % (
+        len(s1), len(cand), sum(c["match"] for c in s1), len(s2)))
 
-    need = sorted({c["valid"] for c in s2})
-    todo = [t for t in need if not msl_file(t).exists()]
-    est, sizes = estimate(todo) if todo else (0.0, [])
-    print("GFS MSLP: %d times needed, %d not cached; estimated %.0f MB to stream (sample %d records, mean %.0f kB)" % (
+    need = sorted({(c["valid"], c["basin"]) for c in s2})
+    todo = [j for j in need if not msl_file(*j).exists()]
+    est, sizes = estimate([t for t, _ in todo]) if todo else (0.0, [])
+    print("GFS MSLP: %d (time, basin) crops needed, %d not cached; estimated %.0f MB to stream (sample %d records, mean %.0f kB)" % (
         len(need), len(todo), est / 1e6, len(sizes), np.mean(sizes) / 1e3 if sizes else 0), flush=True)
     if a.estimate:
         return
     if est > 50e9:
         raise SystemExit("estimate over 50 GB: stop and report")
 
-    def getmsl(t):
+    def getmsl(job):
         try:
-            return t, fetch_msl(t)
+            return job, fetch_msl(*job)
         except Exception as e:
-            print("msl", t, "error", e, flush=True)
-            return t, None
+            print("msl", job, "error", e, flush=True)
+            return job, None
     msl = {}
     with ThreadPoolExecutor(a.workers) as ex:
-        for k, (t, m) in enumerate(ex.map(getmsl, need)):
-            msl[t] = m
+        for k, (job, m) in enumerate(ex.map(getmsl, need)):
+            msl[job] = m
             if (k + 1) % 50 == 0:
                 print("msl", k + 1, len(need), flush=True)
     for c in s2:
-        m = msl.get(c["valid"])
+        m = msl.get((c["valid"], c["basin"]))
         if m is None:
             continue
-        c["gfs_dist"], c["gfs_dp"] = gfs_check(m, c["lat"], c["lon"], c["hpa"])
+        c["gfs_dist"], c["gfs_dp"] = gfs_check(m, c["lat"], c["lon"], c["hpa"], c["basin"])
         c["gfs_ok"] = c["gfs_dist"] is not None and abs(c["gfs_dp"]) <= GFS_DP
-    s3 = [c for c in s2 if c["gfs_ok"]]
-    print("GFS minimum within 150 km and 4 hPa: %d of %d (no MSLP for %d)" % (
-        len(s3), len(s2), sum(msl.get(c["valid"]) is None for c in s2)))
+    print("GFS minimum within 150 km and 4 hPa: %d of %d relaxed-match, %d of %d strict-match (no MSLP for %d)" % (
+        sum(bool(c["gfs_ok"]) for c in s2), len(s2), sum(bool(c["gfs_ok"]) for c in s2 if c["match"]),
+        sum(c["match"] for c in s2), sum(msl.get((c["valid"], c["basin"])) is None for c in s2)))
 
-    # tracks per winter, then one case per track per UTC day
-    for w in WINTERS:
-        by_t = {}
-        for t in times:
-            if winter_of[t] == w and t in an:
-                by_t[t] = an[t]["lows"]
-        ids = FL.link_tracks(by_t)
-        for c in cand:
-            if winter_of[c["valid"]] == w:
-                c["track"] = "%s-%d" % (w, ids[(c["valid"], c["idx"])])
-    best = {}
-    for c in s3:
-        k = (c["track"], c["valid"].date())
-        score = (len(c["types"]), c["total_nm"], -c["valid"].hour)
-        if k not in best or score > best[k][0]:
-            best[k] = (score, c)
-    keep = [v[1] for v in best.values()]
+    # tracks (all lows of a time, both basins), then one case per track per UTC day
+    ids = FL.link_tracks({t: an[t]["lows"] for t in times if t in an})
     for c in cand:
-        c["keep"] = any(c is k for k in keep)
-    print("one per low per day: %d kept (from %d)" % (len(keep), len(s3)))
+        c["track"] = "%s-%d" % (PERIOD, ids[(c["valid"], c["idx"])])
+
+    def one_per_day(pool):
+        best = {}
+        for c in pool:
+            k = (c["track"], c["valid"].date())
+            score = (len(c["types"]), c["total_nm"], -c["valid"].hour)
+            if k not in best or score > best[k][0]:
+                best[k] = (score, c)
+        return [v[1] for v in best.values()]
+    strict = one_per_day([c for c in s2 if c["gfs_ok"] and c["match"]])
+    relaxed = one_per_day([c for c in s2 if c["gfs_ok"]])
+    print("one per low per UTC day: strict match %d cases (N Atlantic %d, N Pacific %d); relaxed match %d cases (N Atlantic %d, N Pacific %d)" % (
+        len(strict), sum(c["basin"] == "natl" for c in strict), sum(c["basin"] == "npac" for c in strict),
+        len(relaxed), sum(c["basin"] == "natl" for c in relaxed), sum(c["basin"] == "npac" for c in relaxed)), flush=True)
+    use_relaxed = a.relax == "yes" or (a.relax == "auto" and len(strict) < MIN_STRICT)
+    keep = relaxed if use_relaxed else strict
+    print("using the %s match: %d cases" % ("RELAXED" if use_relaxed else "strict", len(keep)))
     by_type = Counter(t for c in keep for t in c["types"])
     print("kept cases with each type present: " + ", ".join("%s %d" % (t, by_type[t]) for t in FL.NON_TROUGH))
     print("kept by type set: " + str(Counter(c["types"] for c in keep).most_common(8)))
+    for c in cand:
+        c["keep"] = any(c is k for k in keep)
 
+    for name in ("candidates", "picked"):         # the first deck's lists stay beside the new ones
+        p, q = OUT / (name + ".csv"), OUT / (name + "_v1.csv")
+        if p.exists() and not q.exists() and "winter" in p.read_text().splitlines()[0]:
+            p.replace(q) if name == "picked" else q.write_bytes(p.read_bytes())
     with open(OUT / "candidates.csv", "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["valid", "lat", "lon", "hpa", "types", "lengths_nm", "second_low", "types_match", "gfs_dist_km",
-                    "gfs_dp_hpa", "gfs_ok", "track", "keep"])
+        w.writerow(["valid", "basin", "lat", "lon", "hpa", "types", "lengths_nm", "second_low", "types_match",
+                    "types_match_relaxed", "gfs_dist_km", "gfs_dp_hpa", "gfs_ok", "track", "keep"])
         for c in cand:
-            w.writerow([c["valid"].strftime("%Y%m%d%H"), "%.1f" % c["lat"], "%.1f" % c["lon"], "%.0f" % c["hpa"],
-                        "|".join(c["types"]), c["lengths"], int(c["second"]), int(c["match"]),
+            w.writerow([c["valid"].strftime("%Y%m%d%H"), c["basin"], "%.1f" % c["lat"], "%.1f" % c["lon"], "%.0f" % c["hpa"],
+                        "|".join(c["types"]), c["lengths"], int(c["second"]), int(c["match"]), int(c["match_relaxed"]),
                         "" if c["gfs_dist"] is None else "%.0f" % c["gfs_dist"],
                         "" if c["gfs_dp"] is None else "%.1f" % c["gfs_dp"],
                         "" if c["gfs_ok"] is None else int(c["gfs_ok"]), c["track"], int(c["keep"])])
 
-    picked = pick_all(keep, winter_of, a.n, a.n_new)
+    picked = sorted(keep, key=lambda c: c["valid"])
     ids = assign_ids(picked)
     with open(OUT / "picked.csv", "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["id", "valid", "lat", "lon", "hpa", "types", "lengths_nm", "winter", "track"])
+        w.writerow(["id", "valid", "lat", "lon", "hpa", "types", "lengths_nm", "basin", "track"])
         for cid, c in sorted(zip(ids, picked), key=lambda x: x[0]):
             w.writerow([cid, c["valid"].strftime("%Y%m%d%H"), "%.1f" % c["lat"], "%.1f" % c["lon"],
-                        "%.0f" % c["hpa"], "|".join(c["types"]), c["lengths"], winter_of[c["valid"]], c["track"]])
+                        "%.0f" % c["hpa"], "|".join(c["types"]), c["lengths"], c["basin"], c["track"]])
     pt = Counter(t for c in picked for t in c["types"])
     print("picked %d: with " % len(picked) + ", ".join("%s %d" % (t, pt[t]) for t in FL.NON_TROUGH))
-    print("picked by winter/month: " + str(sorted(Counter((winter_of[c["valid"]], c["valid"].month) for c in picked).items())))
+    print("picked by basin/month: " + str(sorted(Counter((c["basin"], c["valid"].month) for c in picked).items())))
     print("picked by hour: " + str(sorted(Counter(c["valid"].hour for c in picked).items())))
 
 
-def pick_all(keep, winter_of, n, n_new):
-    """The picks of an earlier run stay (same time and position, read from picked.csv); the full-coverage period adds
-    n_new more balanced the same way. With no picked.csv, the two winters are picked first (n cases)."""
-    p = OUT / "picked.csv"
-    old_rows = [r for r in csv.DictReader(open(p))] if p.exists() else []
-    old_rows = [r for r in old_rows if r["winter"] != "2026-fall"]
-    new_pool = [c for c in keep if winter_of[c["valid"]] == "2026-fall"]
-    if not old_rows:
-        old = pick([c for c in keep if winter_of[c["valid"]] != "2026-fall"], winter_of, n)
-    else:
-        by = {(c["valid"].strftime("%Y%m%d%H"), "%.1f" % c["lat"], "%.1f" % c["lon"]): c for c in keep}
-        old = [by[(r["valid"], r["lat"], r["lon"])] for r in old_rows if (r["valid"], r["lat"], r["lon"]) in by]
-        print("earlier picks kept: %d of %d" % (len(old), len(old_rows)))
-    return old + pick(new_pool, winter_of, n_new)
+ID_PREFIX = "g"          # the second deck's ids (the first deck's f0001... files stay on disk, out of the manifest)
 
 
 def assign_ids(picked):
-    """Ids f0001...: a case already in picked.csv (same time and position) keeps its id so a deck built from
+    """Ids g0001...: a case already in picked.csv (same time and position) keeps its id so a deck built from
     an earlier list is not rebuilt; new cases take the unused ids in random order (the order carries no meaning)."""
     old = {}
     p = OUT / "picked.csv"
     if p.exists():
         for r in csv.DictReader(open(p)):
-            old[(r["valid"], r["lat"], r["lon"])] = r["id"]
+            if r["id"].startswith(ID_PREFIX):
+                old[(r["valid"], r["lat"], r["lon"])] = r["id"]
     ids = [old.get((c["valid"].strftime("%Y%m%d%H"), "%.1f" % c["lat"], "%.1f" % c["lon"])) for c in picked]
     used = {i for i in ids if i}
-    free = ["f%04d" % k for k in range(1, len(picked) + 1) if "f%04d" % k not in used]
+    free = ["%s%04d" % (ID_PREFIX, k) for k in range(1, len(picked) + 1) if "%s%04d" % (ID_PREFIX, k) not in used]
     random.Random(1106).shuffle(free)
     return [i or free.pop() for i in ids]
-
-
-def pick(keep, winter_of, n, seed=20261106):
-    """About n cases: spread over the ten (winter, month) strata (equal quotas), and each step takes the case
-    whose types are least represented so far (weight 1 / (count + 1), cold and warm counted alike, troughs
-    never), with a small penalty for a second case from a low already picked. Returned in random order."""
-    rng = random.Random(seed)
-    strata = sorted({(winter_of[c["valid"]], c["valid"].month) for c in keep})
-    quota = int(np.ceil(n / len(strata)))
-    left = list(keep)
-    got, tcount, scount, track_n = [], Counter(), Counter(), Counter()
-    while left and len(got) < n:
-        pool = [c for c in left if scount[(winter_of[c["valid"]], c["valid"].month)] < quota] or left
-        best = max(pool, key=lambda c: sum(1.0 / (tcount[t] + 1) for t in c["types"])
-                   - 0.3 * track_n[c["track"]] + 0.001 * rng.random())
-        left.remove(best)
-        got.append(best)
-        tcount.update(best["types"])
-        scount[(winter_of[best["valid"]], best["valid"].month)] += 1
-        track_n[best["track"]] += 1
-    rng.shuffle(got)
-    return got
 
 
 if __name__ == "__main__":
