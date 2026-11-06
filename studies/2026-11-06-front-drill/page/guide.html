@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Frontal analysis quick guide · Training</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.guide{max-width:880px;margin:0 auto;padding:20px 16px 48px}
+.guide h1{font-size:34px;margin:6px 0 4px;color:var(--navy)}
+.guide .lede{color:var(--ink2);margin:0 0 18px}
+.guide h2{font-size:24px;color:var(--navy);margin:28px 0 8px;border-bottom:2px solid var(--line);padding-bottom:4px}
+.guide ol,.guide ul{padding-left:22px}
+.guide li{margin:4px 0}
+.guide .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:12px 0}
+.guide table{width:100%;border-collapse:collapse;font-size:14.5px;background:var(--card)}
+.guide th,.guide td{border:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.guide th{background:var(--tint);font-weight:600}
+.guide .tw{overflow-x:auto}
+.guide .sw{display:inline-block;width:22px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.guide figure{margin:12px 0;text-align:center}
+.guide figcaption{font-size:13.5px;color:var(--ink3);margin-top:4px}
+.guide svg{max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:8px}
+.guide .cta{display:inline-block;margin-top:8px;padding:10px 18px;background:var(--oxblood);color:var(--on);border-radius:6px;text-decoration:none;font-family:var(--f-display);font-size:19px;letter-spacing:.06em;text-transform:uppercase}
+.guide .src{font-size:13px;color:var(--ink3);margin-top:28px}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../">Training</a>
+  <nav class="sitenav" aria-label="Exercises"><a href="../">All exercises</a><a href="../#wind">Peak wind</a><a href="./" aria-current="page">Frontal analysis</a></nav>
+  <div class="topright"><a class="btn small" href="./">Front drill</a></div>
+</header>
+
+<main class="guide">
+  <h1>Frontal analysis quick guide</h1>
+  <p class="lede">How to place cold, warm and occluded fronts on an ocean surface analysis, in the order a desk analyst works. Northern Hemisphere wind directions throughout.</p>
+
+  <h2>The routine</h2>
+  <ol>
+    <li><b>Start at the low and find the troughs.</b> Fronts lie in pressure troughs. Look for isobars that kink into a V; the front runs through the point of each V.</li>
+    <li><b>Find the temperature contrast.</b> On 850 hPa theta-e or 1000-500 hPa thickness, find where the lines pack together. Put the front on the <b>warm edge</b> of that packing, not in the middle of it.</li>
+    <li><b>Confirm with the wind shift.</b> Across a cold front the 10 m wind veers (SW to W or NW). Across a warm front it veers from SE ahead to SW behind. The shift shows as a line of convergence.</li>
+    <li><b>Check the cloud.</b> A cold front is a long, narrow cloud band; a warm front a broad shield on its poleward side; an occlusion a band spiralling into the low, with the dry slot wrapping in behind it.</li>
+    <li><b>Check the tendency.</b> Pressure falls ahead of a warm front and rises behind a cold front. The strongest falls usually sit near the triple point.</li>
+    <li><b>Stop where the contrast ends.</b> End a front where the temperature contrast and wind shift fade; don't carry it on along a trough that has no thermal contrast.</li>
+  </ol>
+
+  <figure>
+    <svg viewBox="0 0 520 320" role="img" aria-labelledby="sch">
+      <title id="sch">Schematic of a mature ocean low with its fronts</title>
+      <g fill="none" stroke="#5B6276" stroke-width="1">
+        <ellipse cx="190" cy="140" rx="45" ry="35"/>
+        <ellipse cx="200" cy="145" rx="95" ry="72"/>
+        <path d="M60 190 Q120 270 255 240 Q330 222 300 150"/>
+      </g>
+      <path d="M190 140 C230 95 280 95 305 128" stroke="#7B2D9E" stroke-width="4" fill="none"/>
+      <path d="M305 128 C350 135 400 165 440 205" stroke="#C92A2A" stroke-width="4" fill="none"/>
+      <path d="M305 128 C300 175 270 230 205 300" stroke="#1C5BB5" stroke-width="4" fill="none"/>
+      <circle cx="305" cy="128" r="7" fill="#fff" stroke="#17202F" stroke-width="2"/>
+      <circle cx="190" cy="140" r="15" fill="#fff" stroke="#B3122B" stroke-width="2.5"/>
+      <text x="190" y="146" text-anchor="middle" font-size="17" font-weight="700" fill="#B3122B">L</text>
+      <text x="318" y="118" font-size="13" fill="#17202F">triple point</text>
+      <text x="240" y="88" font-size="13" fill="#7B2D9E">occluded</text>
+      <text x="400" y="160" font-size="13" fill="#C92A2A">warm</text>
+      <text x="225" y="285" font-size="13" fill="#1C5BB5">cold</text>
+      <text x="345" y="215" font-size="13" fill="#46506A">warm sector</text>
+      <text x="95" y="300" font-size="13" fill="#46506A">cold air</text>
+    </svg>
+    <figcaption>A mature ocean low. The occluded front runs from the low to the triple point; the warm front leads east from it and the cold front trails south. Lines are drawn plain in the drill; symbols are left off.</figcaption>
+  </figure>
+
+  <h2>What each front looks like</h2>
+  <div class="tw"><table>
+    <tr><th></th><th><span class="sw" style="background:#1C5BB5"></span>Cold</th><th><span class="sw" style="background:#C92A2A"></span>Warm</th><th><span class="sw" style="background:#7B2D9E"></span>Occluded</th></tr>
+    <tr><th>Where</th><td>Trails equatorward from the triple point (or low), usually the longest front.</td><td>Leads east or southeast from the triple point, ahead of the warm sector.</td><td>From the low to the triple point, often curling around the low.</td></tr>
+    <tr><th>Theta-e / thickness</th><td>Warm edge of the packing; colder air behind it.</td><td>Warm (equatorward) edge of the packing; the gradient lies poleward, ahead of it. Often weaker than at the cold front.</td><td>Along a ridge of high theta-e (the warm air wrapped into the low), with lower values either side.</td></tr>
+    <tr><th>10 m wind</th><td>Veers SW to W/NW; often a sharp shift and speed change.</td><td>SE or E ahead, S or SW behind; the shift is broader and gentler than at a cold front.</td><td>Cyclonic turn around the low; convergence line along it.</td></tr>
+    <tr><th>Pressure</th><td>Sharp trough; rises behind.</td><td>Weaker trough; falls ahead.</td><td>Trough wrapping into the low.</td></tr>
+    <tr><th>Imagery</th><td>Narrow cloud band, clear or cellular cold air behind.</td><td>Broad layered shield on the poleward side.</td><td>Cloud band spiralling in, dry slot behind.</td></tr>
+  </table></div>
+  <p>Stationary fronts and the low are given in the drill. Troughs are not scored.</p>
+
+  <h2>Occlusions and the triple point</h2>
+  <ul>
+    <li>The triple point is where the cold, warm and occluded fronts meet. It usually sits near the tip of the dry slot and near the strongest pressure falls.</li>
+    <li>Strong ocean lows often wrap warm air back around the centre. Follow the theta-e ridge into the low; the occluded front can curve well around the west side of the low.</li>
+    <li>New lows often form at the triple point. If the drill gives you two lows, the fronts usually join at the newer one.</li>
+  </ul>
+
+  <h2>Common mistakes</h2>
+  <ul>
+    <li>Drawing the front in the middle of the temperature gradient instead of on its warm edge.</li>
+    <li>Following a thickness line around the map. Fronts cut across thickness lines where the contrast is strongest; they don't follow one contour.</li>
+    <li>Missing the warm front of a mature low because its thermal contrast is weak. Look for the trough, the wind backing ahead of it, and the pressure falls.</li>
+    <li>Carrying a cold front too far equatorward after the contrast has faded.</li>
+    <li>Calling a trough a front. A trough with a wind shift but no temperature contrast is not a front.</li>
+  </ul>
+
+  <h2>Using the drill's maps</h2>
+  <div class="tw"><table>
+    <tr><th>Tab</th><th>Use it for</th></tr>
+    <tr><td>Default (MSLP + thickness + 10 m wind)</td><td>Troughs and kinks, the thermal pattern, and the wind shift together. Start here.</td></tr>
+    <tr><td>Imagery</td><td>Cloud bands, the shield and the dry slot.</td></tr>
+    <tr><td>850 theta-e</td><td>Where the contrast is and its warm edge. The best single field for placing cold and occluded fronts.</td></tr>
+    <tr><td>10 m convergence</td><td>The line of the wind shift. Fronts sit on convergence bands.</td></tr>
+    <tr><td>3 h tendency</td><td>Falls ahead of the warm front and near the triple point, rises behind the cold front.</td></tr>
+    <tr><td>10 m wind (and ASCAT)</td><td>The wind shift itself. Where ASCAT passed, trust its shift over the model's.</td></tr>
+    <tr><td>250 mb isotachs</td><td>Jet position. The cold front often lies under or just ahead of the jet axis.</td></tr>
+  </table></div>
+
+  <h2>How you are scored</h2>
+  <p>Only the system inside the ring is scored. Position is generous: full credit within 150 nm of the analysis, none beyond 300 nm. Type counts double and is scaled by position. A missed front costs the most. Truth is the Unified Surface Analysis (OPC, WPC and NHC).</p>
+  <a class="cta" href="./">Start the front drill</a>
+
+  <p class="src">Training use only; not an official product. Conventions follow the Unified Surface Analysis as drawn by OPC, WPC and NHC.</p>
+</main>
+</body>
+</html>
