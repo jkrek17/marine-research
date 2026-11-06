@@ -1,0 +1,3682 @@
+{
+"g0015": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+60.9,
+349.8
+],
+[
+60.1,
+352.0
+],
+[
+59.3,
+354.5
+],
+[
+58.8,
+357.5
+],
+[
+58.6,
+0.5
+],
+[
+58.4,
+3.5
+],
+[
+57.9,
+6.0
+],
+[
+57.6,
+7.3
+]
+],
+"why": "stacked mature low; 850/700 warm tongue and strongest S winds/3h falls wrap E-SE of the low to wind shift near 59.6N 5.8E"
+},
+{
+"type": "cold",
+"pts": [
+[
+57.6,
+7.3
+],
+[
+56.2,
+5.2
+],
+[
+54.4,
+3.0
+],
+[
+53.8,
+0.0
+],
+[
+53.4,
+356.0
+],
+[
+53.1,
+352.0
+],
+[
+52.3,
+348.0
+],
+[
+51.2,
+344.0
+]
+],
+"why": "warm edge of sharp 850 theta-e drop (319->307 K at 57.4N 7.3E, 315->306 at 54.3N 3E, 309->303 at 53N 8.5W) with SW->W veer and cloud band"
+},
+{
+"type": "warm",
+"pts": [
+[
+57.6,
+7.3
+],
+[
+58.3,
+9.0
+],
+[
+59.0,
+10.5
+]
+],
+"why": "theta-e gradient turns NE from the triple point toward Norway, falls ahead"
+}
+],
+"note": "fully occluded stacked low with diffuse gradients near it; triple point placement far east of the low is the main uncertainty"
+},
+"g0017": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+61.0,
+327.2
+],
+[
+59.5,
+326.8
+],
+[
+58.0,
+326.0
+],
+[
+56.5,
+325.4
+],
+[
+55.0,
+326.0
+],
+[
+53.5,
+327.7
+],
+[
+52.0,
+328.8
+],
+[
+50.5,
+329.0
+]
+],
+"why": "sections at 60.5-51N: veer from SW (230-260) to WNW/NW (290-340) and theta-e drop 308->300 K sits just west of this line; trailing south from the low"
+}
+],
+"note": "Weak, broad theta-e gradient; unclear whether the eastern low (62.5N 23.6W) carries a warm/occluded front for this system, left out."
+},
+"g0020": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+43.0,
+316.0
+],
+[
+43.6,
+317.7
+],
+[
+44.2,
+319.6
+],
+[
+44.7,
+321.4
+]
+],
+"why": "low sits in cold air; trough/NE-to-S wind shift at 44.7N 38.6W marks triple point"
+},
+{
+"type": "cold",
+"pts": [
+[
+44.7,
+321.4
+],
+[
+43.2,
+320.7
+],
+[
+42.0,
+320.2
+],
+[
+40.0,
+319.6
+],
+[
+38.5,
+318.7
+],
+[
+37.0,
+317.5
+],
+[
+35.5,
+315.6
+],
+[
+34.2,
+314.0
+],
+[
+33.2,
+312.8
+]
+],
+"why": "veer SW to W/NW with theta-e drop ~335 to 320 K on sections at 42N, 40N, 37N, 33N; cloud band"
+},
+{
+"type": "warm",
+"pts": [
+[
+44.7,
+321.4
+],
+[
+45.3,
+323.5
+],
+[
+45.6,
+325.6
+],
+[
+45.6,
+327.7
+],
+[
+45.0,
+329.4
+],
+[
+43.1,
+330.6
+]
+],
+"why": "E/NE to S/SW wind shift at warm edge of theta-e rise near 45.5N; isobar kinks at 45.5N 35W and 32.5W; joins given stationary front"
+}
+],
+"note": "weak 1008 low well on cold side; triple point and warm front placement relative to stationary front uncertain"
+},
+"g0027": {
+"fronts": [
+{
+"type": "warm",
+"pts": [
+[
+49.0,
+309.9
+],
+[
+48.8,
+311.6
+],
+[
+48.6,
+313.2
+],
+[
+48.3,
+314.8
+],
+[
+47.9,
+316.4
+],
+[
+47.5,
+318.0
+]
+],
+"why": "max 3 h falls and trough kink at 48.5N 47.5W ahead of low; theta-e drops 300->293 K poleward/eastward of 48.5N 46W; S winds ahead backing to SW behind"
+},
+{
+"type": "cold",
+"pts": [
+[
+49.0,
+309.9
+],
+[
+48.7,
+308.0
+],
+[
+48.2,
+306.0
+],
+[
+47.8,
+304.0
+],
+[
+47.2,
+302.0
+],
+[
+46.6,
+300.0
+],
+[
+46.0,
+298.2
+]
+],
+"why": "N/NE winds veer to W/SW across 47.8N 56W and 46.2N 62W with 850 theta-e jumping 290->306 K; trough cells 48.5N 53W and 46.5N 60W"
+}
+],
+"note": "Weak elongated low between the deepening 996 hPa wave to the SW and a broad SW flow; cool 850 pocket over the Grand Banks muddies the warm sector; unsure whether the segment toward the 996 low belongs to this system."
+},
+"g0052": {
+"fronts": [
+{
+"type": "warm",
+"pts": [
+[
+38.6,
+283.8
+],
+[
+39.3,
+285.0
+],
+[
+40.0,
+286.1
+],
+[
+40.8,
+287.1
+],
+[
+41.5,
+287.9
+]
+],
+"why": "wave low on the NE-SW zone; NW->SW wind shift at 39.2N 75W and 41.5N 72W, warm edge of 850 theta-e drop, cloud band, analogous to example 1"
+},
+{
+"type": "cold",
+"pts": [
+[
+46.0,
+291.0
+],
+[
+45.0,
+290.2
+],
+[
+44.0,
+289.4
+],
+[
+43.1,
+288.8
+],
+[
+42.3,
+288.4
+],
+[
+41.5,
+287.9
+]
+],
+"why": "trailing from the 996 low: SW->W/NW veer at 46.5N 69.7W and 42N 72.5W, theta-e 322->302 K behind, NW cold advection"
+}
+],
+"note": "Front between the two lows is physically one cold-advecting boundary; split into warm (this low) and cold (northern low) following example 1. Eastern theta-e edge near 63W left undrawn."
+},
+"g0067": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+54.9,
+311.2
+],
+[
+55.3,
+312.7
+],
+[
+55.5,
+314.2
+],
+[
+55.4,
+315.5
+]
+],
+"why": "short 850/700 warm tongue wrapping into the low; E->S wind shift at 56N on -46/-44 sections"
+},
+{
+"type": "cold",
+"pts": [
+[
+55.4,
+315.5
+],
+[
+54.0,
+314.7
+],
+[
+52.5,
+313.8
+],
+[
+50.8,
+312.7
+],
+[
+49.0,
+311.2
+],
+[
+47.5,
+309.0
+],
+[
+46.0,
+306.7
+],
+[
+44.7,
+304.5
+],
+[
+43.4,
+302.7
+]
+],
+"why": "SW->W veer and theta-e drop 325->290 K on sections (warm edge ~48.9N -48.9, 45.8N -53.5, 43.3N -57.3); pressure rises behind"
+},
+{
+"type": "warm",
+"pts": [
+[
+55.4,
+315.5
+],
+[
+55.2,
+317.5
+],
+[
+54.8,
+319.7
+],
+[
+54.2,
+322.0
+],
+[
+53.8,
+324.5
+]
+],
+"why": "E/SE winds backing north of it, 3 h falls max at 55N -42, theta-e rise to 300+ K south of ~55.5N at -44 and ~54N at -38"
+}
+],
+"note": "Low sits on the cold side of a broad baroclinic zone; triple point placement (near 55.4N -44.5) uncertain - warm air ridge reaches far north east of the low."
+},
+"g0099": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+50.0,
+311.1
+],
+[
+49.9,
+312.4
+],
+[
+49.5,
+313.8
+],
+[
+48.8,
+315.3
+]
+],
+"why": "700 hPa warm tongue wraps from the warm sector into the low; occlusion from low to triple point near 48.8N 44.7W"
+},
+{
+"type": "cold",
+"pts": [
+[
+48.8,
+315.3
+],
+[
+47.4,
+316.0
+],
+[
+46.0,
+316.3
+],
+[
+44.5,
+316.5
+],
+[
+43.0,
+316.6
+],
+[
+41.5,
+315.6
+],
+[
+40.0,
+314.4
+],
+[
+38.6,
+313.0
+]
+],
+"why": "sections: veer SE->WSW/NW with te850 drop 329->310 K at 46N 43.7W, 43N 43.3W, 40N 45.6W"
+},
+{
+"type": "warm",
+"pts": [
+[
+48.8,
+315.3
+],
+[
+48.2,
+317.8
+],
+[
+47.3,
+320.2
+],
+[
+46.2,
+322.6
+],
+[
+45.2,
+325.0
+],
+[
+44.3,
+327.5
+]
+],
+"why": "warm edge of northern te850 gradient (~47.5N at 42W, ~45.5N at 38W) under the falls/cloud shield"
+}
+],
+"note": "warm front has no wind shift (SE throughout); placed by warm edge of te850 gradient only. Occlusion vs given stationary front to the north was ambiguous."
+},
+"g0114": {
+"fronts": [
+{
+"type": "warm",
+"pts": [
+[
+47.2,
+308.8
+],
+[
+47.0,
+310.5
+],
+[
+46.7,
+312.4
+],
+[
+46.3,
+314.2
+],
+[
+45.8,
+316.0
+],
+[
+45.3,
+317.8
+],
+[
+44.9,
+319.2
+]
+],
+"why": "E winds north / S-SW south of the line; shift at 46.5N 46W and 45.1N 41.8W, high theta-e tongue riding along it, trough kink 45N 41.5W"
+},
+{
+"type": "cold",
+"pts": [
+[
+47.0,
+308.6
+],
+[
+45.8,
+308.0
+],
+[
+44.5,
+307.4
+],
+[
+43.2,
+307.0
+],
+[
+42.0,
+306.7
+],
+[
+40.7,
+306.5
+],
+[
+39.4,
+306.0
+],
+[
+38.2,
+304.5
+],
+[
+37.0,
+302.5
+]
+],
+"why": "warm edge of the 850 theta-e drop (333->326 K near 53W at 42N) with SW veering to WSW/W behind it"
+}
+],
+"note": "weak late-summer wave with several nearby lows (998 west, 1004 south, 1006 east); gradients diffuse, cold front south of 44N barely marked in wind"
+},
+"g0152": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+63.2,
+328.1
+],
+[
+62.9,
+330.2
+],
+[
+62.6,
+332.5
+],
+[
+62.2,
+335.0
+],
+[
+61.8,
+337.5
+],
+[
+61.4,
+339.0
+]
+],
+"why": "weak 850/700 warm tongue and 988 trough running E from the filling cold-core low to the theta-e gradient near 61N 21W"
+},
+{
+"type": "cold",
+"pts": [
+[
+61.4,
+339.0
+],
+[
+60.6,
+337.7
+],
+[
+59.9,
+335.5
+],
+[
+59.2,
+333.0
+],
+[
+58.5,
+330.2
+],
+[
+57.9,
+327.5
+],
+[
+57.6,
+324.5
+],
+[
+57.5,
+321.5
+],
+[
+57.5,
+318.5
+]
+],
+"why": "warm edge of 850 theta-e drop (300->289 K) with SW->W veer, from 61N 21W SW to 57.5N 40W"
+}
+],
+"note": "Old cold-core low with weak fronts; unclear whether the trailing front belongs to this low or the 987 low near 63.6N 18W."
+},
+"g0161": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+47.3,
+302.3
+],
+[
+46.4,
+300.6
+],
+[
+45.5,
+298.8
+],
+[
+44.6,
+297.1
+],
+[
+43.8,
+295.3
+],
+[
+43.4,
+293.5
+],
+[
+43.2,
+291.6
+],
+[
+43.0,
+289.8
+]
+],
+"why": "N/NW to W wind shift and 303->313 K theta-e rise near 43.7N -65 along cloud band trailing SW from the wave"
+},
+{
+"type": "warm",
+"pts": [
+[
+47.3,
+302.3
+],
+[
+47.0,
+303.8
+],
+[
+46.6,
+305.2
+],
+[
+46.2,
+306.7
+]
+],
+"why": "short warm front E of wave: theta-e rises 309->315 K near -55, kink/trough at 46.5N -53"
+}
+],
+"note": "weak 1009 hPa wave on the trailing front of the 992 low; weak gradients, warm front is marginal"
+},
+"g0167": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+64.2,
+321.0
+],
+[
+64.9,
+323.2
+],
+[
+65.7,
+325.4
+],
+[
+66.4,
+327.4
+],
+[
+67.0,
+329.5
+],
+[
+67.6,
+331.4
+],
+[
+68.2,
+332.9
+],
+[
+68.7,
+334.1
+]
+],
+"why": "850/700 warm tongue from low NE along the Greenland coast; wind shifts at 67.3N 34.3W and 68.3N 28.3W; joins given stationary front"
+},
+{
+"type": "cold",
+"pts": [
+[
+68.7,
+334.1
+],
+[
+67.4,
+335.6
+],
+[
+66.2,
+336.7
+],
+[
+64.9,
+337.5
+],
+[
+63.6,
+338.2
+],
+[
+62.3,
+339.0
+],
+[
+61.0,
+339.7
+],
+[
+59.7,
+340.5
+]
+],
+"why": "warm edge of N-S 850 theta-e step (296->303 K near 64N 22W, 292->303 near 61N 20W) with SSE->S/SSW veer behind"
+}
+],
+"note": "cold front south of the triple point is weak in the winds; may be absent or treated as stationary"
+},
+"g0226": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+58.4,
+346.3
+],
+[
+57.3,
+344.8
+],
+[
+56.2,
+343.4
+],
+[
+55.0,
+342.0
+],
+[
+53.8,
+340.7
+],
+[
+52.6,
+339.6
+],
+[
+51.3,
+338.3
+],
+[
+50.2,
+337.1
+],
+[
+49.2,
+336.0
+],
+[
+48.2,
+334.6
+]
+],
+"why": "sections: veer SW (210-240) to WNW/NW (300-320) at 56.3N16.6W, 53N20W, 49.5N23.2W, on the warm edge of the 312->303 K drop; rises behind"
+},
+{
+"type": "warm",
+"pts": [
+[
+58.4,
+346.3
+],
+[
+58.2,
+348.4
+],
+[
+57.8,
+350.4
+],
+[
+57.1,
+351.8
+],
+[
+56.0,
+352.8
+],
+[
+54.8,
+353.4
+],
+[
+53.5,
+353.6
+]
+],
+"why": "sharp 325->305 K edge on the eastern/northern side of the warm sector (57N 8W, 54N 6.5W), backing to SSE and strongest 3 h falls just ahead, cloud shield north-east"
+}
+],
+"note": "Eastern warm-sector boundary runs nearly N-S parallel to the southerly flow, so the warm front's orientation and southern end are uncertain."
+},
+"g0239": {
+"fronts": [
+{
+"type": "warm",
+"pts": [
+[
+36.5,
+352.6
+],
+[
+37.3,
+354.8
+],
+[
+38.4,
+356.8
+],
+[
+39.2,
+359.0
+],
+[
+39.0,
+1.2
+],
+[
+38.3,
+3.4
+],
+[
+37.7,
+5.5
+],
+[
+37.8,
+7.8
+]
+],
+"why": "warm edge of theta-e gradient (312->320 K) under the Med cloud band, NE winds poleward, warm 700 tongue east of low"
+},
+{
+"type": "cold",
+"pts": [
+[
+36.5,
+352.6
+],
+[
+35.2,
+352.8
+],
+[
+34.0,
+352.4
+],
+[
+32.6,
+351.8
+],
+[
+31.2,
+351.2
+],
+[
+30.0,
+350.6
+]
+],
+"why": "N/NW to SW/SE wind shift with theta-e rise 314->322 K on sections at 36N, 34N, 30N; troughs 37.5N 9.5W and 29N 8.5W"
+}
+],
+"note": "weak 1010 cut-off near Iberia with land masking; fronts diffuse, east branch could be occluded or a back-door boundary"
+},
+"g0247": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+61.8,
+353.5
+],
+[
+62.0,
+355.5
+],
+[
+62.0,
+357.5
+],
+[
+61.8,
+359.5
+]
+],
+"why": "700 hPa warm tongue wraps from the 318 K tongue near 62N 0E back into the low; S winds and max 3 h falls along 62N"
+},
+{
+"type": "warm",
+"pts": [
+[
+61.8,
+359.5
+],
+[
+62.4,
+1.0
+],
+[
+62.9,
+2.5
+],
+[
+63.5,
+4.3
+],
+[
+64.2,
+6.0
+],
+[
+64.9,
+7.5
+]
+],
+"why": "theta-e drops 315->306 K poleward of 62.8N at 2E with winds backing 169->147; drop near 62.5N 3-4E and trough/kink 63N 7.5E"
+},
+{
+"type": "cold",
+"pts": [
+[
+61.8,
+359.5
+],
+[
+61.0,
+358.8
+],
+[
+60.0,
+358.5
+],
+[
+59.0,
+358.3
+],
+[
+58.0,
+358.6
+],
+[
+56.5,
+358.4
+],
+[
+55.0,
+358.0
+],
+[
+53.5,
+357.4
+],
+[
+52.0,
+356.9
+],
+[
+50.5,
+356.6
+]
+],
+"why": "winds S (175-188) ahead back to SW/W (220-260) behind; theta-e falls 320->309 K across 60N 1.5W, 58N 1.3W, 55N 2W, 52N 3W; troughs 57N 2W, 55N 2W, 52.5N 3W"
+}
+],
+"note": "Triple point position uncertain (61.5-62N, 1W-1E); warm front east edge near Norwegian coast is terrain-influenced."
+},
+"g0250": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+54.9,
+306.9
+],
+[
+54.2,
+309.0
+],
+[
+53.2,
+310.8
+],
+[
+51.8,
+312.1
+],
+[
+50.2,
+312.7
+],
+[
+48.6,
+313.0
+],
+[
+47.0,
+313.0
+],
+[
+45.4,
+312.6
+],
+[
+43.8,
+312.0
+],
+[
+42.6,
+311.4
+]
+],
+"why": "west edge of 850/700 theta-e tongue; SW->W veer at 50N 47.5W, 46N 48W, 43.5N 49W; theta-e 320-328 -> 310 K behind; matches example 1 layout"
+}
+],
+"note": "Low sits on the given stationary front with weak gradient near the centre; cold front placement near the low uncertain. Eastern theta-e edge near 41W (S->SSW veer) left undrawn as an older boundary."
+},
+"g0251": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+34.8,
+304.4
+],
+[
+34.3,
+303.4
+],
+[
+33.7,
+302.4
+],
+[
+32.9,
+301.3
+]
+],
+"why": "links low to the western stationary front; N/NE winds behind vs SW ahead, theta-e 340->321 K drop at ~34N -57.5, trough at 32.5N -59"
+}
+],
+"note": "Weak 1020 hPa wave on a long stationary boundary; only the short gap between the low and the western stationary front looks frontal-active. No warm front drawn since the eastern segment is already given as stationary."
+},
+"g0264": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+50.4,
+328.8
+],
+[
+49.4,
+328.2
+],
+[
+48.0,
+328.4
+],
+[
+46.5,
+328.3
+],
+[
+45.0,
+328.0
+],
+[
+43.5,
+326.8
+],
+[
+42.0,
+325.5
+],
+[
+40.8,
+324.2
+],
+[
+39.6,
+323.0
+]
+],
+"why": "cloud band edge; te850 warm edge with SW->WSW veer at 48N 31.6W, 45N 32W, 42N 34.5W, 40N 36.3W"
+},
+{
+"type": "warm",
+"pts": [
+[
+50.4,
+328.8
+],
+[
+51.0,
+330.5
+],
+[
+51.2,
+332.8
+],
+[
+51.1,
+335.2
+],
+[
+50.8,
+337.7
+],
+[
+50.2,
+340.2
+],
+[
+49.3,
+342.5
+]
+],
+"why": "warm edge of northern te850 gradient (51.2N at 28W, 51N at 23W, 49.5N at 18W), backing to SE ahead, falls max 51N 28-25W"
+}
+],
+"note": "young wave; second low at 47.3N 36.6W sits in the cold air behind and was left without fronts; cold front gradient weak south of 43N"
+},
+"g0266": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+58.0,
+320.6
+],
+[
+59.2,
+323.2
+],
+[
+59.8,
+326.5
+],
+[
+59.9,
+329.5
+],
+[
+59.3,
+332.0
+],
+[
+58.3,
+333.6
+],
+[
+57.3,
+334.7
+]
+],
+"why": "theta-e/700 warm tongue wrapping to the low, E->S wind shift at 59.8N 32W, band of 3 h falls just ahead, trough kink 60N 32W"
+},
+{
+"type": "cold",
+"pts": [
+[
+57.3,
+334.7
+],
+[
+55.6,
+335.0
+],
+[
+53.9,
+335.2
+],
+[
+52.2,
+334.7
+],
+[
+50.6,
+332.6
+],
+[
+49.2,
+330.3
+],
+[
+47.9,
+328.2
+],
+[
+46.8,
+326.0
+],
+[
+46.0,
+324.0
+]
+],
+"why": "western warm edge of narrow theta-e ribbon (327 K at 48N 31W, 325 K at 52N 24W), S to SW/WSW veer behind, cloud band 46N 37W-55N 21W"
+},
+{
+"type": "warm",
+"pts": [
+[
+57.3,
+334.7
+],
+[
+56.9,
+336.7
+],
+[
+56.4,
+338.6
+],
+[
+55.8,
+340.4
+]
+],
+"why": "short warm front from the triple point toward the falls maximum at 56N 24W, slight backing to SSE ahead"
+}
+],
+"note": "mature occluded low; triple point position and whether a warm front shows inside the panel were uncertain (warm sector is a narrow ribbon)"
+},
+"g0281": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+36.8,
+309.3
+],
+[
+35.7,
+308.1
+],
+[
+34.6,
+307.1
+],
+[
+33.4,
+306.1
+],
+[
+32.2,
+305.2
+],
+[
+31.0,
+304.4
+],
+[
+29.8,
+303.5
+],
+[
+28.7,
+302.6
+]
+],
+"why": "SW->W/NW veer and warm edge of 336->328 K theta-e drop near 30.5N 55W, weak 1012-1016 trough SW of the low"
+}
+],
+"note": "Weak, moist subtropical low; theta-e field noisy and the wind shift gradual; cloud band lies east of the shift line."
+},
+"g0319": {
+"fronts": [
+{
+"type": "warm",
+"pts": [
+[
+41.2,
+288.2
+],
+[
+41.8,
+289.6
+],
+[
+42.5,
+290.8
+],
+[
+42.4,
+292.1
+],
+[
+41.5,
+293.5
+],
+[
+40.4,
+294.8
+],
+[
+39.2,
+295.8
+],
+[
+38.0,
+296.4
+],
+[
+36.9,
+296.6
+],
+[
+36.2,
+296.3
+]
+],
+"why": "SW->SE wind shift just E of low, falls ahead, warm edge of sharp theta-e drop (333->311 K) at 43N -68.5, 40N -64.6, 37N -63, curving S to the given stationary front like example 2"
+}
+],
+"note": "low on a stationary boundary; only the warm front around the cold dome seemed clear, no distinct cold front in the uniformly warm sector"
+},
+"g0387": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+39.5,
+316.2
+],
+[
+40.0,
+318.2
+],
+[
+40.7,
+320.4
+],
+[
+41.9,
+323.0
+],
+[
+43.1,
+325.5
+],
+[
+44.4,
+328.1
+],
+[
+45.9,
+329.7
+],
+[
+47.3,
+330.8
+],
+[
+48.7,
+331.7
+],
+[
+50.4,
+333.4
+]
+],
+"why": "N/NW->SW wind shift at warm edge of sharp 850 theta-e drop (331->307 K) at 40.7N 39.6W, 44.4N 31.9W, 48.7N 28.3W; rises behind, falls ahead, cloud band"
+}
+],
+"note": "weak wave on a long baroclinic zone; unsure whether the NE segment is coded cold or as a warm front continuation from the wave"
+},
+"g0444": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+47.7,
+345.1
+],
+[
+46.8,
+343.4
+],
+[
+45.9,
+341.5
+],
+[
+45.1,
+339.4
+],
+[
+44.4,
+337.1
+],
+[
+43.8,
+334.7
+],
+[
+43.4,
+332.2
+],
+[
+43.2,
+329.7
+]
+],
+"why": "sections at 20W/25W/30W: N/NE flow backs/veers to SW-W across ~45.2N/43.5N/43.2N, on the warm edge of the 308->330 K gradient; low on the wave tip"
+},
+{
+"type": "warm",
+"pts": [
+[
+47.7,
+345.1
+],
+[
+47.9,
+346.9
+],
+[
+47.7,
+348.7
+],
+[
+47.1,
+350.0
+],
+[
+46.2,
+350.1
+],
+[
+45.3,
+349.7
+]
+],
+"why": "warm tongue (327->304 K) edge just E/N of the low at 48N11W and 47N10W, S-SW flow into it, 3 h falls centred on and just east of the low"
+}
+],
+"note": "Frontal wave on a long baroclinic zone; warm front is short and bends south along the plume edge, cloud band ENE of the low is ambiguous (old front or warm front)."
+},
+"g0462": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+50.7,
+306.7
+],
+[
+49.3,
+306.4
+],
+[
+48.0,
+306.3
+],
+[
+46.8,
+307.6
+],
+[
+46.0,
+308.3
+],
+[
+44.5,
+308.9
+],
+[
+43.2,
+308.6
+],
+[
+42.0,
+308.0
+],
+[
+41.0,
+307.1
+],
+[
+40.0,
+306.4
+]
+],
+"why": "S to W/NW veer at warm edge of narrow 320-330 K tongue on sections 48N-40N; trough 44.5N 51W; dry slot behind"
+},
+{
+"type": "warm",
+"pts": [
+[
+50.7,
+306.7
+],
+[
+51.3,
+309.0
+],
+[
+51.5,
+311.2
+],
+[
+50.4,
+313.1
+],
+[
+49.0,
+314.7
+],
+[
+47.6,
+316.2
+],
+[
+46.2,
+318.0
+]
+],
+"why": "SE backing and strongest 3 h falls ahead, warm edge of theta-e rise near 51N 50W, trough 51.5N 48.5W, cloud shield poleward"
+}
+],
+"note": "rapidly deepening 984 low with warm tongue reaching the centre; unsure whether a short occlusion exists and where the warm front runs east of the narrow plume"
+},
+"g0469": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+60.1,
+300.5
+],
+[
+59.0,
+301.1
+],
+[
+57.5,
+301.4
+],
+[
+56.0,
+301.6
+],
+[
+54.5,
+301.9
+],
+[
+53.3,
+302.1
+],
+[
+52.3,
+302.2
+]
+],
+"why": "W/NW winds veer from SW/S across ~58.5W at 57.5N, 56N and 54N, at the west edge of the weak 290-292 K 850 tongue and the 700 hPa warm tongue reaching the low"
+}
+],
+"note": "Very weak thermal contrast (2-5 K); only the wind shift defines the front; no warm front signal near the low."
+},
+"g0473": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+54.0,
+317.4
+],
+[
+54.4,
+319.0
+],
+[
+54.8,
+320.6
+],
+[
+55.2,
+322.0
+],
+[
+55.4,
+322.6
+]
+],
+"why": "low sits in cold air (te 300 K); 700 hPa warm tongue and SW->SSE shift wrap in from the triple point near 55.4N 37.5W, edge of dry slot"
+},
+{
+"type": "cold",
+"pts": [
+[
+55.4,
+322.6
+],
+[
+54.2,
+324.4
+],
+[
+53.0,
+325.5
+],
+[
+51.5,
+326.7
+],
+[
+50.0,
+327.4
+],
+[
+48.0,
+327.7
+],
+[
+46.0,
+327.8
+],
+[
+44.0,
+327.4
+],
+[
+42.3,
+326.7
+]
+],
+"why": "W->S/SE wind shift and warm edge of 300->326 K theta-e jump at 53N 34.5W, 50N 32.5W, 46N 32W; east edge of dry slot"
+},
+{
+"type": "warm",
+"pts": [
+[
+55.4,
+322.6
+],
+[
+56.1,
+321.0
+],
+[
+56.9,
+319.5
+],
+[
+57.6,
+318.0
+],
+[
+58.3,
+316.7
+],
+[
+59.0,
+315.6
+]
+],
+"why": "S->SE backing and theta-e rise 301->309 K at 56N 40W and 57.3N 42W, strong 3 h falls ahead, links to the given stationary front end"
+}
+],
+"note": "Two deep lows in one system; unclear whether the bent-back boundary to the stationary front is warm or occluded. Eastern moisture edge near 27W has no wind shift and was left undrawn."
+},
+"g0480": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+64.5,
+305.0
+],
+[
+63.7,
+306.0
+],
+[
+62.8,
+307.1
+],
+[
+62.0,
+308.2
+],
+[
+61.1,
+309.2
+],
+[
+60.2,
+310.2
+],
+[
+59.3,
+311.2
+]
+],
+"why": "NW->E/SE wind shift and trough from the low SSE to 59N -48.5 (falls max there); 700 hPa 291-294 K tongue wrapping north into the low"
+}
+],
+"note": "Low sits poleward of a much deeper 972 hPa storm whose warm conveyor feeds it; hard to tell which fronts belong to this system and whether the line is occluded or cold."
+},
+"g0493": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+60.1,
+335.2
+],
+[
+60.7,
+337.2
+],
+[
+60.5,
+339.4
+],
+[
+59.5,
+341.1
+],
+[
+58.3,
+342.2
+]
+],
+"why": "700/850 warm tongue wraps into the 934 hPa low from the SE and N; te850 edge 303->312 K near 60N 19.5W, 62N 22.5W"
+},
+{
+"type": "cold",
+"pts": [
+[
+58.3,
+342.2
+],
+[
+57.0,
+342.8
+],
+[
+55.5,
+342.7
+],
+[
+54.0,
+342.0
+],
+[
+52.5,
+341.0
+],
+[
+51.2,
+339.7
+],
+[
+50.0,
+338.5
+],
+[
+48.8,
+337.3
+],
+[
+47.8,
+336.2
+]
+],
+"why": "veer S->WSW/WNW with te850 drop ~315->298 K at 58N 17.5W, 56N 17W, 53N 18.5W, 50N 21.5W (trough 1003), 48N 23.8W; rises behind"
+}
+],
+"note": "very deep mature low; unsure where occlusion ends and cold front begins (examples coded the whole band occluded); narrow warm tongue wrapping north of low gave no clear warm front, so none drawn"
+},
+"g0496": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+39.7,
+302.3
+],
+[
+39.2,
+300.8
+],
+[
+38.7,
+299.4
+],
+[
+38.0,
+297.7
+],
+[
+37.2,
+295.9
+],
+[
+36.3,
+294.2
+],
+[
+35.3,
+292.5
+],
+[
+34.2,
+290.8
+],
+[
+33.1,
+289.2
+]
+],
+"why": "N winds behind veering to W/SW ahead at 38.8N 60.4W, 36.2N 65.6W, 33.5N 70W; on warm edge of 850 theta-e drop (332 -> 322 K); cloud band"
+},
+{
+"type": "cold",
+"pts": [
+[
+39.7,
+302.3
+],
+[
+40.2,
+304.2
+],
+[
+40.6,
+306.0
+],
+[
+41.1,
+307.8
+],
+[
+41.8,
+309.7
+],
+[
+42.6,
+311.5
+],
+[
+43.4,
+313.2
+]
+],
+"why": "NW to SW wind shift at 40.4N 54.2W and 41N 51.5W, trough axis 41N 52.5W, sharp theta-e drop to the north; links the wave to the 985 hPa low"
+}
+],
+"note": "wave low on the trailing front of the deeper 985 hPa low; unsure whether the segment between the two lows belongs to this system or whether it is coded warm"
+},
+"g0528": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+36.9,
+293.6
+],
+[
+36.9,
+295.5
+],
+[
+37.1,
+297.5
+],
+[
+37.4,
+299.5
+],
+[
+37.8,
+301.7
+],
+[
+38.2,
+304.0
+],
+[
+38.7,
+306.5
+],
+[
+39.4,
+309.0
+],
+[
+40.3,
+311.5
+],
+[
+41.0,
+313.7
+],
+[
+41.8,
+316.0
+]
+],
+"why": "SW->NW wind shift and warm edge of 339->315 K theta-e drop at 36.6N 63W, 37.8N 58W, 38.8N 53W, 40.5N 48W; cloud band along it"
+}
+],
+"note": "Low at east end of a given stationary front; unsure whether a short warm segment precedes the cold front east of the low."
+},
+"g0573": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+53.5,
+311.7
+],
+[
+52.6,
+313.0
+],
+[
+51.8,
+314.6
+],
+[
+51.3,
+316.4
+],
+[
+51.1,
+318.4
+]
+],
+"why": "700 hPa warm tongue wrapping into the low from the SE; wind shift WNW->SSW and trough at 50.5N -47 S of low"
+},
+{
+"type": "cold",
+"pts": [
+[
+51.1,
+318.4
+],
+[
+49.6,
+319.3
+],
+[
+48.1,
+319.9
+],
+[
+46.6,
+320.4
+],
+[
+45.1,
+320.7
+],
+[
+43.6,
+320.7
+],
+[
+42.2,
+320.4
+]
+],
+"why": "SSE->SW/W veer and theta-e drop 327->302 K with warm edge at -39.5 (46N, 43N); troughs 48N -40, 45N -38.5"
+},
+{
+"type": "warm",
+"pts": [
+[
+51.1,
+318.4
+],
+[
+50.4,
+320.8
+],
+[
+49.6,
+323.2
+],
+[
+48.7,
+325.6
+],
+[
+48.0,
+327.5
+],
+[
+47.0,
+329.6
+],
+[
+46.0,
+331.4
+]
+],
+"why": "E/NE edge of the warm sector: theta-e falls 319->304 K near 48N -32.5, 322->311 K near 50N -38; cloud shield poleward"
+}
+],
+"note": "warm front has no wind shift (uniform SE flow); placed on theta-e edge only. Warm tongue also extends N toward the given stationary front, which could mean a different occlusion orientation."
+},
+"g0088": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+45.3,
+232.0
+],
+[
+44.2,
+231.8
+],
+[
+43.0,
+231.6
+],
+[
+41.8,
+231.2
+],
+[
+40.6,
+230.5
+],
+[
+39.7,
+229.0
+],
+[
+39.1,
+227.0
+],
+[
+38.8,
+224.5
+],
+[
+38.6,
+221.5
+]
+],
+"why": "WNW->WSW veer and 309 K theta-e max at 43N 128.3W south of low, then warm edge of 850 theta-e step (307->319 K) near 39N"
+},
+{
+"type": "occluded",
+"pts": [
+[
+45.3,
+232.0
+],
+[
+46.1,
+233.2
+],
+[
+46.8,
+234.5
+],
+[
+47.5,
+235.8
+],
+[
+48.2,
+237.2
+]
+],
+"why": "comma-cloud band and weak backing to E/SE winds wrapping NE of the cold-core low toward the coast"
+}
+],
+"note": "weak cut-off low with almost no surface wind shifts; southern theta-e gradient has northerlies on both sides"
+},
+"g0093": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+37.1,
+202.3
+],
+[
+36.2,
+201.7
+],
+[
+35.3,
+201.1
+],
+[
+34.2,
+200.6
+],
+[
+33.0,
+200.2
+],
+[
+31.9,
+199.7
+],
+[
+30.8,
+198.5
+],
+[
+29.8,
+197.2
+],
+[
+29.0,
+195.8
+],
+[
+28.7,
+193.8
+]
+],
+"why": "sections: S/SW flow veers to N/NNE at 35.4N158.8W, 31.8N160.2W, 29.0N163.6W, on the warm edge of the 330->315 K drop; trough at 34N159W; joins the given stationary front at 28.7N166.2W"
+}
+],
+"note": "Weak low on the SW end of a long stationary front; the cold front's southern end may instead be coded stationary, and the theta-e gradient south of 32N is weak."
+},
+"g0149": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+55.2,
+202.9
+],
+[
+56.4,
+204.6
+],
+[
+57.3,
+207.0
+],
+[
+57.4,
+209.5
+],
+[
+56.8,
+212.0
+],
+[
+55.9,
+214.4
+],
+[
+55.3,
+216.4
+],
+[
+55.3,
+218.2
+]
+],
+"why": "700/850 warm tongue (TROWAL) max near 57.5N 151W wrapping north of stacked low; troughs 58.5N 153W; E to S shift near 54.5N 145W"
+},
+{
+"type": "cold",
+"pts": [
+[
+55.3,
+218.2
+],
+[
+53.8,
+219.1
+],
+[
+52.3,
+220.2
+],
+[
+51.0,
+221.0
+],
+[
+49.5,
+221.3
+],
+[
+48.0,
+221.0
+],
+[
+46.5,
+220.6
+],
+[
+45.0,
+220.4
+],
+[
+43.5,
+220.7
+]
+],
+"why": "S 30-40 kt ahead veering to SW/W behind with theta-e drop ~320 to 310 K at 52N, 49N, 46N, 43N near 139W"
+},
+{
+"type": "warm",
+"pts": [
+[
+55.3,
+218.2
+],
+[
+55.6,
+219.8
+],
+[
+55.8,
+221.4
+],
+[
+55.7,
+222.8
+]
+],
+"why": "warm edge of theta-e rise 310->316 K near 55.5-56N at 138W with E/SE backing poleward; trough 55.5N 141.5W"
+}
+],
+"note": "occluded 973 low with triple point at the 991 secondary low near panel edge; a weaker secondary wind-shift line near 148W not drawn; warm front runs off the data edge"
+},
+"g0155": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+31.4,
+210.5
+],
+[
+32.1,
+210.7
+],
+[
+32.8,
+211.2
+],
+[
+33.3,
+211.8
+],
+[
+33.6,
+212.4
+]
+],
+"why": "joins the vertically stacked cut-off low to the west end of the given stationary front; trough cell 33.5N 148.5W and cloud curling into the low from the NE; 324-327 K tongue at 850 wraps on its north side"
+}
+],
+"note": "Weak cold-core cut-off with almost no 850 contrast or wind shift near the low; no evidence for a trailing cold front, so only the short connector drawn."
+},
+"g0192": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+31.9,
+184.3
+],
+[
+31.8,
+185.4
+],
+[
+31.9,
+186.5
+],
+[
+32.1,
+187.6
+],
+[
+32.4,
+188.6
+],
+[
+32.5,
+189.3
+]
+],
+"why": "short link from the low to the north end of the given stationary front: SE->S veer near 173W and warm edge of the 323->337 K rise at 32N 172W, cloud mass wrapping E of the low"
+}
+],
+"note": "Weak, nearly barotropic subtropical low; the given stationary fronts carry most of the boundary, and gradients near the centre are small, so the only front drawn is a low-confidence occlusion."
+},
+"g0216": {
+"fronts": [
+{
+"type": "warm",
+"pts": [
+[
+58.4,
+208.0
+],
+[
+58.6,
+209.7
+],
+[
+58.9,
+211.4
+],
+[
+59.2,
+213.1
+],
+[
+59.6,
+215.7
+]
+],
+"why": "links low to the given stationary front; SE winds ahead, weak 3 h falls along/north of it, 312-314 K air on its south side"
+},
+{
+"type": "cold",
+"pts": [
+[
+58.4,
+208.0
+],
+[
+57.6,
+210.4
+],
+[
+56.6,
+212.0
+],
+[
+55.2,
+213.1
+],
+[
+53.7,
+213.9
+],
+[
+52.2,
+214.4
+],
+[
+50.6,
+214.6
+],
+[
+49.0,
+213.6
+],
+[
+47.2,
+212.4
+]
+],
+"why": "trough kink at 57N -148.5 with SE->SW veer; SW->WSW veer and theta-e drop 318->309 K near 50N -145.5 and 47N -147.5; rises behind"
+}
+],
+"note": "Very weak, moist low with flat theta-e (306-318 K) and light winds; cold front position south of 55N rests on small theta-e steps, and the front could instead start at the stationary front's west end (occluded low-to-triple-point)."
+},
+"g0217": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+45.4,
+214.4
+],
+[
+44.4,
+213.0
+],
+[
+43.6,
+211.5
+],
+[
+42.3,
+209.7
+],
+[
+40.8,
+207.7
+],
+[
+39.6,
+205.7
+],
+[
+38.7,
+203.7
+],
+[
+38.0,
+201.6
+],
+[
+37.5,
+199.6
+],
+[
+37.1,
+197.5
+]
+],
+"why": "NE/N -> SW/W shift on the warm edge of the te850 tongue at 44N 148W, 40.5N 152W, 38.7N 156W, 37.8N 160W"
+},
+{
+"type": "warm",
+"pts": [
+[
+45.4,
+214.4
+],
+[
+45.4,
+215.9
+],
+[
+44.9,
+217.3
+],
+[
+44.1,
+218.5
+],
+[
+43.2,
+219.4
+]
+],
+"why": "SSE backing and 3 h falls just E of the low, te850 edge ~44.7N at 142W under the cloud shield"
+}
+],
+"note": "weak young wave; warm front evidence thin (no real wind shift on the east edge of the tongue)"
+},
+"g0236": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+57.8,
+193.8
+],
+[
+57.2,
+196.8
+],
+[
+56.5,
+199.7
+],
+[
+55.7,
+202.2
+],
+[
+54.8,
+204.4
+]
+],
+"why": "cold-core low well behind the baroclinic zone; links the low through the isobar trough to the tip of the warm tongue near 55N 155W"
+},
+{
+"type": "cold",
+"pts": [
+[
+54.8,
+204.4
+],
+[
+53.6,
+202.4
+],
+[
+52.4,
+200.4
+],
+[
+51.1,
+198.4
+],
+[
+49.9,
+196.8
+],
+[
+48.6,
+195.4
+],
+[
+47.6,
+193.4
+]
+],
+"why": "SE (warm) edge of the 850 theta-e drop (318 K at 53.3N 158W, 326 K at 48.4N 164W), wind veer S/SW to W behind, cloud band"
+},
+{
+"type": "warm",
+"pts": [
+[
+54.8,
+204.4
+],
+[
+55.3,
+206.8
+],
+[
+55.7,
+209.2
+],
+[
+56.3,
+211.7
+],
+[
+57.0,
+214.2
+],
+[
+57.8,
+216.5
+]
+],
+"why": "warm ribbon tip 322 K at 55.6N 150.6W with S-SW flow, cloud shield poleward toward the Gulf of Alaska"
+}
+],
+"note": "weak cold-core low far from the baroclinic zone; wind shifts are very weak, so triple point and whether the low has any fronts at all were guesses"
+},
+"g0257": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+53.1,
+221.9
+],
+[
+52.3,
+220.7
+],
+[
+51.4,
+219.4
+],
+[
+50.5,
+218.1
+],
+[
+49.6,
+217.0
+],
+[
+48.8,
+215.6
+],
+[
+48.0,
+214.2
+]
+],
+"why": "NW->SW veer at 49.5N 142.8W on the warm edge of the 300->323 K theta-e rise, NW side of warm tongue, joins given stationary front"
+},
+{
+"type": "warm",
+"pts": [
+[
+53.1,
+221.9
+],
+[
+52.9,
+223.3
+],
+[
+52.4,
+224.6
+],
+[
+51.5,
+225.4
+],
+[
+50.3,
+225.7
+],
+[
+49.0,
+225.6
+]
+],
+"why": "warm edge of sharp 320->296 K drop near 134.5W with S->W/NW veer across it, 3 h falls just E of the low"
+}
+],
+"note": "Young wave at the tip of a warm tongue; east boundary is a N-S theta-e wall with no pressure trough, so the warm-front orientation is uncertain."
+},
+"g0273": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+40.9,
+188.8
+],
+[
+39.7,
+188.3
+],
+[
+38.5,
+187.5
+],
+[
+37.3,
+186.6
+],
+[
+36.1,
+185.6
+],
+[
+35.1,
+184.4
+],
+[
+34.2,
+182.9
+],
+[
+33.4,
+181.2
+],
+[
+32.9,
+180.0
+]
+],
+"why": "N/NNE -> SW/S wind shift and warm edge of 305->328 K drop at 39.2N -171.6 and 35.5N -174.5; cloud band trails SW from the wave"
+}
+],
+"note": "wave at SW end of given stationary front; no warm front evident (warm sector open to the SE with no theta-e edge), SW end of cold front weakens into NE flow"
+},
+"g0282": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+51.6,
+182.8
+],
+[
+51.8,
+184.7
+],
+[
+52.0,
+186.5
+],
+[
+52.2,
+188.5
+],
+[
+52.3,
+190.0
+],
+[
+52.3,
+191.5
+]
+],
+"why": "700/850 warm tongue wrapping E of low into it; SSW->SE wind shift and trough near 52.4N 170W, falls ahead"
+},
+{
+"type": "cold",
+"pts": [
+[
+52.3,
+191.5
+],
+[
+51.0,
+192.0
+],
+[
+49.9,
+192.6
+],
+[
+48.7,
+191.8
+],
+[
+47.4,
+189.6
+],
+[
+46.0,
+186.8
+],
+[
+44.6,
+184.6
+],
+[
+43.3,
+182.4
+],
+[
+42.1,
+182.1
+]
+],
+"why": "warm edge of sharp 850 theta-e drop (330->305 K) with SW->WSW veer at 48.7N 168W, 46N 173W, 43.3N 177.6W; cloud band; rises behind"
+},
+{
+"type": "warm",
+"pts": [
+[
+52.3,
+191.5
+],
+[
+52.1,
+193.5
+],
+[
+51.8,
+195.5
+],
+[
+51.4,
+197.5
+],
+[
+51.0,
+199.5
+],
+[
+50.4,
+201.5
+]
+],
+"why": "northern warm edge of 850 theta-e plume (315->326 K at 51.6N 162W) with backing to SE ahead and 3 h falls"
+}
+],
+"note": "triple point position and whether the cold front continues through the 1011 hPa wave at 42N"
+},
+"g0301": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+57.8,
+215.1
+],
+[
+58.1,
+216.7
+],
+[
+58.1,
+218.5
+],
+[
+57.9,
+220.6
+]
+],
+"why": "700 hPa warm tongue reaches the low; north edge of 850 warm air (312->299 K) at 58.4N 142-144W with E->SE/S wind shift; strong 3 h falls along it"
+},
+{
+"type": "cold",
+"pts": [
+[
+57.9,
+220.6
+],
+[
+56.6,
+220.8
+],
+[
+55.3,
+221.3
+],
+[
+54.0,
+221.9
+],
+[
+52.6,
+222.4
+],
+[
+51.2,
+222.8
+],
+[
+49.8,
+223.0
+],
+[
+48.4,
+223.1
+],
+[
+47.0,
+223.2
+]
+],
+"why": "sections 56-47N: SSE/S jet (30-40 kt) veers to S-SW behind, theta-e drops 318->310 K at 139W (56N) to 137W (47N), on the warm plume's west edge"
+},
+{
+"type": "warm",
+"pts": [
+[
+57.9,
+220.6
+],
+[
+57.2,
+222.7
+],
+[
+56.5,
+224.6
+],
+[
+55.7,
+226.4
+],
+[
+54.8,
+228.0
+],
+[
+53.8,
+229.6
+],
+[
+52.8,
+231.0
+]
+],
+"why": "NE edge of the warm plume (312->298 K) with E/SE flow backing ahead, 3 h falls band along 55N135W-53N133W, cloud shield to the north-east"
+}
+],
+"note": "Secondary low east of a deep parent low; triple-point placement and whether the northern boundary is warm or occluded are uncertain; warm front hugs the coast."
+},
+"g0338": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+52.7,
+226.5
+],
+[
+51.5,
+225.7
+],
+[
+50.3,
+225.0
+],
+[
+49.0,
+224.2
+],
+[
+47.8,
+223.0
+],
+[
+46.6,
+221.8
+],
+[
+45.6,
+220.7
+],
+[
+44.5,
+219.0
+],
+[
+43.6,
+217.5
+],
+[
+42.8,
+216.4
+]
+],
+"why": "SW 20-27 kt veering to NW/N with theta-e drop ~320 to 300 K on sections at 49N 135.8W, 45.7N 139.2W, 42.9N 143.5W; cloud band edge"
+},
+{
+"type": "warm",
+"pts": [
+[
+52.7,
+226.5
+],
+[
+52.9,
+227.8
+],
+[
+52.8,
+229.4
+],
+[
+52.2,
+231.0
+],
+[
+51.2,
+232.4
+],
+[
+50.2,
+233.5
+]
+],
+"why": "E/SE backing poleward and theta-e rise to 315 K near 53N 131-132W; trough 52.5N 131W; cloud shield north of low"
+}
+],
+"note": "young 1002 wave near the BC coast; warm front runs onto land where fields are weak and masked"
+},
+"g0366": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+60.6,
+212.8
+],
+[
+60.1,
+214.7
+],
+[
+59.7,
+216.6
+],
+[
+59.3,
+218.6
+],
+[
+58.9,
+220.4
+],
+[
+58.4,
+221.7
+]
+],
+"why": "S winds north of ~59.5N vs SW/W south of it from 144W to 140W, slightly warmer 298 K air on the north side; trough cell 59.5N 147W; joins the low to the north tip of the warm tongue"
+},
+{
+"type": "cold",
+"pts": [
+[
+58.4,
+221.7
+],
+[
+57.2,
+222.2
+],
+[
+56.0,
+222.4
+],
+[
+54.6,
+222.1
+],
+[
+53.2,
+221.7
+],
+[
+51.7,
+220.3
+],
+[
+50.0,
+218.5
+],
+[
+48.6,
+216.7
+]
+],
+"why": "W/NW winds veer from S across 137.5W at 56N, 138.3W at 53N, 141.5W at 50N; 850 theta-e drops 318->298 K behind; trough cells 57.5N 137.5W and 53N 138W"
+},
+{
+"type": "warm",
+"pts": [
+[
+58.4,
+221.7
+],
+[
+57.7,
+223.2
+],
+[
+56.9,
+224.5
+],
+[
+56.0,
+225.6
+],
+[
+55.0,
+226.4
+]
+],
+"why": "east edge of the warm tongue: theta-e 308->296 K across 135-133W at 56N with SE winds ahead and 3 h falls east of the 1010 low"
+}
+],
+"note": "The warm tongue and wind shift are organised around the 1010 hPa wave at 53N 138W; unsure whether the analyst assigns the cold/warm fronts to this 999 hPa low or to that wave. Occlusion near the Alaska coast is weak."
+},
+"g0394": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+45.0,
+204.5
+],
+[
+44.0,
+202.4
+],
+[
+42.8,
+200.5
+],
+[
+41.6,
+198.7
+],
+[
+40.3,
+197.2
+],
+[
+39.0,
+195.8
+],
+[
+37.7,
+194.1
+],
+[
+36.5,
+192.1
+],
+[
+35.3,
+190.1
+]
+],
+"why": "N/NNW -> W/SW veer at 43.2N 159.9W and 39.3N 164.5W, warm edge of 309->324 K theta-e rise along NW side of the warm plume, rises behind"
+},
+{
+"type": "warm",
+"pts": [
+[
+45.0,
+204.5
+],
+[
+44.9,
+206.4
+],
+[
+44.6,
+208.2
+],
+[
+43.9,
+209.7
+],
+[
+43.0,
+210.8
+]
+],
+"why": "SE->S backing ahead with theta-e 319->305 K east of the low, 3 h falls centred 44.5N 152.5W, cloud shield NE of the low"
+}
+],
+"note": "Young wave; warm front gradient fades quickly east of 150W, so its length is uncertain."
+},
+"g0395": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+56.5,
+188.6
+],
+[
+55.6,
+189.1
+],
+[
+54.5,
+189.5
+],
+[
+53.4,
+189.4
+]
+],
+"why": "850/700 warm tongue (300 K / 297 K) reaching north toward the low; band of 3 h falls just east of it"
+},
+{
+"type": "cold",
+"pts": [
+[
+53.4,
+189.4
+],
+[
+52.0,
+188.4
+],
+[
+50.5,
+187.7
+],
+[
+49.0,
+187.1
+],
+[
+47.5,
+186.4
+],
+[
+46.0,
+185.6
+],
+[
+44.8,
+185.0
+]
+],
+"why": "S/SSW -> W veer at 53N -171.5, 50N -172.7, 47N -174; warm edge of 317->297 K drop; trough at 52N -172.5; falls ahead"
+},
+{
+"type": "warm",
+"pts": [
+[
+53.4,
+189.4
+],
+[
+53.8,
+191.5
+],
+[
+54.3,
+193.7
+],
+[
+54.9,
+196.0
+],
+[
+55.4,
+198.2
+]
+],
+"why": "SE winds backing north of it (shift SE->SSW at 55.5N -161.5, 54.4N -166); 299->304 K rise to the south; weak"
+}
+],
+"note": "Low on the cold side with weak theta-e gradient near it; triple point (~53.4N -170.6) and the warm front (weak, ENE-running) are the least certain parts."
+},
+"g0441": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+49.6,
+200.5
+],
+[
+50.6,
+201.2
+],
+[
+51.0,
+202.6
+],
+[
+50.4,
+204.0
+],
+[
+49.3,
+204.8
+],
+[
+48.3,
+205.0
+]
+],
+"why": "te850 warm tongue (~302 K) wraps north of the low (51N 158W) back to the cloud band; falls max N/NE of the low"
+},
+{
+"type": "cold",
+"pts": [
+[
+48.3,
+205.0
+],
+[
+47.0,
+204.7
+],
+[
+46.0,
+204.4
+],
+[
+44.5,
+203.5
+],
+[
+43.0,
+202.4
+],
+[
+41.5,
+200.6
+],
+[
+40.0,
+198.6
+],
+[
+38.8,
+196.8
+],
+[
+37.6,
+195.0
+]
+],
+"why": "veer S/SSW -> W/WNW on the warm edge of the narrow te850 tongue at 48N 154.8W, 46N 155.6W, 43N 157.6W, 40N 161.5W along the cloud band"
+},
+{
+"type": "warm",
+"pts": [
+[
+48.3,
+205.0
+],
+[
+48.3,
+206.8
+],
+[
+47.9,
+208.6
+],
+[
+47.3,
+210.3
+]
+],
+"why": "backing to SSE ahead and te850 warm edge ~48N at 153W; weak"
+}
+],
+"note": "warm tongue is narrow (warm conveyor) with no broad warm sector; warm front evidence thin; many other lows in the ring"
+},
+"g0446": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+45.2,
+233.8
+],
+[
+44.0,
+234.0
+],
+[
+42.7,
+234.2
+],
+[
+41.3,
+234.0
+],
+[
+40.0,
+233.2
+],
+[
+38.8,
+231.8
+],
+[
+37.8,
+230.0
+],
+[
+37.0,
+228.2
+],
+[
+36.6,
+226.5
+],
+[
+36.2,
+224.9
+]
+],
+"why": "W to SW wind shift S of the low near 125.5-126W (43N, 41N), then along the warm (south) edge of the 37N theta-e gradient (317-322 K) to join the given stationary front"
+}
+],
+"note": "cut-off cold-core low with almost uniform theta-e around it; only a weak wind shift marks the front near the low, so its link to the 37N baroclinic zone was largely from the examples"
+},
+"g0518": {
+"fronts": [
+{
+"type": "occluded",
+"pts": [
+[
+51.3,
+225.4
+],
+[
+50.9,
+226.8
+],
+[
+50.4,
+228.2
+],
+[
+49.8,
+229.5
+],
+[
+49.2,
+230.5
+],
+[
+48.8,
+231.0
+]
+],
+"why": "comma-head low with 3 h falls elongated ESE of it; wraps from the low to the NW tip of the 850/700 warm tongue"
+},
+{
+"type": "cold",
+"pts": [
+[
+48.8,
+231.0
+],
+[
+47.4,
+230.6
+],
+[
+46.0,
+230.2
+],
+[
+44.6,
+229.7
+],
+[
+43.2,
+229.0
+],
+[
+41.8,
+228.2
+],
+[
+40.4,
+227.3
+]
+],
+"why": "NW edge of the narrow 320 K theta-e tongue (warm edge ~44N 129W, 40.5N 131W) with SW->W veer behind it; cloud band"
+},
+{
+"type": "warm",
+"pts": [
+[
+48.8,
+231.0
+],
+[
+48.5,
+232.2
+],
+[
+48.2,
+233.4
+],
+[
+47.9,
+234.6
+]
+],
+"why": "backing to SE/S north of 49N 128W and theta-e rise 304->318 K toward 48N 126W"
+}
+],
+"note": "Wind shift and theta-e drop are both gradual and ~150 nm apart; unclear whether the low carries a cold front straight south or an occlusion to a triple point near 49N 129W."
+},
+"g0558": {
+"fronts": [
+{
+"type": "cold",
+"pts": [
+[
+41.6,
+187.9
+],
+[
+40.8,
+188.7
+],
+[
+39.6,
+188.8
+],
+[
+38.3,
+188.2
+],
+[
+37.0,
+187.4
+],
+[
+35.8,
+186.2
+],
+[
+34.8,
+184.7
+],
+[
+34.0,
+183.0
+],
+[
+33.6,
+181.2
+],
+[
+33.6,
+180.0
+]
+],
+"why": "NW -> SSE wind shift with warm edge of 309->329 K drop at 40N -171 and 37N -172.5; cloud band trailing SSW from wave"
+}
+],
+"note": "warm side has little wind contrast near the S end (NE flow both sides at 33N), so the SW tail is placed on theta-e only; stationary front given covers the NE side"
+}
+}
