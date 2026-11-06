@@ -31,9 +31,12 @@ fronts = """  <section id="fronts">
     <p class="about">The low and any stationary front are given. Draw the cold, warm and occluded fronts, then compare with the Unified Surface Analysis.
       Full credit within 150 nm; front type counts double. 522 cases from analyses since mid-August 2026.</p>
     <div class="cards">
-      <div class="card wide"><h3>Front drill</h3><p>One system per case at a synoptic hour. Fields: MSLP and thickness, satellite imagery, 850 mb theta-e,
+      <div class="card"><h3>Front drill</h3><p>One system per case at a synoptic hour. Fields: MSLP and thickness, satellite imagery, 850 mb theta-e,
         10 m convergence, 3 h pressure tendency, 10 m wind with ASCAT, 250 mb isotachs.</p><span class="meta">About 90 seconds a case</span>
         <div class="acts"><a class="act primary" href="fronts/">Start the front drill</a></div></div>
+      <div class="card ref"><h3>Frontal analysis quick guide</h3><p>How to place cold, warm and occluded fronts from the fields in the drill, and how the
+        Unified Surface Analysis draws them.</p>
+        <div class="acts"><a class="act" href="fronts/guide.html">Read the quick guide</a></div></div>
     </div>
   </section>
 """
@@ -41,7 +44,7 @@ landing = (here / "site" / "index.html").read_text()
 have_fronts = (site / "fronts" / "index.html").exists()
 landing = landing.replace("<!--FRONTS-->", fronts if have_fronts else "")
 landing = landing.replace("<!--FRONTS_NAV-->", '<a href="#fronts">Frontal analysis</a>' if have_fronts else "")
-landing = landing.replace("<!--FRONTS_STEP-->", "        <li>Add the <b>Front drill</b> to practise frontal placement alongside wind speed.</li>" if have_fronts else "")
+landing = landing.replace("<!--FRONTS_STEP-->", "        <li>Read the <b>Frontal analysis quick guide</b>, then add the <b>Front drill</b> alongside wind speed.</li>" if have_fronts else "")
 (site / "index.html").write_text(landing)
 m = json.loads((deck / "manifest.json").read_text())
 keep = {"manifest.json", "bench.json"}
