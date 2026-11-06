@@ -198,6 +198,15 @@ def strong_lift(base, models, lift_kt, thresh_kt, ocean=None):
     return np.where(on, base + np.float32(lift_kt), base).astype(np.float32)
 
 
+def mixdown_gap(s925, ten_m, sea_air, s925_kt=35.0, ten_kt=25.0, sea_air_c=5.0):
+    """The 925 mix-down gap (Jason 2026-11-06): True where the 925 mb wind is >= s925_kt, the model 10 m wind is
+    < ten_kt and sea minus 2 m air is >= sea_air_c (strongly unstable air under a strong low-level jet). NaN in
+    any input: False. Defaults are the 925 mix-down study's (studies/2026-11-06-925-mixdown); bool, input shape."""
+    s925, ten_m, sa = (np.asarray(x, np.float32) for x in (s925, ten_m, sea_air))
+    with np.errstate(invalid="ignore"):
+        return (s925 >= s925_kt) & (ten_m < ten_kt) & (sa >= sea_air_c)
+
+
 HF_CEIL_EDGES_C, HF_CEIL_F, HF_CEIL_KT = (2.0, 5.0), (0.70, 0.79, 0.83), 60.0
 
 

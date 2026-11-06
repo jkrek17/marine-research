@@ -1,0 +1,20 @@
+{
+ "factors_tune": {
+  "5-8": 0.6451483368873596,
+  "8+": 0.6618887186050415
+ },
+ "grid": {
+  "gap -> 34": {
+   "natl_control_T": 33.96875,
+   "npac_control_T": 33.96875
+  },
+  "gap -> 925 x f": {
+   "natl_control_T": 33.96875,
+   "npac_control_T": 34.0
+  }
+ },
+ "warn": {
+  "natl_control_T": 29.984375,
+  "npac_control_T": 29.984375
+ }
+}
