@@ -186,6 +186,18 @@ def half_deg(a):
     return ndimage.map_coordinates(sub, [jj, ii], order=1, mode="nearest").astype(np.float32)
 
 
+def strong_lift(base, models, lift_kt, thresh_kt, ocean=None):
+    """base + lift_kt where the strongest of `models` (kt grids, a sequence or a [k, y, x] array) is >= thresh_kt
+    and `ocean` is True (None: everywhere); base elsewhere. NaN model cells are ignored (np.fmax); a cell where
+    every model is NaN is not lifted. float32, base's shape."""
+    base = np.asarray(base, np.float32)
+    strongest = np.fmax.reduce([np.asarray(m, np.float32) for m in models], axis=0)
+    on = strongest >= thresh_kt
+    if ocean is not None:
+        on = on & np.asarray(ocean, bool)
+    return np.where(on, base + np.float32(lift_kt), base).astype(np.float32)
+
+
 def det_blend(basin, cycle, step, models=MODELS, weights=None, lags=(12, 24), k=NOMEM_K):
     """The page's deterministic blend (build.py nomem_blend / support_base) from the store -> {"r10", "runs"} or None.
 

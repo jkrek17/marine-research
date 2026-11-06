@@ -172,7 +172,12 @@ def sat_images(basin, valid, lat_n, lon_w, stem, out):
     return ir, am
 
 
+SAT = True        # --no-sat: skip the IR and air-mass images (about 200 MB a case); a later run without it adds them
+
+
 def satellite_for(row, out):
+    if not SAT:
+        return
     """Satellite JPEGs for both snapshots of a case (skips files already written) -> {snap: (ir, am)}."""
     lat_n, lon_w = box_for(row)
     res = {}
@@ -274,7 +279,7 @@ def manifest(rows, out):
                           **({"plat": float(r["plat" + s]), "plon": float(r["plon" + s])} if r.get("plat" + s) else {}),
                           **sat["t0" if s == "0" else "t24"]}
         cases.append({"id": r["id"], "basin": r["basin"], "lat0": lat_n, "lon0": lon_w,
-                      "t0": snap("0"), "t24": snap("24")})
+                      "t0": snap("0"), "t24": snap("24"), **({"pool": r["pool"]} if r.get("pool") else {})})
     scene = all("plat" in c["t0"] for c in cases)
     m = {"version": 2 if scene else 1, "res": RES, "ny": NY, "nx": NX, "truth": "scene" if scene else "low",
          "source": ("GFS analysis maps; ASCAT (RSS, Metop-B/C) truth: the strongest wind anywhere in the map box "
@@ -290,7 +295,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(HERE / "page" / "deck"))
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--no-sat", action="store_true", help="skip satellite images (Jason's call on pull size)")
     a = ap.parse_args()
+    global SAT
+    SAT = not a.no_sat
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     rows = list(csv.DictReader(open(ROOT / "key.csv")))

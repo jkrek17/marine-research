@@ -39,3 +39,32 @@ Version 2 adds `"truth": "scene"` and per snapshot `plat`, `plon` (the ASCAT cel
 `cat`: 0 none, 1 gale, 2 storm, 3 HF. Valid times are not in the manifest (dates hidden); a separate `key.csv` beside it, not published, maps ids to times.
 
 `deck/<id>.bin`: two snapshots (t0 then t24), each = for every field in `fields` order a `ny x nx` uint8 array (row 0 = north, value = offset + scale x byte, 255 = missing), then ASCAT speed (kt, 1 kt steps, 255 = not seen; highest cell in each 0.5 deg box), ASCAT direction (meteorological degrees / 2, 255 = not seen), land (1 land or ice, 0 water).
+
+## Beat the model (Jason 2026-11-06)
+
+Replaces grow / hold / decay as the forecast game (Benchmark and Pairs still use the change call). The trainee sees each model's full +24 h forecast maps (`fc_deck.py`: GFS for every case, ECMWF open data for 00/12Z runs from March 2025), switchable with the analysis now, plus the model's own 10 m wind and its strongest wind on the map; calls the category ASCAT will show at +24 h; each model's own category is scored the same way. `deck/<id>_fc_<model>.bin` is one snapshot in the .bin layout with the model's 10 m wind speed and direction in the ASCAT layers; `case.fc[model] = {peak, cat}` in the manifest.
+
+Models on the 174-case deck (3rd-highest 10 m wind on the map vs ASCAT's): GFS exact 67% (persistence 45%), too low 20%, too high 13%; storm cases right 60% (38% low), HF right 12% (88% low). ECMWF (57 cases) exact 58%, too low 33%; median 3 kt under ASCAT.
+
+## Storm or HF? and three more winters (Jason 2026-11-06)
+
+Pairs is retired (it trained the growth call, the lowest-ceiling skill). Storm or HF? shows only maps with storm force or stronger somewhere: half are analysis snapshots at an ASCAT pass, half are +24 h forecast cases (GFS/ECMWF maps, ASCAT at +24 h storm or stronger). Call 48-63 or 64+; category points as elsewhere; stats show HF caught and HF over-called, you vs GFS and vs 925 x stability.
+
+Deck: winters 2021-22, 2022-23, 2023-24 added (find_cases.py, scene.py, pick.py --scene --keep ... --strong). Jason chose about half the new candidates with satellite (the full set with satellite measured ~95 GB, ~265 MB a case; GFS f000 35 MB a time, IR + air-mass ~98 MB a time): every new HF low first (61), then a random fill, 160 new cases, deck 334. Cases marked pool=hf (44) are storm-force extras shown only in Storm or HF?, so the other games keep their mix. Storm or HF? pool: 366 analysis snapshots (95 HF, was 28), 180 forecast cases (51 HF, was 16). No ECMWF before March 2025. The ingredient statistics stay on the two winters 2024-26 (ingredients.csv); new cases have no ingredient debrief.
+
+### 925 x stability (rule925.py)
+
+Jason: "really can just use the Air-sea and 925 winds to pinpoint and determine winds". The shortcut as the page computes it: strongest 925 mb wind over water on the map (3rd of the top 20 cells) x a factor from the largest sea minus 2 m air among those 20 cells. Factors = median ASCAT answer / 925 by class, fitted on 2024-26 analysis snapshots: 0.68 (< 2 C), 0.76 (2-5 C), 0.82 (5 C+); refit on all five winters 0.70 / 0.79 / 0.83 (in the manifest as rule925). The per-low factors in the earlier hint (0.87-1.13, 925 near the centre) run ~10 kt high map-wide.
+
+| Test (factors from 2024-26) | n | Exact | Storm+ exact | HF caught | HF over-called (of storm) | GFS 10 m exact | GFS storm+ exact | GFS HF caught |
+|---|---|---|---|---|---|---|---|---|
+| Analysis, 2024-26 (in sample) | 348 | 70% | 64% | 16/28 | 6/112 | | | |
+| Analysis, 2021-24 (held out) | 320 | 68% | 62% | 32/67 | 4/159 | | | |
+| GFS +24 h maps, 2024-26 | 174 | 72% | 68% | 6/16 | 2/50 | 67% | 48% | 2/16 |
+| GFS +24 h maps, 2021-24 (held out) | 160 | 65% | 61% | 19/35 | 7/79 | 54% | 44% | 7/35 |
+
+It holds out of sample and beats the GFS 10 m wind at +24 h, most at the top end; it still misses about half the HF. It is shown in every result and scored like a model in the stats.
+
+### Benchmark and reading-the-wind page (Jason 2026-11-06)
+
+"The benchmark test does growth/decay. that needs to change": Benchmark v2 = 20 fixed Beat the model cases (make_bench.py, 5 per +24 h category, GFS forecast required, no pool=hf extras), scored like the game; summary shows you vs GFS, ECMWF and 925 x stability, history per device (new storage key; v1 change-call runs are not compared). "Redo the main page removing growth/decay. the ingredients page needs to tell you about wind speed detection": the Ingredients page is now Reading the wind (manifest.speed from rule925.py): factor table with the 925 wind each category needs (sea-air < 2 C: 49/69/91 kt for gale/storm/HF; 2-5 C: 43/61/81; 5 C+: 41/58/77), held-out test, model 10 m bias by ASCAT category (GFS +3/+1/-5/-10 kt for none/gale/storm/HF; ECMWF 0/-8/-10 at gale/storm/HF, few cases), and the +24 h shoot-out on 334 cases: GFS 10 m 61% right, storm/HF 46%, HF 9/51; GFS +8 kt where GFS 44+ 71%, 79%, 37/51 (over-calls 22%); 925 x stability 70%, 71%, 31/51 (over 17%). The growth-ingredient debrief is removed from the result card.

@@ -16,6 +16,10 @@ allows; the rest goes to the other classes), the same low at most once in any 48
 --keep re-keys an earlier deck instead of starting over: its cases that are still candidates keep their ids
 (new categories from the new truth), and only the gaps are filled with new picks (ids after the highest).
 The old key is first copied to key_v1.csv if that does not exist.
+
+--strong N (Jason 2026-11-06, the "Storm or HF?" game) then adds up to N more lows that are storm force or
+stronger at T or T + 24 h, HF first, same clash rule, marked pool=hf in key.csv: the page shows them only in
+Storm or HF?, so the other games keep their balanced mix. An earlier key's pool column is kept.
 """
 import argparse
 import csv
@@ -122,6 +126,37 @@ def pick(cands, n, seed, kept=()):
     return list(kept) + new
 
 
+def add_strong(cands, deck, n, seed):
+    """Up to n more storm-force lows (category 2+ at T or T + 24 h), HF first, never clashing with the deck."""
+    rng = random.Random(seed + 1)
+    ids = {id(x) for x in deck}
+    pool = [x for x in cands if id(x) not in ids and max(x["c0"], x["c1"]) >= 2]
+    rng.shuffle(pool)
+    pool.sort(key=lambda x: -max(x["c0"], x["c1"]))   # HF first (stable sort keeps the shuffle within a class)
+    chosen = list(deck)
+
+    def clash(x):
+        for y in chosen:
+            if y["basin"] != x["basin"] or abs((y["t0"] - x["t0"]).total_seconds()) >= 48 * 3600:
+                continue
+            for t, (la, lo) in y["track"].items():
+                q = x["track"].get(t)
+                if q and km(la, lo, q[0], q[1]) < 300:
+                    return True
+        return False
+
+    got = 0
+    for x in pool:
+        if got >= n:
+            break
+        if not clash(x):
+            x["pool"] = "hf"
+            chosen.append(x)
+            got += 1
+    print("storm-force extras (pool=hf):", got, "| HF at either time:", sum(max(x["c0"], x["c1"]) == 3 for x in chosen[len(deck):]))
+    return chosen
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=200)
@@ -129,6 +164,7 @@ def main():
     ap.add_argument("--find", default="find2")
     ap.add_argument("--keep", default=None, help="earlier key.csv to re-key (keeps its ids)")
     ap.add_argument("--scene", action="store_true", help="scene answer from scene.json (version 2)")
+    ap.add_argument("--strong", type=int, default=0, help="extra storm-force lows for Storm or HF? (pool=hf)")
     a = ap.parse_args()
     cands = candidates(load(a.find))
     if a.scene:
@@ -172,6 +208,7 @@ def main():
                 lost.append(r["id"])
                 continue
             x["id"] = r["id"]
+            x["pool"] = r.get("pool", "")
             kept.append(x)
         next_id = max(int(r["id"][1:]) for r in old) + 1
         moved = sum(int(r["cat0"]) != x["c0"] or int(r["cat24"]) != x["c1"]
@@ -182,6 +219,8 @@ def main():
         tab[x["c0"], x["c1"]] += 1
     print("candidates", len(cands), "(rows category at T, columns at T+24)\n", tab)
     deck = pick(cands, a.n, a.seed, kept)
+    if a.strong:
+        deck = add_strong(cands, deck, a.strong, a.seed)
     for x in deck:
         if "id" not in x:
             x["id"] = "c%04d" % next_id
@@ -193,13 +232,13 @@ def main():
     with open(ROOT / "key.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["id", "basin", "t0", "t24", "lat0", "lon0", "hpa0", "peak0", "cover0", "cat0",
-                    "lat24", "lon24", "hpa24", "peak24", "cover24", "cat24", "plat0", "plon0", "plat24", "plon24"])
+                    "lat24", "lon24", "hpa24", "peak24", "cover24", "cat24", "plat0", "plon0", "plat24", "plon24", "pool"])
         for x in deck:
             r0, r1, v = x["r0"], x["r1"], x.get("scene", {})
             w.writerow([x["id"], x["basin"], x["t0"].strftime("%Y%m%d%H"), x["t1"].strftime("%Y%m%d%H"),
                         r0["lat"], r0["lon"], r0["hpa"], v.get("peak_0", r0["peak3"]), r0["cover"], x["c0"],
                         r1["lat"], r1["lon"], r1["hpa"], v.get("peak_24", r1["peak3"]), r1["cover"], x["c1"],
-                        v.get("plat_0", ""), v.get("plon_0", ""), v.get("plat_24", ""), v.get("plon_24", "")])
+                        v.get("plat_0", ""), v.get("plon_0", ""), v.get("plat_24", ""), v.get("plon_24", ""), x.get("pool", "")])
 
 
 if __name__ == "__main__":

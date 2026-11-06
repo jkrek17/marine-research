@@ -209,6 +209,7 @@ table.jt th{background:var(--tint)}
 /* change call, tap, pairs, benchmark */
 .policy{margin:6px 0 0;padding:8px 12px;border-left:3px solid var(--storm);background:var(--paper)6ef;font-size:14px;font-weight:600}
 .answers.ch3{grid-template-columns:repeat(3,1fr)}
+.answers.ch2{grid-template-columns:repeat(2,1fr)}
 .ans:disabled{opacity:.4;cursor:not-allowed}
 .ans[data-ch="1"]{border-left-color:var(--storm)}
 .ans[data-ch="0"]{border-left-color:var(--none)}
@@ -296,3 +297,27 @@ table.conf td.diag{background:var(--navytint)}
 .playgrid>.left,.pgrid>.pcol{min-width:0}
 @media (min-width:900px){.tabs{flex-wrap:wrap;overflow-x:visible}}
 .credits{margin-top:32px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3);max-width:72ch}
+
+/* Beat the model: map source switch */
+.srcbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.srcbar[hidden]{display:none}
+.srcbar .src{font:600 13px/1 'IBM Plex Sans',system-ui,sans-serif;padding:8px 12px;border-radius:999px;border:1px solid var(--navy);background:var(--paper);color:var(--navy);cursor:pointer}
+.srcbar .src.on{background:var(--navy);color:var(--cream)}
+.srcbar .srcnote{font-size:12px;color:#6b6457}
+
+/* Training site shell (2026-11-06): site name links to the landing page, drills in the nav */
+a.brand{color:var(--on);text-decoration:none}
+.sitenav{display:flex;gap:4px;margin-left:12px}
+.sitenav a,.sitenav button{color:var(--on);background:none;border:0;text-decoration:none;padding:4px 10px;border-radius:999px;font:inherit;font-size:14px;opacity:.8;cursor:pointer}
+.sitenav [aria-current=page]{background:rgba(247,242,230,.15);opacity:1}
+.top .topright{margin-left:auto}
+.choice.three{grid-template-columns:repeat(3,1fr)}
+@media (max-width:720px){.choice.three{grid-template-columns:1fr}}
+.toggles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.toggles .toggle{margin-top:16px}
+@media (max-width:560px){.toggles{grid-template-columns:1fr}.toggles .toggle+.toggle{margin-top:0}}
+.morebtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.morebtns .btn{flex:1 1 180px;min-height:44px;margin:0;font-size:15px}
+details.points{margin-top:22px;padding:10px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+details.points summary{cursor:pointer;font-weight:700}
+.top{justify-content:flex-start}
