@@ -68,6 +68,52 @@ def test_products_follow_definitions():
     assert S.make(("DS1", 6, 44, None), d) is None and S.make(("CLS1", 6, 44, None), d) is None
 
 
+def test_desk_stability_mask_taper_and_theta():
+    n = 21
+    base = np.full((n, n), 30.0, np.float32)
+    t925 = np.full((n, n), 275.0)
+    p = np.full((n, n), 1000.0)
+    tsfc = np.full((n, n), 270.0)          # theta_sfc 270 < theta925 ~ 279.6: stable
+    assert np.array_equal(S.desk_stability_wind(base, tsfc, p, t925), base)
+    tsfc[10, 10] = 285.0                    # theta_sfc 285 >= theta925: one unstable cell
+    out = S.desk_stability_wind(base, tsfc, p, t925)
+    fac = 3.0 ** 0.15
+    assert np.isclose(out[10, 10], 30 * fac, rtol=1e-5)          # full factor in the mask
+    assert np.isclose(fac, 1.179, atol=1e-3)
+    assert 30 < out[10, 11] < out[10, 10] and 30 < out[10, 12] < out[10, 11]   # taper over the 2-cell rim
+    assert out[10, 13] == 30.0 and out[13, 13] == 30.0                         # nothing beyond the rim
+    assert (out >= base).all()
+    # equal theta counts as unstable (<=): T925 (1000/925)^(2/7) == T_sfc at p = 1000
+    t = np.full((n, n), 280.0)
+    tsfc2 = t * (1000.0 / 925.0) ** (2.0 / 7.0)
+    assert (S.desk_stability_wind(base, tsfc2, p, t) > base).all()
+    # pressure matters: lower surface pressure raises theta_sfc
+    assert (S.desk_stability_wind(base, np.full((n, n), 275.0), np.full((n, n), 925.0), t925) > base).all()
+    assert not np.isnan(S.desk_stability_wind(base, np.full((n, n), np.nan), p, t925)).any()
+
+
+def test_gated_mixdown():
+    ocean = np.ones((1, 5), bool)
+    s925 = np.array([[40, 40, 30, 50, 45]], np.float32)
+    sa = np.array([[4.9, 6, 6, 9, np.nan]], np.float32)
+    base = np.full((1, 5), 41.0, np.float32)
+    out = S.gated_mixdown(base, s925, sa, ocean)
+    assert np.allclose(out[0], [41, 41.6, 41, 56.5, 41])      # 40 x 1.04 = 41.6; 50 x 1.13 = 56.5; raise only
+    assert (S.gated_mixdown(base, s925, sa, ~ocean) == base).all()
+
+
+def test_lift_columns_and_sHe():
+    d = _case()
+    D = d["det"]
+    she = S.make(("SHe", None, None, None), d)
+    assert np.allclose(she, D * 3.0 ** 0.15, rtol=1e-5)
+    c = dict(zip(S.LIFT_COLS, S.lift_columns(she, D, d)))
+    assert c["n_lift"] == int((she > D + 0.05).sum()) and c["n_lift_seen"] == int(((she > D + 0.05) & d["seen"]).sum())
+    assert c["n_lift_a48"] <= c["n_lift_a34"] <= c["n_lift_seen"] <= c["n_lift"]
+    low = (she > D + 0.05) & d["seen"] & (D < 34)
+    assert c["n_err_low"] == int(low.sum()) and np.isclose(c["sum_err_low"], (she - d["spd"])[low].sum(), rtol=1e-4)
+
+
 def test_names_roundtrip():
     for sp in S.grid_specs():
         assert S.spec_of(S.name(sp)) == sp

@@ -48,6 +48,7 @@ sys.path.insert(0, str(HERE.parent / "2026-11-05-core-lift-bias"))
 sys.path.insert(0, str(HERE))
 
 import numpy as np  # noqa: E402
+from scipy import ndimage  # noqa: E402
 import pandas as pd  # noqa: E402
 
 import build as B  # noqa: E402
@@ -66,7 +67,15 @@ SA_EDGES, SA_F = (2.0, 5.0, 8.0), (0.87, 0.94, 1.04, 1.13)
 PAGE_KINDS, GFE_KINDS = ("CLS1", "CLS2", "CLS3"), ("DC", "DS1", "DS2", "DS3")
 BASE_OF = {k: "CL" for k in PAGE_KINDS}
 BASE_OF.update({k: "D" for k in GFE_KINDS + ("DS13",)})
-LOW_KINDS = ("CLS3", "DS3", "DS13")
+# Fixed products (nothing tuned, reported only): gated 925 mb mix-down and the desk's Stability Height
+FIXED_PAGE, FIXED_GFE = ("CLS3g",), ("DS3g", "SHs", "SHl", "SHe")
+FIXED = FIXED_PAGE + FIXED_GFE
+BASE_OF.update({"CLS3g": "CL", "DS3g": "D", "SHs": "D", "SHl": "D", "SHe": "D"})
+LIFT_KINDS = ("DS3g", "CLS3g", "SHs", "SHl", "SHe")   # products with per-case "where it lifts" columns
+DESK = ("DS3g", "CLS3g", "SHs", "SHl", "SHe", "D", "CL", "DG")
+GATE_S925_KT, GATE_SA_C = 34.0, 5.0
+SH_EXPONENT, SH_RIM = 0.15, 2        # Stability_Model_Blender: POWER_LAW_EXPONENT, 10 m -> 30 m; mask grown 2 cells
+LOW_KINDS = ("CLS3", "DS3", "DS13") + FIXED
 LINE_TS, LINE_THR = tuple(range(33, 51)), (48, 64)
 LINE_KEYS = ("events", "hits", "obs_cells", "obs_in", "cells", "bad_cells", "warned_cells", "reach_cells")
 
@@ -81,6 +90,10 @@ def name(spec):
 
 def kind_of(label):
     return label.split("_")[0]
+
+
+def fixed_specs():
+    return [(k, None, None, None) for k in FIXED]
 
 
 def grid_specs():
@@ -107,6 +120,34 @@ def mixdown(base, strong, s925, sa, ocean, a):
     return np.where(cand, np.maximum(base, base + np.float32(a) * (target - base)), base).astype(np.float32)
 
 
+def gated_mixdown(base, s925, sa, ocean):
+    """Fixed gated 925 mb mix-down: where ocean & s925 >= 34 kt & sea-air >= 5 C, max(base, s925 f(sa)) at the full
+    factor (1.04 for 5-8 C, 1.13 above); base elsewhere. Raise only; NaN inputs fail the gate."""
+    with np.errstate(invalid="ignore"):
+        gate = ocean & (s925 >= GATE_S925_KT) & (sa >= GATE_SA_C)
+    return np.where(gate, np.maximum(base, s925 * sea_air_factor(sa)), base).astype(np.float32)
+
+
+def desk_stability_wind(base, t_sfc_k, p_sfc_hpa, t925_k, rim=SH_RIM, exponent=SH_EXPONENT):
+    """The desk's Stability Height step (GFE Stability_Model_Blender._getStabilityHeightWind / _applyWindWithMask) on
+    a speed grid. Unstable where theta925 <= theta_sfc, theta = T (1000 / p)^(2/7) with p = 925 hPa aloft and the
+    surface pressure below (the tool: GFS p:SFC, ECMWF pmsl; here the caller passes MSLP, kt-free hPa). Unstable
+    wind x (30 / 10)^exponent. The mask is grown `rim` cells (square) and the factor tapers linearly over the rim:
+    weight = distance to the edge of the grown mask / (rim + 1), capped at 1, so mask cells keep the full factor.
+    (The tool's taper is 4 cells wide, SWATH_EDGE x TAPER_WIDTH_MULTIPLIER; the card asks for the 2-cell rim.)
+    Raise only. NaN inputs count as stable."""
+    base = np.asarray(base, np.float32)
+    with np.errstate(invalid="ignore"):
+        th925 = np.asarray(t925_k, np.float64) * (1000.0 / 925.0) ** (2.0 / 7.0)
+        th_sfc = np.asarray(t_sfc_k, np.float64) * (1000.0 / np.asarray(p_sfc_hpa, np.float64)) ** (2.0 / 7.0)
+        unstable = th925 <= th_sfc
+    if not unstable.any():
+        return base
+    grown = ndimage.binary_dilation(unstable, structure=np.ones((3, 3), bool), iterations=rim)
+    w = np.clip(ndimage.distance_transform_edt(grown) / (rim + 1.0), 0.0, 1.0)
+    return (base * (1.0 + w * (3.0 ** exponent - 1.0))).astype(np.float32)
+
+
 def prep(path):
     z = np.load(path)
     d = {k: z[k] for k in z.files}
@@ -121,9 +162,33 @@ def prep(path):
     return d
 
 
+def make_fixed(kind, d):
+    oc = d["ocean"]
+    if kind == "CLS3g":
+        return gated_mixdown(d["CL"], d["s925"], d["sa"], oc) if "CL" in d and d["has_low"] else None
+    if "det" not in d:
+        return None
+    if kind == "DS3g":
+        return gated_mixdown(d["det"], d["s925"], d["sa"], oc) if d["has_low"] else None
+    if kind == "SHe":      # reference: the tool's "Entire" mode, the factor on every ocean cell
+        return np.where(oc, d["det"] * np.float32(3.0 ** SH_EXPONENT), d["det"]).astype(np.float32)
+    if kind == "SHs":      # strict, GFS style: 2 m air temperature and GFS MSLP
+        if not all(k in d for k in ("g_t2", "g_t925", "gfs_msl")):
+            return None
+        return desk_stability_wind(d["det"], d["g_t2"], d["gfs_msl"], d["g_t925"])
+    if all(k in d for k in ("i_skt", "i_t925", "ifs_msl")):      # SHl, loose, ECMWF style: IFS skin temperature
+        return desk_stability_wind(d["det"], d["i_skt"], d["ifs_msl"], d["i_t925"])
+    if all(k in d for k in ("g_skt", "g_t925", "gfs_msl")):      # no IFS low file: GFS skin temperature
+        d["_fb"] = True
+        return desk_stability_wind(d["det"], d["g_skt"], d["gfs_msl"], d["g_t925"])
+    return None
+
+
 def make(spec, d):
     """The product grid for spec on case d, or None when the case lacks an input of it."""
     kind, L, T, a = spec
+    if kind in FIXED:
+        return make_fixed(kind, d)
     oc, s = d["ocean"], d["strong"]
     if kind in ("CL", "CL8"):
         return d.get(kind)
@@ -202,18 +267,44 @@ class Counter:
         return [r[c] for c in COLS]
 
 
+LIFT_COLS = ["n_lift", "n_lift_seen", "n_lift_a34", "n_lift_a48", "sum_err_low", "n_err_low"]
+
+
+def lift_columns(f, base, d):
+    """Where a product lifts its base (ocean cells, product > base + 0.05) and how ASCAT sees those cells."""
+    lift = d["ocean"] & (f > base + 0.05)
+    ls = lift & d["seen"]
+    spd = np.nan_to_num(d["spd"], nan=-1)
+    low = ls & (base < 34)
+    return [int(lift.sum()), int(ls.sum()), int((ls & (spd >= 34)).sum()), int((ls & (spd >= 48)).sum()),
+            float((f - spd)[low].sum()), int(low.sum())]
+
+
+def lift_summary(desk):
+    """Pooled per basin and product: share of seen lifted cells at ASCAT 34+ / 48+, mean (product - ASCAT) where base < 34."""
+    x = desk[desk["product"].isin(LIFT_KINDS)]
+    g = x.groupby(["basin", "product"])[LIFT_COLS].sum().reset_index()
+    g["share_a34"] = g.n_lift_a34 / g.n_lift_seen.replace(0, np.nan)
+    g["share_a48"] = g.n_lift_a48 / g.n_lift_seen.replace(0, np.nan)
+    g["mean_err_base_lt34"] = g.sum_err_low / g.n_err_low.replace(0, np.nan)
+    return g
+
+
 def score_job(args):
     basin, cyc, step, path, specs = args
     d = prep(path)
     cnt = Counter(basin, d)
-    labels, rows = [], []
+    labels, rows, lifts = [], [], []
     for label, spec in specs:
         f = make(spec, d)
         if f is not None:
             labels.append(label)
             rows.append(cnt.counts(f))
-    meta = dict(basin=basin, cycle=cyc, step=step, group=F.group_of(step), fold=F.folds(cyc), has_low=d["has_low"])
-    return meta, labels, np.array(rows, np.int64).reshape(-1, len(COLS))
+            lifts.append(dict(zip(LIFT_COLS, lift_columns(f, d["CL"] if spec[0] == "CLS3g" else d["det"], d)))
+                         if spec[0] in LIFT_KINDS else {})
+    meta = dict(basin=basin, cycle=cyc, step=step, group=F.group_of(step), fold=F.folds(cyc), has_low=d["has_low"],
+                shl_fallback=bool(d.get("_fb", False)))
+    return meta, labels, np.array(rows, np.int64).reshape(-1, len(COLS)), lifts
 
 
 def load_cases(basin, split):
@@ -275,7 +366,7 @@ def tune(a):
     if (res / "FINAL_RUN.json").exists():
         sys.exit("the held-out run has been made; FINAL_CHOICE.json is frozen")
     basins = a.basins.split(",")
-    specs = [(name(s), s) for s in grid_specs()]
+    specs = [(name(s), s) for s in grid_specs() + fixed_specs()]
     order = {k: [name(s) for s in grid_specs() if s[0] == k] for k in PAGE_KINDS + GFE_KINDS}
     jobs, sizes = [], {}
     for b in basins:
@@ -283,17 +374,22 @@ def tune(a):
         sizes[b] = len(cs)
         jobs += [(b, c, s, p, specs) for c, s, p in cs]
     print("tune cases: %s" % sizes, flush=True)
-    acc, ncase = {}, {}
-    for meta, labels, M in run_pool(jobs, a.workers):
-        for lab, row in zip(labels, M):
-            k = (meta["basin"], meta["fold"], meta["group"], meta["has_low"], lab)
+    acc, ncase, desk = {}, {}, []
+    for meta, labels, M, lifts in run_pool(jobs, a.workers):
+        for lab, row, lf in zip(labels, M, lifts):
+            fb = meta["shl_fallback"] and lab == "SHl"
+            k = (meta["basin"], meta["fold"], meta["group"], meta["has_low"], fb, lab)
             acc[k] = acc.get(k, 0) + row
             ncase[k] = ncase.get(k, 0) + 1
+            if lab in DESK:
+                desk.append(dict(meta, product=lab, **dict(zip(COLS, row)), **lf))
     if not acc:
         sys.exit("no tune cases scored: run build.py first")
-    df = pd.DataFrame([dict(zip(["basin", "fold", "group", "has_low", "product"], k), n=ncase[k], **dict(zip(COLS, v)))
+    df = pd.DataFrame([dict(zip(["basin", "fold", "group", "has_low", "fb", "product"], k), n=ncase[k], **dict(zip(COLS, v)))
                        for k, v in acc.items()])
     df.to_csv(res / "tune_counts.csv", index=False)
+    pd.DataFrame(desk).to_csv(res / "tune_desk_rows.csv", index=False)
+    lift_summary(pd.DataFrame(desk)).to_csv(res / "tune_lift_summary.csv", index=False)
     choice, sel, oof = {}, [], []
     for b in basins:
         db = df[df.basin == b]
@@ -336,6 +432,21 @@ def tune(a):
                             oof_pod48=pod(ci), base_pod48=pod(bi), oof_gain=pod(ci) - pod(bi),
                             oof_area48=ci["fc48"] / max(ci["ob48"], 1), oof_area34=ci["fc34"] / max(ci["ob34"], 1)))
         choice[b] = ch
+        # fixed products: reported against their baseline on the same cases, never selected
+        for kind in FIXED:
+            summ = pooled_for(db, kind)
+            lab = kind
+            base, r = summ[summ["product"] == BASE_OF[kind]], summ[summ["product"] == lab]
+            if base.empty or r.empty:
+                continue
+            base, r = base.iloc[0], r.iloc[0]
+            sel.append(dict(basin=b, kind=kind, product=lab, passes_line=bool(F.passes(r, base)), chosen=False,
+                            pod48=r.pod48, pod48_gain=r.pod48 - base.pod48, area48=r.area48, area34=r.area34,
+                            csi34_change=r.csi34 - base.csi34, catch48=r.catch48, catch64=r.catch64, area64=r.area64,
+                            far48=r.far48))
+        shl = db[db["product"] == "SHl"]
+        ch["shl_cases"] = int(shl["n"].sum())
+        ch["shl_gfs_skin_fallback_cases"] = int(shl[shl["fb"]]["n"].sum())
     # DS13: the two tuned pieces together, on the tune cases that have 925 mb data
     d13 = []
     for b in basins:
@@ -347,7 +458,7 @@ def tune(a):
     if d13:
         jobs = [(b, c, s, p, sps) for b, sp, sps in d13 for c, s, p in load_cases(b, "tune")]
         acc13 = {}
-        for meta, labels, M in run_pool(jobs, a.workers):
+        for meta, labels, M, _ in run_pool(jobs, a.workers):
             if not meta["has_low"]:
                 continue
             for lab, row in zip(labels, M):
@@ -386,6 +497,7 @@ def final_specs(ch):
         for kind, c in ch[fam].items():
             if c:
                 out.append((kind, (kind, c.get("L"), c.get("T"), c.get("a"))))
+    out += [(k, (k, None, None, None)) for k in FIXED]
     for kind in ("CLS1", "DS1"):
         for L in DRILL_LS:
             out.append(("%s_drill_L%d_T%d" % (kind, L, DRILL_T), (kind, L, DRILL_T, None)))
@@ -432,9 +544,9 @@ def final(a):
         jobs.append((b, c, s, B.out_path(b, c, s), sp))
     json.dump({"ran": pd.Timestamp.now("UTC").isoformat(), "cases": len(jobs)}, open(res / "FINAL_RUN.json", "w"))
     rows = []
-    for meta, labels, M in run_pool(jobs, a.workers):
-        for lab, r in zip(labels, M):
-            rows.append(dict(meta, product=lab, params=params[(meta["basin"], lab)], **dict(zip(COLS, r))))
+    for meta, labels, M, lifts in run_pool(jobs, a.workers):
+        for lab, r, lf in zip(labels, M, lifts):
+            rows.append(dict(meta, product=lab, params=params[(meta["basin"], lab)], **dict(zip(COLS, r)), **lf))
     df = pd.DataFrame(rows)
     out = res / "final_case_counts.csv"
     df.to_csv(out, index=False)
@@ -445,15 +557,24 @@ def final(a):
     summ = F.pooled(df, ["basin", "product"])
     summ["n_cases"] = df.groupby(["basin", "product"]).size().to_numpy()
     summ = summ.merge(df[["basin", "product", "params"]].drop_duplicates(), on=["basin", "product"])
+    fb = df[df["product"] == "SHl"].groupby("basin")["shl_fallback"].sum()
+    summ["n_shl_gfs_skin_fallback"] = [int(fb.get(b, 0)) if p == "SHl" else 0 for b, p in zip(summ.basin, summ["product"])]
+    desk = df[df["product"].isin(DESK)]
+    desk.to_csv(res / "final_desk_rows.csv", index=False)
+    ls = lift_summary(desk)
+    summ = summ.merge(ls[["basin", "product", "share_a34", "share_a48", "mean_err_base_lt34"]], on=["basin", "product"],
+                      how="left")
+    print("case counts per product:", summ.groupby("product")["n_cases"].sum().to_dict(),
+          "SHl cases on the GFS skin fallback:", fb.to_dict())
     summ.to_csv(res / "final_summary.csv", index=False)
     F.pooled(df, ["basin", "group", "product"]).to_csv(res / "final_by_lead.csv", index=False)
     present = set(df["product"])
     pairs = []
     for p in sorted(present):
         k = kind_of(p)
-        if k in PAGE_KINDS:
+        if k in PAGE_KINDS + FIXED_PAGE:
             pairs += [(p, "CL"), (p, "CL8")]
-        elif k in GFE_KINDS + ("DS13",):
+        elif k in GFE_KINDS + FIXED_GFE + ("DS13",):
             pairs += [(p, "D"), (p, "DG")] + ([(p, "DC")] if (k.startswith("DS") and "DC" in present) else [])
     pairs += [("CL8", "CL"), ("DG", "D")]
     pr = []
@@ -498,7 +619,7 @@ def lines(a):
     _, have = held_out_jobs(res, basins, steps)
     jobs = []
     for b, c, s in have:
-        sp = [x for x in final_specs(choice[b]) if "drill" not in x[0]]
+        sp = [x for x in final_specs(choice[b]) if "drill" not in x[0] and x[0] not in FIXED]
         jobs.append((b, c, s, B.out_path(b, c, s), sp))
     rows, t0 = [], time.time()
     with mp.get_context("spawn").Pool(a.workers) as pool:

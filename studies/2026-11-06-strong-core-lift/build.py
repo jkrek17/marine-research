@@ -16,6 +16,8 @@ Per case one npz in rk.paths.cache("extra", "strong-core-lift", basin):
   det   float16  rk.features.det_blend(models=("gfs","ifs")) r10: the GFE PR #95 recipe (lags 12/24, k=NOMEM_K);
                  absent (status "missing_det") when any of its runs is missing
   gfs ifs float16  deterministic 10 m speeds (kt) of the current runs
+  gfs_msl ifs_msl float32 MSLP (hPa); g_t2 g_skt g_t925 (GFS) and i_skt i_t925 (IFS, where stored) float32 K:
+                 inputs of the desk's Stability_Model_Blender "Stability Height" mask
   p48nb_h float16  GEFS 48 kt member share, 0.5 deg inputs (rk.features.half_deg), neighbourhood max over
                  rk.features.NB: the GEFS-only study's "h" variant (gpredict.py: core()["p48_nb"] with GEFS at 0.5 deg)
   s925 sa st925  float16  GFS 925 mb wind (kt), sea minus 2 m air (skt - t2, C), skin minus 925 mb air (skt - t925);
@@ -111,6 +113,7 @@ def case_job(job):
     for m, d in dets.items():
         if d is not None:
             out[m] = d["speed"].astype(np.float16)
+            out[m + "_msl"] = d["msl"].astype(np.float32)   # hPa, for the desk Stability Height mask
     det = features.det_blend(basin, cycle, step, models=("gfs", "ifs"), lags=LAGS)
     if det is None:
         flags.append("missing_det")
@@ -130,6 +133,12 @@ def case_job(job):
         out["s925"] = (np.hypot(low["u925"], low["v925"]) * KT).astype(np.float16)
         out["sa"] = (low["skt"] - low["t2"]).astype(np.float16)
         out["st925"] = (low["skt"] - low["t925"]).astype(np.float16)
+        for k in ("t2", "skt", "t925"):   # K, for the desk Stability Height mask (theta925 <= theta_sfc)
+            out["g_" + k] = np.asarray(low[k], np.float32)
+    ilow = store.load_low(basin, cycle, "ifs", step)
+    if ilow is not None:
+        for k in ("skt", "t925"):
+            out["i_" + k] = np.asarray(ilow[k], np.float32)
     an = store.analysis(basin, valid) if valid.hour in (0, 12) else None
     anl = np.full(ocean.shape, np.nan, np.float32) if an is None else np.where(an["mask"], an["mean_speed"], np.nan)
     op.parent.mkdir(parents=True, exist_ok=True)
