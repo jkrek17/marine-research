@@ -58,6 +58,15 @@ def specs():
     return s
 
 
+def combo_specs():
+    """Follow-up (Jason 16:42Z, "best combo to be good at both storm and HF"): +L where stronger >= T, then +M more
+    where stronger >= U. Scored after the main pick; rows go to rows_<split>_combo.csv.gz."""
+    s = ["D", "S_L6_T42", "S_L10_T44"]
+    s += ["W_L%d_T%d_M%d_U%d" % (L, T, M, U) for L, T in ((6, 42), (6, 40), (8, 42))
+          for M in (2, 4, 6) for U in (44, 46, 48, 50) if U > T]
+    return s
+
+
 def parse(label):
     kind, *rest = label.split("_")
     p = {r[0]: int(r[1:]) for r in rest}
@@ -141,11 +150,12 @@ def main():
     ap.add_argument("--split", required=True, choices=("tune", "held_out"))
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--basins", default="natl,npac")
+    ap.add_argument("--combo", action="store_true", help="score combo_specs() into rows_<split>_combo.csv.gz")
     a = ap.parse_args()
-    out = paths.data("extra", "gfe-wind-tool") / ("rows_%s.csv.gz" % a.split)
+    out = paths.data("extra", "gfe-wind-tool") / ("rows_%s%s.csv.gz" % (a.split, "_combo" if a.combo else ""))
     if a.split == "held_out" and out.exists():
         sys.exit("held-out rows exist (%s): scored once already" % out)
-    labels = specs()
+    labels = combo_specs() if a.combo else specs()
     jobs = [(b, c, s, p, labels) for b in a.basins.split(",") for c, s, p in S.load_cases(b, a.split)]
     print("%d cases, %d products" % (len(jobs), len(labels)), flush=True)
     t0, allrows = time.time(), []
