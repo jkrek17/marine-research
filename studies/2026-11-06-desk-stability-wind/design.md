@@ -41,3 +41,7 @@
 1. Which tool and option does the desk run (Stability Height / Calc_MixingEfficiency), which models, Unstable or Entire, height left at 30 m? Recommended default: Stability Height, GFS and ECMWF, Unstable, 30 m.
 2. Gated version: stronger of base and 925 x factor inside the gate (never lowers)? Recommended: yes.
 3. Leads: +24/+48 h headline, day 3-5 shown. Recommended: yes.
+
+## Jason's answers (2026-11-06 12:40Z)
+1. "stability model blender": the tool is Stability_Model_Blender. Calc_MixingEfficiency (product 5) is dropped. Option, models and mode not stated, so the defaults stand: Stability Height, 30 m, Unstable, GFS (strict mask) and ECMWF (loose mask) as separate products.
+2-3. Not answered; recommended defaults stand (raise only; +24/+48 h headline, day 3-5 shown).
