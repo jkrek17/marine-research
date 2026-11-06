@@ -1,6 +1,6 @@
 # Best GFE grid wind tool: design card
 
-*Status: running. Jason 2026-11-06 14:40Z picked the pick rule (question 1): most storm catch with storm area <= ASCAT's, gales unchanged. Question 2 open; working on the recommended checkbox / stand-alone step.*
+*Status: done 2026-11-06; see findings.md. Pick rule: most storm catch with storm area <= ASCAT's, gales unchanged (Jason, card 14:40Z). Deliverable: stand-alone switchable smart tool (Jason's "go", 15:00Z).*
 
 **Question** (Jason, 2026-11-06, pattern drill thread): "so how do we make that a tool. does this beat core lifted? what is the best tool for GFE" and "find me the best GFE grid tool".
 
@@ -45,3 +45,4 @@ Not scorable here: the Greenland barrier-flow rule (trust the GFS family in terr
 
 ## Jason's answers
 1. 2026-11-06 14:40Z (card): "Most storm catch, area <= ASCAT" -> `analyze.py --rule cap1`.
+2. 2026-11-06 15:00Z: "go" -> the recommended shape, a separate step that can be switched off (stand-alone smart tool `Lift_StormCores`).

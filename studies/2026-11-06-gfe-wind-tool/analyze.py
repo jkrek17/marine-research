@@ -139,7 +139,7 @@ def do_report(a):
     extra = set()
     for v in chosen:
         extra |= {"A_" + lt(v), "H_" + lt(v), "S_" + lt(v)}
-    show = ["D", "DG", "S_L6_T44", "CL", "CL8"] + sorted(chosen | extra)
+    show = ["D", "DG", "S_L6_T44", "CL", "CL8", "F_L0_T99_g50", "X_L10_T44"] + sorted(chosen | extra)
     x = d[d["product"].isin(show)]
     pool = pooled(x)
     pool.to_csv(HERE / "heldout_pooled.csv", index=False)
@@ -156,11 +156,11 @@ def do_report(a):
                 for name, (cols, f) in MET.items():
                     r = compare.paired_counts(y[["cycle", "step", "product"] + cols], m, base, f, cols,
                                               method_col="product", case_cols=["step"])
+                    r = r.rename(columns={"method": "value", "baseline": "base_value"})
                     r.insert(0, "metric", name)
-                    r.insert(0, "baseline", base)
+                    r.insert(0, "vs", base)
                     r.insert(0, "product", m)
                     r.insert(0, "basin", b)
-                    r["n_cases"] = y.groupby(["cycle", "step"]).ngroups
                     rows.append(r)
     res = pd.concat(rows, ignore_index=True)
     res.to_csv(HERE / "heldout_paired.csv", index=False)
