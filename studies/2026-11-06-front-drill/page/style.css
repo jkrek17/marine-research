@@ -300,6 +300,8 @@ table.conf td.diag{background:var(--navytint)}
 /* ================= Front drill additions ================= */
 :root{--fc-cold:#1565c0;--fc-warm:#d32f2f;--fc-occ:#7b1fa2;--fc-stat:#6d4c8f;--fc-trough:#e08a00}
 .viewrow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.chks{display:inline-flex;gap:14px;flex-wrap:wrap}
+.chk[hidden]{display:none}
 .chk{display:inline-flex;align-items:center;gap:8px;font-size:14px;min-height:36px;cursor:pointer}
 .chk input{width:20px;height:20px;flex:none}
 .ringprompt{font-size:14px;color:var(--navy);margin:0 0 6px;padding:5px 10px;background:#fff;border:1px dashed var(--navy);border-radius:6px}

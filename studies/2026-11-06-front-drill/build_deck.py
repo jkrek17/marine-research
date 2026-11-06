@@ -5,10 +5,11 @@
 Per case, a 25 x 40 deg box at 0.5 deg centred on the analysed low: GFS f000 maps through rk.fetch.gfs_global
 (our own `want`, the pattern drill's DRILL plus 700 hPa and 10 m), 3 h MSLP change against the previous cycle's f003,
 ASCAT (the drill's ascat_box, +-90 min; "ascat" true when it covers >= 15% of the box water), GOES air-mass RGB
-(IR from GridSat-B1 where that has no usable picture), the analysed fronts and lows (rk.fronts, merged, densified
+(IR from GridSat-B1 where that has no usable picture), the analysed fronts and lows (rk.fronts, merged, curved (rk.fronts.smooth)
 to 25 nm, clipped to the box minus 1 deg, pieces under 150 nm dropped), each flagged "sys" when it belongs to the case
 low's system (FL.mark_system) with the ring radius "sys_r_nm", and one hint line per system non-trough front type from
-the case's own fields. Cases with under 250 nm of system front are dropped from the manifest. Air-mass RGB only for
+the case's own fields. Cases with under 250 nm of system front are dropped from the manifest, and so are cases before
+FL.COVERAGE_FULL_FROM whose system has a front ending at WPC's old map edge. Truth fronts are curves (rk.fronts.smooth). Air-mass RGB only for
 lows at or south of 55N, GridSat IR otherwise. Resumable: a case whose work/<id>.json exists for the same time and position is skipped (delete it to redo). The deck
 (<out>/manifest.json, <id>.bin, <id>_am.jpg or <id>_ir.jpg) and key.csv (never published) go under
 rk.paths.data("extra", "front-drill"); the deck is never committed.
@@ -155,10 +156,17 @@ def _patch_abi_bytes():
     satellite.abi_airmass = wrapped
 
 
+def _dropped():
+    p = WORK / "dropped.json"
+    return json.loads(p.read_text()) if p.exists() else {}
+
+
 def one(row, out):
     cid = row["id"]
     src = "%s %s %s" % (row["valid"], row["lat"], row["lon"])
     pj = WORK / (cid + ".json")
+    if _dropped().get(cid) == src:           # built before, and left out of the deck (system too short or at the old edge)
+        return "skip"
     if pj.exists() and (out / (cid + ".bin")).exists():
         old = json.loads(pj.read_text())
         # files from the first run carry no "src": same low position and pressure is the same case
@@ -233,11 +241,19 @@ def _safe(r, out):
 
 def finish(rec):
     """Work record -> manifest case: mark the case low's system fronts ("sys"), the ring radius ("sys_r_nm") and
-    the hints of the system's non-trough front types (from the case's saved maps). None when the system has under
-    FL.SYS_MIN_NM of non-trough front."""
+    the hints of the system's non-trough front types (from the case's saved maps). The fronts are cut again from the
+    coded analysis (curved through the coded points, FL.clip_fronts), so a change of the truth needs no new fields.
+    Returns (record, None), or (None, reason) when the system has under FL.SYS_MIN_NM of non-trough front ("short") or,
+    for an analysis before FL.COVERAGE_FULL_FROM, a system front ends at WPC's old map edge ("edge")."""
+    valid = dt.datetime.strptime(rec["src"].split()[0], "%Y%m%d%H")
+    a = fronts.analysis(valid)
+    if a is not None:
+        rec["fronts"] = FL.clip_fronts(FL.merged(a), rec["lat0"], rec["lon0"], NY, NX, RES)
     rec["sys_r_nm"] = FL.mark_system(rec["fronts"], rec["low"]["lat"], rec["low"]["lon"])
     if FL.sys_length_nm(rec["fronts"]) < FL.SYS_MIN_NM:
-        return None
+        return None, "short"
+    if valid < FL.COVERAGE_FULL_FROM and FL.edge_clipped(rec["fronts"]):
+        return None, "edge"
     with np.load(WORK / (rec["id"] + ".npz")) as z:
         m = {k: z[k].astype(float) for k in z.files}
     pts_by_type = {}
@@ -250,19 +266,22 @@ def finish(rec):
             h = FL.hint(typ, pts_by_type[typ], m, rec["lat0"], rec["lon0"])
             if h:
                 rec["hints"][typ] = h
-    return rec
+    return rec, None
 
 
 def manifest(rows, out):
-    cases, dropped = [], []
+    cases, dropped, edge = [], [], []
+    gone = _dropped()
     for r in rows:
         p = WORK / (r["id"] + ".json")
         if not p.exists() or not (out / (r["id"] + ".bin")).exists():
             continue
-        rec = finish(json.loads(p.read_text()))
+        rec, why = finish(json.loads(p.read_text()))
         if rec is None:
-            dropped.append(r["id"])
+            (edge if why == "edge" else dropped).append(r["id"])
+            gone[r["id"]] = "%s %s %s" % (r["valid"], r["lat"], r["lon"])
             continue
+        gone.pop(r["id"], None)
         rec.pop("ascat_cover", None)
         rec.pop("src", None)
         for k in ("am", "ir"):                       # a picture the case no longer uses
@@ -273,6 +292,8 @@ def manifest(rows, out):
          "fields": [{"key": k, "name": n, "units": u, "offset": o, "scale": s} for k, n, u, o, s in FIELDS],
          "cases": cases}
     (out / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
+    WORK.mkdir(parents=True, exist_ok=True)
+    (WORK / "dropped.json").write_text(json.dumps(gone))
     keep = {c["id"] for c in cases}
     for f in list(out.glob("f*")):                   # files of cases dropped from the deck
         if f.name.split(".")[0].split("_")[0] not in keep:
@@ -283,7 +304,7 @@ def manifest(rows, out):
         for r in rows:
             if r["id"] in keep:
                 w.writerow([r["id"], r["valid"], r["lat"], r["lon"], r["hpa"], r["types"], r["lengths_nm"]])
-    return len(cases), dropped
+    return len(cases), dropped, edge
 
 
 def main():
@@ -307,8 +328,9 @@ def main():
     for f in list(out.glob("f*")):                   # files of cases no longer picked
         if f.name.split(".")[0].split("_")[0] not in ids:
             f.unlink()
-    k, dropped = manifest(todo, out)
+    k, dropped, edge = manifest(todo, out)
     print("manifest", k, "cases; dropped (system under %d nm of non-trough front):" % FL.SYS_MIN_NM, dropped)
+    print("dropped, a system front ends at the old coverage edge (before %s): %d" % (FL.COVERAGE_FULL_FROM, len(edge)), edge)
     print("streamed this run: GFS %.2f GB, GOES ABI %.2f GB" % (_bytes["gfs"] / 1e9, _bytes["abi"] / 1e9))
 
 

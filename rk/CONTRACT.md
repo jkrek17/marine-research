@@ -230,6 +230,7 @@ Pure numpy on already-pulled MSLP and wind; no network. Lows come from `rk.bomb.
 - `day(date) -> list[dict]`: all analyses valid that UTC day (date or datetime), sorted by valid time (reads that day's and the next day's bulletins).
 - `synoptic(valid) -> bool`: hour in 0, 6, 12, 18.
 - `densify(lat, lon, step_nm=25) -> (lat, lon)`: great-circle fill, vertices kept, lon 0-360.
+- `smooth(lat, lon, step_nm=25) -> (lat, lon)`: centripetal Catmull-Rom spline through the coded points (local equirectangular projection centred on the front, longitude wrapped so 0-360 and the date line work), sampled about every step_nm; every coded point is kept exactly, ends not extended, two points give a straight line; lon 0-360. Use it instead of `densify` for fronts that are drawn or scored.
 - `merge_segments(fronts, join_nm=30) -> fronts`: joins same-type segments whose ends are within join_nm (reversing as needed); returns only `type`, `lat`, `lon`.
 - `distance_nm(lat1, lon1, lat2, lon2)`: great-circle nautical miles, vectorised.
 - `parse(text) -> list[dict]`: pure parser behind the above (no network), one analysis per valid time, sorted.

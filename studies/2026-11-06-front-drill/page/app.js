@@ -8,7 +8,7 @@
   // ------------------------------------------------------------------ scoring constants (all tunable here)
   var SCORE = {
     TIMER_SECS: 90,            // countdown per case; ?secs=N in the URL overrides it
-    STEP_NM: 25,               // trainee polylines are densified to this spacing (truth already is)
+    STEP_NM: 25,               // trainee fronts are curved (Catmull-Rom) and sampled at this spacing (truth already is a curve)
     OVERLAP_NM: 300,           // a point counts toward the mean distance only if within this of the other line
     COVER_NM: 150,             // coverage = share of the analysed front's length within this of the drawn line
     POS_FULL_NM: 150,          // position credit 1 up to here ...
@@ -80,7 +80,7 @@
 
   var TABS = [
     { id: 'msl', label: 'Default', name: 'MSLP + 1000-500 thickness + 10 m wind',
-      note: 'Solid black: MSLP every 4 hPa. Dashed: 1000-500 hPa thickness every 6 dam (blue cold, red warm; 540 heavy). Barbs in knots.' },
+      note: 'Solid black: MSLP every 4 hPa. Dashed: 1000-500 hPa thickness every 6 dam (blue cold, red warm; 540 heavy). Barbs: GFS 10 m wind in knots.' },
     { id: 'img', label: 'Imagery', name: 'Satellite imagery + MSLP', sat: true,
       note: 'Black and white contours: MSLP every 4 hPa.' },
     { id: 'te850', label: '850 theta-e', name: '850 hPa equivalent potential temperature', key: 'te850', fill: teFill,
@@ -93,7 +93,9 @@
       note: 'Thin: MSLP every 4 hPa. The warm ridge wrapping into the low (a TROWAL) marks an occlusion.' },
     { id: 'dp3', label: '3 h tendency', name: '3 h MSLP change', key: 'dp3', fill: dpFill,
       legend: { title: '3 h pressure change (hPa): red falls, blue rises; under 1 hidden', lo: -6, hi: 6, step: 1, every: 2, color: function (v) { return dpFill(v + 0.01 * (v < 0 ? -1 : 1)); }, mid: true },
-      note: 'Thin: MSLP every 4 hPa. Falls ahead of the warm front; a fall/rise couplet near the triple point.' }
+      note: 'Thin: MSLP every 4 hPa. Falls ahead of the warm front; a fall/rise couplet near the triple point.' },
+    { id: 'wind', label: '10 m wind', name: 'GFS 10 m wind speed + MSLP', key: 'ws10', fill: function (v) { return hexRGB(windColor(v)); }, windLegend: 'GFS 10 m wind speed (kt), shading and barbs',
+      note: 'Shading and barbs: GFS 10 m wind (model analysis). Black: MSLP every 4 hPa.' }
   ];
 
   // ------------------------------------------------------------------ helpers
@@ -135,6 +137,39 @@
       for (var k = 1; k <= n; k++) out.push({ lat: a.lat + (b.lat - a.lat) * k / n, lon: ((a.lon + dl * k / n) % 360 + 360) % 360 });
     }
     return out;
+  }
+
+  // Centripetal Catmull-Rom (alpha 0.5) through the tapped points: no loops or overshoot at uneven spacing, passes through
+  // every point, a straight line for two. Same curve as rk.fronts.smooth (which cuts the analysed fronts in the deck).
+  // P: [[x, y], ...] in any plane; returns points about `step` apart along each span (the control points included).
+  function crSpline(P, step) {
+    var Q = [P[0]];
+    for (var i = 1; i < P.length; i++) if (Math.hypot(P[i][0] - Q[Q.length - 1][0], P[i][1] - Q[Q.length - 1][1]) > 1e-9) Q.push(P[i]);
+    P = Q; var n = P.length;
+    if (n < 2) return P.slice();
+    var ext = [[2 * P[0][0] - P[1][0], 2 * P[0][1] - P[1][1]]].concat(P, [[2 * P[n - 1][0] - P[n - 2][0], 2 * P[n - 1][1] - P[n - 2][1]]]);
+    var out = [P[0]];
+    var lc = function (a, b, wa, wb) { return [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb]; };
+    for (var k = 0; k < n - 1; k++) {
+      var p0 = ext[k], p1 = ext[k + 1], p2 = ext[k + 2], p3 = ext[k + 3];
+      var d = function (a, b) { return Math.max(Math.pow(Math.hypot(a[0] - b[0], a[1] - b[1]), 0.5), 1e-3); };
+      var t0 = 0, t1 = t0 + d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3);
+      var m = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
+      for (var j = 1; j < m; j++) {
+        var t = t1 + (t2 - t1) * j / m;
+        var a1 = lc(p0, p1, (t1 - t) / (t1 - t0), (t - t0) / (t1 - t0)), a2 = lc(p1, p2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1)), a3 = lc(p2, p3, (t3 - t) / (t3 - t2), (t - t2) / (t3 - t2));
+        var b1 = lc(a1, a2, (t2 - t) / (t2 - t0), (t - t0) / (t2 - t0)), b2 = lc(a2, a3, (t3 - t) / (t3 - t1), (t - t1) / (t3 - t1));
+        out.push(lc(b1, b2, (t2 - t) / (t2 - t1), (t - t1) / (t2 - t1)));
+      }
+      out.push(P[k + 1]);
+    }
+    return out;
+  }
+  function smoothGeo(pts, stepNm) {   // [{lat, lon}] -> the same curve in a local plane (nm, centred on the front), sampled every stepNm
+    if (pts.length < 3) return pts.map(function (p) { return { lat: p.lat, lon: p.lon }; });
+    var NM = 60.04, lat0 = pts.reduce(function (s, p) { return s + p.lat; }, 0) / pts.length, lon0 = pts[0].lon, c = Math.cos(lat0 * RAD);
+    var P = pts.map(function (p) { return [wrapd(p.lon - lon0) * NM * c, (p.lat - lat0) * NM]; });
+    return crSpline(P, stepNm).map(function (q) { return { lat: q[1] / NM + lat0, lon: ((lon0 + q[0] / (NM * c)) % 360 + 360) % 360 }; });
   }
 
   // ------------------------------------------------------------------ the system (ring)
@@ -183,7 +218,7 @@
       var nearness = clamp(1 - (1 - SCORE.NEAR_MIN) * (near - SCORE.NEAR_FULL_NM) / (SCORE.NEAR_ZERO_NM - SCORE.NEAR_FULL_NM), SCORE.NEAR_MIN, 1);
       return { type: f.type, pts: pts, len: lineLenNm(pts), nearLow: near, nearness: nearness };
     });
-    var dr = drawn.filter(function (f) { return f.pts.length >= 2; }).map(function (f) { return { type: f.type, pts: f.pts, dense: densify(f.pts, SCORE.STEP_NM) }; });
+    var dr = drawn.filter(function (f) { return f.pts.length >= 2; }).map(function (f) { return { type: f.type, pts: f.pts, dense: densify(smoothGeo(f.pts, SCORE.STEP_NM), SCORE.STEP_NM) }; });
     var totLen = truths.reduce(function (s, t) { return s + t.len; }, 0) || 1;
     var wsum = 0;
     truths.forEach(function (t) { t.share = t.len / totLen; t.w = t.share * t.nearness; wsum += t.w; });
@@ -315,6 +350,10 @@
       for (var i = 0; i < n; i++) { var b = u8[o + i]; a[i] = b === 255 ? NaN : (f.offset + f.scale * b) * mul; }
       snap.f[f.key] = a;
     });
+    if (snap.f.u10 && snap.f.v10) {   // GFS 10 m speed (kt) for the wind tab
+      snap.f.ws10 = new Float32Array(n);
+      for (var w = 0; w < n; w++) snap.f.ws10[w] = Math.hypot(snap.f.u10[w], snap.f.v10[w]);
+    }
     var land = snap.f.land || new Float32Array(n);
     for (var q = 0; q < n; q++) land[q] = land[q] >= 0.5 ? 1 : 0;
     snap.land = land;
@@ -533,7 +572,7 @@
     });
     ctx.restore();
   }
-  function drawBarbs(ctx, g, snap, ascat) {
+  function drawBarbs(ctx, g, snap, ascat, hideSwath) {   // hideSwath: GFS barbs are left out where ASCAT has a cell
     var nx = g.nx, ny = g.ny, cell = g.cw / (nx - 1), L = clamp(g.cw / 30, 15, 22);
     var step = Math.max(2, Math.ceil((ascat ? 20 : 26) / cell)), col = ascat ? '#0d2a5c' : '#1a1d21';
     for (var j0 = 0; j0 < ny; j0 += step) for (var i0 = 0; i0 < nx; i0 += step) {
@@ -550,6 +589,7 @@
       } else {
         var u = snap.f.u10[j * nx + i], v = snap.f.v10[j * nx + i];
         if (u !== u || v !== v) continue;
+        if (hideSwath && snap.aspd[j * nx + i] !== 255) continue;
         kt = Math.hypot(u, v); from = (Math.atan2(-u, -v) / RAD + 360) % 360;
       }
       drawBarb(ctx, i * cell, j * (g.ch / (ny - 1)), from, kt, L, col);
@@ -561,31 +601,40 @@
   }
   var ISOBAR = { key: 'msl', step: 4, width: function (l) { return l % 20 === 0 ? 1.8 : 1.1; }, color: '#111', label: false, fmt: f0, minGap: 150 };
 
+  function ascatOn() { return !!(cur && cur.c.ascat && cur.data && cur.data.aspd && $('ascChk').checked); }
   function baseDefault(ctx, g, snap, c, iso) {
+    var asc = ascatOn();
     drawGrid(ctx, g); drawCoast(ctx, g, snap);
-    if (c.ascat && snap.aspd) drawAscatFill(ctx, g, snap);
+    if (asc) drawAscatFill(ctx, g, snap);
     var labels = [];
     if (snap.f.thk) drawContours(ctx, g, snap.f.thk, { step: 6, dash: [5, 3], width: function (l) { return l === 540 ? 2.6 : 1.2; }, color: thkColor, label: true, fmt: f0, minGap: 150 }, labels);
     drawContours(ctx, g, snap.f.msl, { key: 'msl', step: 4, width: ISOBAR.width, color: '#111', label: true, fmt: f0, minGap: 130 }, labels);
     if (iso) drawIsotachs(ctx, g, snap, labels);
-    drawBarbs(ctx, g, snap, !!(c.ascat && snap.aspd));
+    drawBarbs(ctx, g, snap, false, asc);
+    if (asc) drawBarbs(ctx, g, snap, true);
   }
   function baseFill(ctx, g, snap, tab, iso) {
+    var asc = ascatOn();
     drawGrid(ctx, g); drawCoast(ctx, g, snap);
+    if (asc) drawAscatFill(ctx, g, snap);
     var labels = [];
     (tab.contours || []).forEach(function (sp) { drawContours(ctx, g, snap.f[sp.key], sp, labels); });
     drawContours(ctx, g, snap.f.msl, { step: 4, width: function (l) { return l % 20 === 0 ? 1.5 : 0.9; }, color: 'rgba(0,0,0,.85)', label: false }, labels);
     if (iso) drawIsotachs(ctx, g, snap, labels);
+    if (tab.id === 'wind') drawBarbs(ctx, g, snap, false, asc);   // the model barbs; ASCAT's replace them inside the swath
+    if (asc) drawBarbs(ctx, g, snap, true);
   }
   function baseSat(ctx, g, snap, img, iso) {
     var cx = g.cw / (g.nx - 1), cy = g.ch / (g.ny - 1);
     ctx.fillStyle = '#e8ebef'; ctx.fillRect(0, 0, g.cw, g.ch);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, -cx / 2, -cy / 2, g.cw + cx, g.ch + cy);   // the image covers cell edges: half a cell beyond the centres
+    if (ascatOn()) drawAscatFill(ctx, g, snap);
     drawCoast(ctx, g, snap); drawGrid(ctx, g);
     var none = [];
     [{ step: 4, width: 3.2, color: 'rgba(0,0,0,.55)' }, { step: 4, width: 1.0, color: 'rgba(255,255,255,.95)' }].forEach(function (sp) { drawContours(ctx, g, snap.f.msl, sp, none); });
     if (iso) drawIsotachs(ctx, g, snap, none);
+    if (ascatOn()) drawBarbs(ctx, g, snap, true);
   }
 
   // ------------------------------------------------------------------ fronts and lows (overlay)
@@ -630,7 +679,8 @@
   }
   // o: { lw, u (symbol unit px), outline (dark colour under the line), alpha, dots }
   function drawFront(ctx, g, f, o) {
-    var P = f.pts.map(function (p) { return proj(g, p.lat, p.lon); }), ft = FT[f.type];
+    var P0 = f.pts.map(function (p) { return proj(g, p.lat, p.lon); }), ft = FT[f.type];
+    var P = o.curve && P0.length > 2 ? crSpline(P0, 5) : P0;   // the trainee's taps are control points of a smooth curve
     if (o.tint) ft = { c: o.tint, c2: o.tint, name: ft.name };   // other systems: one grey
     ctx.save(); ctx.globalAlpha = o.alpha == null ? 1 : o.alpha; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash([]);
     if (P.length < 2) {
@@ -668,7 +718,7 @@
         if (o.outline) { ctx.lineWidth = 0.9; ctx.strokeStyle = o.outline; ctx.stroke(); }
       }
     }
-    if (o.dots) P.forEach(function (p) {
+    if (o.dots) P0.forEach(function (p) {
       ctx.beginPath(); ctx.arc(p[0], p[1], 4.5, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = ft.c; ctx.stroke();
     });
     ctx.restore();
@@ -716,8 +766,8 @@
       }
       lg.appendChild(bar); box.appendChild(lg);
     }
-    if (tab.id === 'msl' && c.ascat) {
-      var lw = el('div', 'lg'); lw.appendChild(el('div', 'lgt', 'ASCAT 10 m wind (kt), swath shading and barbs'));
+    var windBar = function (title) {
+      var lw = el('div', 'lg'); lw.appendChild(el('div', 'lgt', title));
       var wb = el('div', 'lgbar');
       WIND_COLORS.concat([WIND_OVER]).forEach(function (cl, i) {
         var d2 = el('div'); d2.style.background = cl;
@@ -725,8 +775,10 @@
         wb.appendChild(d2);
       });
       lw.appendChild(wb); box.appendChild(lw);
-    }
-    var note = tab.note + (tab.id === 'msl' ? (c.ascat ? ' Barbs: ASCAT 10 m (swath only) instead of GFS.' : ' Barbs: GFS 10 m.') : '') + ($('isoChk').checked ? ' Purple: 250 hPa isotachs at 70, 90, 110, 130 kt.' : '');
+    };
+    if (tab.windLegend) windBar(tab.windLegend);
+    if (ascatOn()) windBar('ASCAT 10 m wind (kt), swath shading and navy barbs');
+    var note = tab.note + (ascatOn() ? ' ASCAT overlay on: its shading and navy barbs cover the swath (same colours as the GFS wind); GFS barbs are hidden there and shown outside it. Untick ASCAT for the model alone.' : (c.ascat ? ' Tick ASCAT to overlay the scatterometer swath.' : '')) + ($('isoChk').checked ? ' Purple: 250 hPa isotachs at 70, 90, 110, 130 kt.' : '');
     box.appendChild(el('div', 'lgnote', note));
   }
 
@@ -774,11 +826,15 @@
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     box.style.width = w + 'px';
   }
+  function updateCap() {
+    var tab = TABS[cur.tabIdx];
+    $('cap').textContent = tab.name + (ascatOn() ? ' + ASCAT swath (GFS outside it)' : '');
+  }
   function setTab(i) {
     cur.tabIdx = i;
     [].forEach.call($('tabs').children, function (b, k) { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i); });
     var tab = TABS[i];
-    $('cap').textContent = tab.name;
+    updateCap();
     buildLegend(tab, cur.c);
     renderBase();
   }
@@ -794,7 +850,9 @@
         ctx.fillStyle = '#e8ebef'; ctx.fillRect(0, 0, g.cw, g.ch);
         ctx.fillStyle = '#44505f'; ctx.font = '600 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('No imagery for this case', g.cw / 2, g.ch / 2);
+        if (ascatOn()) drawAscatFill(ctx, g, snap);
         drawCoast(ctx, g, snap); drawGrid(ctx, g); drawContours(ctx, g, snap.f.msl, { step: 4, width: 1, color: '#111' }, []);
+        if (ascatOn()) drawBarbs(ctx, g, snap, true);
         if (iso) drawIsotachs(ctx, g, snap, []);
         return done();
       }
@@ -831,8 +889,8 @@
       });
     }
     if (showM) {
-      cur.drawn.forEach(function (f) { drawFront(ctx, g, f, { lw: 2.4, u: u, alpha: cur.submitted ? 0.85 : 1 }); });
-      if (cur.active && !cur.submitted) drawFront(ctx, g, cur.active, { lw: 2.4, u: u, dots: true });
+      cur.drawn.forEach(function (f) { drawFront(ctx, g, f, { lw: 2.4, u: u, alpha: cur.submitted ? 0.85 : 1, curve: true }); });
+      if (cur.active && !cur.submitted) drawFront(ctx, g, cur.active, { lw: 2.4, u: u, dots: true, curve: true });
       if (cur.low) {
         if (cur.submitted && cur.result && cur.result.low.nearest && showT) {
           var a = proj(g, cur.low.lat, cur.low.lon), b = proj(g, cur.result.low.nearest.lat, cur.result.low.nearest.lon);
@@ -931,7 +989,7 @@
     clearTimer();
     var c = manifest.byId[id];
     cur = { c: c, id: id, data: null, drawn: [], active: null, low: null, tool: null, submitted: false, tabIdx: 0, t0: 0, paused: 0, triple: null, result: null };
-    $('isoChk').checked = false; $('showTruth').checked = true; $('showMine').checked = true;
+    $('isoChk').checked = false; $('ascChk').checked = false; $('ascLbl').hidden = !c.ascat; $('showTruth').checked = true; $('showMine').checked = true;
     show('play'); buildTabs(); buildTools();
     $('drawPane').hidden = false; $('revealPane').hidden = true;
     $('mapLoad').hidden = false; $('mapLoad').textContent = 'Loading case...';
@@ -1021,6 +1079,7 @@
     $('lowBtn').addEventListener('click', placeLow);
     $('subBtn').addEventListener('click', function () { submit(false); });
     $('nextBtn').addEventListener('click', function () { startCase(nextId()); });
+    $('ascChk').addEventListener('change', function () { if (cur) { updateCap(); buildLegend(TABS[cur.tabIdx], cur.c); renderBase(); } });
     $('isoChk').addEventListener('change', function () { if (cur) { buildLegend(TABS[cur.tabIdx], cur.c); renderBase(); } });
     $('showTruth').addEventListener('change', paint);
     $('showMine').addEventListener('change', paint);
@@ -1038,6 +1097,6 @@
     var r = $('map').getBoundingClientRect(), q = proj(geom, lat, lon);
     return { x: r.left + q[0] * r.width / geom.cw, y: r.top + q[1] * r.height / geom.ch };
   }
-  window.FD = { toClient: toClient, ringOf: ringOf, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
+  window.FD = { toClient: toClient, crSpline: crSpline, smoothGeo: smoothGeo, ringOf: ringOf, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
   init();
 })();

@@ -61,6 +61,48 @@ def densify(lat, lon, step_nm=25):
     return np.array(la), np.array(lo) % 360
 
 
+def smooth(lat, lon, step_nm=25):
+    """Curve through the coded points: a centripetal Catmull-Rom spline (alpha 0.5, no loops or overshoot at
+    uneven spacing) in an equirectangular projection centred on the front (x east, y north, nm; longitude
+    wrapped about the front's centre so 0-360 and the date line work), sampled about every step_nm along each
+    span. Every coded point is kept exactly (it is a sample point); the ends are not extended; two points give
+    the straight line. Returns (lat, lon) arrays, lon 0-360."""
+    lat = np.asarray(lat, float)
+    lon = np.asarray(lon, float)
+    keep = np.ones(len(lat), bool)
+    keep[1:] = (np.abs(np.diff(lat)) > 1e-9) | (np.abs(np.diff(lon)) > 1e-9)
+    lat, lon = lat[keep], lon[keep]
+    if len(lat) < 3:
+        return densify(lat, lon, step_nm)
+    lat0 = float(lat.mean())
+    lon0 = float(np.degrees(np.arctan2(np.sin(np.radians(lon)).mean(), np.cos(np.radians(lon)).mean())))
+    k = R_NM * np.pi / 180.0
+    c = np.cos(np.radians(lat0))
+    P = np.column_stack([(((lon - lon0 + 180.0) % 360.0) - 180.0) * k * c, (lat - lat0) * k])
+    ext = np.vstack([2 * P[0] - P[1], P, 2 * P[-1] - P[-2]])
+    out = [P[0]]
+    for i in range(len(P) - 1):
+        p0, p1, p2, p3 = ext[i], ext[i + 1], ext[i + 2], ext[i + 3]
+        t0 = 0.0
+        t1 = t0 + max(np.linalg.norm(p1 - p0), 1e-6) ** 0.5
+        t2 = t1 + max(np.linalg.norm(p2 - p1), 1e-6) ** 0.5
+        t3 = t2 + max(np.linalg.norm(p3 - p2), 1e-6) ** 0.5
+        n = max(1, int(np.ceil(np.linalg.norm(p2 - p1) / step_nm)))
+        for u in np.arange(1, n + 1) / n:
+            if u == 1.0:
+                out.append(P[i + 1])
+                continue
+            t = t1 + u * (t2 - t1)
+            a1 = (t1 - t) / (t1 - t0) * p0 + (t - t0) / (t1 - t0) * p1
+            a2 = (t2 - t) / (t2 - t1) * p1 + (t - t1) / (t2 - t1) * p2
+            a3 = (t3 - t) / (t3 - t2) * p2 + (t - t2) / (t3 - t2) * p3
+            b1 = (t2 - t) / (t2 - t0) * a1 + (t - t0) / (t2 - t0) * a2
+            b2 = (t3 - t) / (t3 - t1) * a2 + (t - t1) / (t3 - t1) * a3
+            out.append((t2 - t) / (t2 - t1) * b1 + (t - t1) / (t2 - t1) * b2)
+    Q = np.array(out)
+    return Q[:, 1] / k + lat0, (Q[:, 0] / (k * c) + lon0) % 360
+
+
 def merge_segments(fronts, join_nm=30):
     """Join same-type fronts whose ends lie within join_nm of each other (reversing a segment when
     needed). Other keys are dropped from joined results; order of first appearance is kept."""

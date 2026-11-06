@@ -159,6 +159,28 @@ def test_merge_segments():
     assert len(cold[0]["lat"]) == 4 and cold[0]["lat"][-1] == 44.0
 
 
+def test_smooth():
+    la = np.array([50.0, 48.0, 47.5, 44.0, 40.0])
+    lo = np.array([350.0, 354.0, 358.0, 2.0, 3.0])        # crosses 0E
+    sl, so = fronts.smooth(la, lo, 25)
+    for a, b in zip(la, lo):                              # every coded point is on the curve
+        assert np.min(fronts.distance_nm(a, b, sl, so)) < 0.01
+    d = fronts.distance_nm(sl[:-1], so[:-1], sl[1:], so[1:])
+    assert d.max() <= 30
+    assert abs(sl[0] - 50) < 1e-6 and abs(sl[-1] - 40) < 1e-6
+    # no loop: path length within 15% of the coded polyline
+    assert d.sum() < 1.15 * fronts.distance_nm(la[:-1], lo[:-1], la[1:], lo[1:]).sum()
+    # two points: a straight line (great circle densified)
+    a2, b2 = fronts.smooth([40.0, 44.0], [300.0, 306.0])
+    ref_a, ref_b = fronts.densify([40.0, 44.0], [300.0, 306.0])
+    assert len(a2) >= 10 and np.all(np.diff(a2) > 0)
+    assert np.max(np.abs(np.interp(b2, ref_b, ref_a) - a2)) < 0.05
+    # uneven spacing (short span next to long ones) does not overshoot
+    la3 = np.array([40.0, 40.0, 40.2, 40.3, 40.3]); lo3 = np.array([300.0, 310.0, 310.3, 320.0, 330.0])
+    s3, _ = fronts.smooth(la3, lo3)
+    assert s3.max() < 40.45 and s3.min() > 39.85
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

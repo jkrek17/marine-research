@@ -90,6 +90,28 @@ def test_clip_fronts():
     assert len(FL.clip_fronts([line("cold", [60.0, 40.0], [291.5, 291.5])], LAT_N, LON_W)) == 1
 
 
+def test_clip_fronts_curved_through_coded_points():
+    pts_la, pts_lo = [60.0, 55.0, 53.0, 47.0, 42.0], [300.0, 303.0, 308.0, 310.0, 316.0]
+    out = FL.clip_fronts([line("cold", pts_la, pts_lo)], LAT_N, LON_W)
+    assert len(out) == 1
+    la, lo = np.array([p[0] for p in out[0]["pts"]]), np.array([p[1] for p in out[0]["pts"]])
+    for a, b in zip(pts_la[1:], pts_lo[1:]):       # every coded point inside the box is on the curve (within rounding)
+        assert np.min(FL.km(a, b, la, lo)) < 0.5
+
+
+def test_old_edge_clipped():
+    assert FL.COVERAGE_FULL_FROM == dt.datetime(2026, 8, 12, 18)
+    la, lo = FL.old_edge()
+    e45 = float(np.interp(45.0, la, lo))
+    assert 325 < e45 < 340                           # about 29-23W at 45N
+    def sysf(lon_end):
+        return [{"type": "cold", "sys": True, "pts": [[45.0, lon_end - 6.0], [45.0, lon_end]]}]
+    assert FL.edge_clipped(sysf(e45 - 0.5))          # ends on the edge
+    assert not FL.edge_clipped(sysf(e45 - 4.0))      # ends well inside
+    assert not FL.edge_clipped([{"type": "trough", "sys": True, "pts": [[45.0, e45 - 6], [45.0, e45]]}])
+    assert not FL.edge_clipped([{"type": "cold", "sys": False, "pts": [[45.0, e45 - 6], [45.0, e45]]}])
+
+
 def test_lows_in_box():
     lows = [(990.0, 50.0, 310.0), (1000.0, 70.0, 310.0), (1004.0, 50.0, 340.0)]
     got = FL.lows_in_box(lows, LAT_N, LON_W)

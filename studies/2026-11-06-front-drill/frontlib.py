@@ -19,6 +19,12 @@ LINK_KM = 600.0            # the same low in the next or previous analysis
 SECOND_LOW_KM = 500.0
 NON_TROUGH = ("cold", "warm", "occluded", "stationary")
 
+# WPC's coded bulletin clipped fronts at its slanted map edge until this analysis and covers the Atlantic to ~0W from it.
+# First analysis with the full domain (searched by day, then by analysis): 2026-08-12 15Z has 28 fronts, easternmost
+# point at 28-42N 260E (no ocean fronts); 18Z has 71 reaching 357E. Later odd-hour bulletins (03/09/15/21Z) can be partial.
+COVERAGE_FULL_FROM = dt.datetime(2026, 8, 12, 18)
+EDGE_TOL_DEG = 1.5         # a system front end this close to the old edge (or beyond) is counted as clipped
+
 
 def km(lat1, lon1, lat2, lon2):
     return F.distance_nm(lat1, lon1, lat2, lon2) * NM_KM
@@ -113,14 +119,15 @@ def link_tracks(lows_by_time, max_km=LINK_KM):
 
 # ---------------------------------------------------------------- deck truth
 def clip_fronts(fronts, lat_n, lon_w, ny=51, nx=81, res=0.5, margin=1.0, min_nm=150.0, step_nm=25):
-    """Densify to step_nm and clip to the box minus `margin` degrees. A front that leaves and re-enters
+    """Curve each front through its coded points (rk.fronts.smooth, a point every step_nm) and clip to the box minus
+    `margin` degrees. A front that leaves and re-enters
     becomes several pieces; pieces with under min_nm inside are dropped. Returns [{"type", "pts":
     [[lat, lon], ...]}] with lon 0-360."""
     s, n = lat_n - (ny - 1) * res + margin, lat_n - margin
     w_off, e_off = margin, (nx - 1) * res - margin
     out = []
     for f in fronts:
-        la, lo = F.densify(f["lat"], f["lon"], step_nm)
+        la, lo = F.smooth(f["lat"], f["lon"], step_nm)
         rel = (lo - lon_w) % 360.0
         inside = (la >= s) & (la <= n) & (rel >= w_off) & (rel <= e_off)
         i = 0
@@ -376,3 +383,25 @@ def hint(typ, fronts_pts, fields, lat_n, lon_w):
         return ("Stationary front: the isobars run %.0f deg off the front on average (0 = along it; mean gradient "
                 "%.1f hPa per 100 km)." % (a["angle"], a["grad"]))
     return None
+
+
+# ---------------------------------------------------------------- old coverage edge
+def old_edge():
+    """(lat of band centres, edge longitude 0-360) of WPC's map edge before COVERAGE_FULL_FROM, from old_edge.csv
+    (domain_edge.py: per 1-degree band, easternmost Atlantic point over all analyses 2024-11 to 2026-07, smoothed)."""
+    import csv
+    rows = list(csv.DictReader(open(Path(__file__).with_name("old_edge.csv"))))
+    return (np.array([float(r["lat_band_south"]) + 0.5 for r in rows]), np.array([float(r["edge_lon"]) for r in rows]))
+
+
+def edge_clipped(fronts, tol=EDGE_TOL_DEG):
+    """True when an end of a system non-trough front (a deck record's "fronts", already flagged "sys") lies within tol
+    degrees of longitude of the old coverage edge at its latitude, or east of it."""
+    la, lo = old_edge()
+    for f in fronts:
+        if not f.get("sys") or f["type"] not in NON_TROUGH:
+            continue
+        for p in (f["pts"][0], f["pts"][-1]):
+            if 250.0 <= p[1] <= 360.0 and p[1] >= np.interp(p[0], la, lo) - tol:
+                return True
+    return False

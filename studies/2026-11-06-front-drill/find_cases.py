@@ -2,7 +2,7 @@
 
     python3 find_cases.py [--estimate] [--workers 6] [--n 200]
 
-Atlantic only; 00/06/12/18 UTC, November-March of the winters 2024-25 and 2025-26. For every analysed low
+Atlantic only; 00/06/12/18 UTC, November-March of the winters 2024-25 and 2025-26 plus 13 Aug-4 Nov 2026 (full WPC coverage, lows to 10W). For every analysed low
 (rk.fronts, the Unified Surface Analysis as coded by WPC) over open water (GFS land mask) between 25W and
 100W and 25-67N with a non-trough front end within 300 km (after merge_segments):
   second_low   no second analysed low within 500 km (kept when none)
@@ -32,12 +32,16 @@ import frontlib as FL  # noqa: E402
 from rk import fetch, fronts, paths  # noqa: E402
 
 OUT = paths.data("extra", "front-drill")
+# Periods: two winters in WPC's old (clipped) domain, then the full-coverage months. The new period starts one
+# analysis after FL.COVERAGE_FULL_FROM so the 6 h neighbour used by the type filter is also full coverage.
 WINTERS = {"2024-25": (dt.datetime(2024, 11, 1), dt.datetime(2025, 3, 31, 18)),
-           "2025-26": (dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31, 18))}
+           "2025-26": (dt.datetime(2025, 11, 1), dt.datetime(2026, 3, 31, 18)),
+           "2026-fall": (FL.COVERAGE_FULL_FROM + dt.timedelta(hours=6), dt.datetime(2026, 11, 4, 18))}
 LAT_MIN, LAT_MAX = 25.0, 67.0
-LON_MIN, LON_MAX = 260.0, 335.0          # 100W to 25W
+LON_MIN = 260.0                          # 100W
+LON_MAX_OF = {"2024-25": 335.0, "2025-26": 335.0, "2026-fall": 350.0}     # 25W; 10W once the coverage is full
 GFS_KM, GFS_DP = 150.0, 4.0
-CROP = {"lat_n": 70.0, "lon_w": 240.0, "ny": 241, "nx": 421}   # 0.25 deg: 70N-10N, 240-345E
+CROP = {"lat_n": 70.0, "lon_w": 240.0, "ny": 241, "nx": 480}   # 0.25 deg: 70N-10N, 240-359.75E (the first runs cached 240-345E)
 MSL_KEY = {"PRMSL:mean sea level": "msl"}
 
 
@@ -69,7 +73,7 @@ def load_analyses(days, workers):
 
 
 def landmask(valid):
-    p = OUT / "landmask.npy"
+    p = OUT / "landmask480.npy"
     if p.exists():
         return np.load(p)
     g = fetch.gfs_global(valid, 0, {"LAND:surface": "land"})
@@ -78,6 +82,11 @@ def landmask(valid):
     m = crop_of(g["land"]).astype(np.float32)
     np.save(p, m)
     return m
+
+
+def _widen(a, fill):
+    """A crop cached before the crop grew from 421 to 480 columns, padded east with `fill`."""
+    return a if a.shape[1] >= CROP["nx"] else np.pad(a, ((0, 0), (0, CROP["nx"] - a.shape[1])), constant_values=fill)
 
 
 def ocean_mask(land):
@@ -109,7 +118,7 @@ def fetch_ice(valid):
     p = ice_file(valid)
     if p.exists():
         with np.load(p) as z:
-            return z["ice"]
+            return _widen(z["ice"], 0.0)
     g = fetch.gfs_global(valid, 0, {"ICEC:surface": "ice"})
     if g is None:
         return None
@@ -130,7 +139,7 @@ def fetch_msl(valid):
     p = msl_file(valid)
     if p.exists():
         with np.load(p) as z:
-            return z["msl"]
+            return _widen(z["msl"], 1100.0)
     g = fetch.gfs_global(valid, 0, MSL_KEY)
     if g is None:
         return None
@@ -160,7 +169,7 @@ def gfs_check(msl, lat, lon, hpa):
 
 
 # ---------------------------------------------------------------- stages
-def stage_a(an, ocean, times, ice_of=None):
+def stage_a(an, ocean, times, winter_of, ice_of=None):
     """Candidates: analysed lows over open water in the region with an attached non-trough front."""
     rows = []
     mem = {}
@@ -170,7 +179,7 @@ def stage_a(an, ocean, times, ice_of=None):
             continue
         mf = mem.setdefault(t, FL.merged(a))
         for i, (hpa, lat, lon) in enumerate(a["lows"]):
-            if not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX) or not is_water(ocean, lat, lon, ice_of(t) if ice_of else None):
+            if not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX_OF[winter_of[t]]) or not is_water(ocean, lat, lon, ice_of(t) if ice_of else None):
                 continue
             att = FL.attached(mf, lat, lon)
             if not att:
@@ -210,7 +219,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--estimate", action="store_true")
     ap.add_argument("--workers", type=int, default=6)
-    ap.add_argument("--n", type=int, default=200)
+    ap.add_argument("--n", type=int, default=200, help="cases to pick when there is no picked.csv yet")
+    ap.add_argument("--n-new", type=int, default=60, help="cases to pick from the full-coverage period (old picks are kept)")
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     times, winter_of = [], {}
@@ -224,7 +234,7 @@ def main():
     ocean = ocean_mask(landmask(times[0]))
 
     # sea ice (GFS ICEC, small records) is needed only at times with a low over water and a front end near it
-    pre = stage_a(an, ocean, times)
+    pre = stage_a(an, ocean, times, winter_of)
     ice_times = sorted({c["valid"] for c in pre})
     ice = {}
 
@@ -236,11 +246,11 @@ def main():
             return t, None
     with ThreadPoolExecutor(a.workers) as ex:
         ice.update(dict(ex.map(getice, ice_times)))
-    cand = stage_a(an, ocean, times, lambda t: ice.get(t))
+    cand = stage_a(an, ocean, times, winter_of, lambda t: ice.get(t))
     print("before the sea-ice and Hudson Bay cut: %d candidates; ice missing at %d of %d times" % (
         len(pre), sum(v is None for v in ice.values()), len(ice_times)))
     n_lows = sum(len(an[t]["lows"]) for t in times if t in an)
-    print("analysed lows %d; candidates (open water, 25W-100W, 25-67N, non-trough front end within 300 km): %d" % (n_lows, len(cand)))
+    print("analysed lows %d; candidates (open water, 100W to 25W (10W in the full-coverage period), 25-67N, non-trough front end within 300 km): %d" % (n_lows, len(cand)))
 
     mem = {}
     for c in cand:
@@ -322,7 +332,7 @@ def main():
                         "" if c["gfs_dp"] is None else "%.1f" % c["gfs_dp"],
                         "" if c["gfs_ok"] is None else int(c["gfs_ok"]), c["track"], int(c["keep"])])
 
-    picked = pick(keep, winter_of, a.n)
+    picked = pick_all(keep, winter_of, a.n, a.n_new)
     ids = assign_ids(picked)
     with open(OUT / "picked.csv", "w", newline="") as f:
         w = csv.writer(f)
@@ -334,6 +344,22 @@ def main():
     print("picked %d: with " % len(picked) + ", ".join("%s %d" % (t, pt[t]) for t in FL.NON_TROUGH))
     print("picked by winter/month: " + str(sorted(Counter((winter_of[c["valid"]], c["valid"].month) for c in picked).items())))
     print("picked by hour: " + str(sorted(Counter(c["valid"].hour for c in picked).items())))
+
+
+def pick_all(keep, winter_of, n, n_new):
+    """The picks of an earlier run stay (same time and position, read from picked.csv); the full-coverage period adds
+    n_new more balanced the same way. With no picked.csv, the two winters are picked first (n cases)."""
+    p = OUT / "picked.csv"
+    old_rows = [r for r in csv.DictReader(open(p))] if p.exists() else []
+    old_rows = [r for r in old_rows if r["winter"] != "2026-fall"]
+    new_pool = [c for c in keep if winter_of[c["valid"]] == "2026-fall"]
+    if not old_rows:
+        old = pick([c for c in keep if winter_of[c["valid"]] != "2026-fall"], winter_of, n)
+    else:
+        by = {(c["valid"].strftime("%Y%m%d%H"), "%.1f" % c["lat"], "%.1f" % c["lon"]): c for c in keep}
+        old = [by[(r["valid"], r["lat"], r["lon"])] for r in old_rows if (r["valid"], r["lat"], r["lon"]) in by]
+        print("earlier picks kept: %d of %d" % (len(old), len(old_rows)))
+    return old + pick(new_pool, winter_of, n_new)
 
 
 def assign_ids(picked):
