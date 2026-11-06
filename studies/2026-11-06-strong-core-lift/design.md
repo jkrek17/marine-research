@@ -1,6 +1,6 @@
 # Strong-core lift for the blends: design card
 
-*Status: questions to Jason 2026-11-06; running on the recommended answers meanwhile.*
+*Status: running. Jason 2026-11-06 12:10Z: "use your best judgement" -> the three recommended answers below.*
 
 **Question** (Jason, 2026-11-06, pattern drill thread): "can this apply to our core lifted model blend? can we make a new model blend based on this and see how it compares" and "since we dont have members in GFE this might be a better gfe tool so lets test it".
 
@@ -46,3 +46,6 @@ Each candidate is also laid on the page blend (Core Lifted with its lift replace
 1. Where the lift switches on: the strongest of GFS/ECMWF at 44+ kt (drill rule; catches a storm one model has), or the blend at 44+? Recommended: strongest model, threshold re-picked on training weeks.
 2. GFE bar: plain #95 blend, or #95 plus the GEFS 48 kt lift? Recommended: report both; the lift must beat plain #95 and match or beat the GEFS lift to be worth carrying.
 3. Win line as #70 (storm catch +5 pts, storm area <= 1.5x, gales unchanged). Recommended: same, HF reported not gated.
+
+## Jason's answers (2026-11-06 12:10Z, "use your best judgement")
+Taken as the three recommendations: (1) switch on where the strongest of GFS/ECMWF >= T, T re-picked on tune weeks; (2) report both GFE bars, must beat plain #95 and match or beat the GEFS lift; (3) the #70 win line, HF reported.
