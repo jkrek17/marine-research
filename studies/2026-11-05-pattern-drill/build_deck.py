@@ -172,7 +172,12 @@ def sat_images(basin, valid, lat_n, lon_w, stem, out):
     return ir, am
 
 
+SAT = True        # --no-sat: skip the IR and air-mass images (about 200 MB a case); a later run without it adds them
+
+
 def satellite_for(row, out):
+    if not SAT:
+        return
     """Satellite JPEGs for both snapshots of a case (skips files already written) -> {snap: (ir, am)}."""
     lat_n, lon_w = box_for(row)
     res = {}
@@ -290,7 +295,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(HERE / "page" / "deck"))
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--no-sat", action="store_true", help="skip satellite images (Jason's call on pull size)")
     a = ap.parse_args()
+    global SAT
+    SAT = not a.no_sat
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     rows = list(csv.DictReader(open(ROOT / "key.csv")))

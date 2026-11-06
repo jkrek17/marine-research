@@ -85,10 +85,25 @@
       noData: 'No GOES view of this area at this time',
       note: 'Red-orange: dry, ozone-rich air from a lowered tropopause (the upper-level PV anomaly). Green: warm moist air mass. Blue/purple: cold air mass. White: thick high cloud.' }
   ];
-  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "w925": "the best single clue to how strong it is now. Over 916 lows ASCAT's peak in the low's own circulation ran about 85-90% of the strongest 925 mb wind near the low where the sea was under 2 C warmer than the 2 m air, and all of it or more where the sea was 5+ C warmer. Read it with the Sea - air tab.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 916 lows; read it with the 500 mb vorticity."};
+  var HINTS = {"msl": "a low in a packed thickness gradient has fuel; a low cold all the way through, under a thickness trough, is occluded and usually filling.", "z500": "a vorticity max coming in from the W or SW with the surface low downstream means deepening; a 500 low stacked over the surface low means mature or weakening.", "jet": "the right entrance and left exit of a streak are the ascent quadrants; a low that has crossed to the cold side of the jet is usually done. No jet nearby, little support.", "eady": "1+ per day along the low's track means room for rapid growth; low values around it mean the baroclinic zone is used up.", "tadv": "strong warm advection ahead and cold behind, wrapped tight to the centre, means an active system; weak or symmetric means mature or decaying.", "w925": "the best single clue to the peak. Take the strongest 925 mb wind over water on the map and multiply by about 0.70 where the sea is under 2 C warmer than the 2 m air there, 0.78 at 2-5 C, 0.83 at 5 C or more (Sea - air tab). On the cases so far that gets the category right about 7 times in 10, as often as the models, and it reads HF far better than GFS. The 925 wind near the centre mixes down more than the strongest 925 on the map, which often sits over a stable sea.", "sstair": "a mixing cue, not a growth cue: air 5+ \u00b0C colder than the sea (red) mixes strong winds down, so cold-sector winds verify high; blue (stable) keeps them aloft.", "ir": "a comma, a dry slot and a cloud head wrapping back mean deepening; a ragged spiral with warming tops is an old low.", "am": "a red-orange dry intrusion behind the low marks the upper PV anomaly (white is cold cloud, not dry air). On its own it sorted growth weakly in our 916 lows; read it with the 500 mb vorticity."};
   var REVEAL_TAB = { id: 'reveal', label: 'ASCAT', name: 'ASCAT wind over MSLP', reveal: true };
   // Beat the model: each model's +24 h forecast maps (fc_deck.py); the 10 m wind tab is the model's own surface wind.
-  var MODEL_NAMES = { gfs: 'GFS', ifs: 'ECMWF' }, MODELS = ['gfs', 'ifs'];
+  var MODEL_NAMES = { gfs: 'GFS', ifs: 'ECMWF', r925: '925 \u00d7 stability' }, MODELS = ['gfs', 'ifs'], BENCH = MODELS.concat(['r925']);
+  // The forecaster's shortcut (Jason 2026-11-06): strongest 925 mb wind on the map times a mixing factor from sea minus
+  // 2 m air where that wind is. Map-wide factors (manifest.rule925 when the deck carries a refit, else these): the
+  // strongest 925 anywhere runs well above ASCAT, more so over a stable sea. On the +24 h games it reads the GFS forecast maps.
+  var RULE925 = { cuts: [2, 5], f: [0.70, 0.78, 0.83], top: 20 };
+  function rule925(sn) {
+    var R = (manifest && manifest.rule925) || RULE925, w = sn.f.wspd925, d = sn.f.sst_air, idx = [];
+    if (!w || !d) return null;
+    for (var i = 0; i < w.length; i++) if (!sn.land[i] && isFinite(w[i]) && isFinite(d[i])) idx.push(i);
+    if (idx.length < 3) return null;
+    idx.sort(function (a, b) { return w[b] - w[a]; });
+    var top = idx.slice(0, R.top), dm = -99;
+    top.forEach(function (i) { if (d[i] > dm) dm = d[i]; });
+    var k = dm < R.cuts[0] ? 0 : dm < R.cuts[1] ? 1 : 2, kt = w[top[2]] * R.f[k];
+    return { peak: kt, cat: catOf(kt), w925: w[top[2]], sea_air: dm, f: R.f[k] };
+  }
   var W10_TAB = { id: 'w10', label: '10 m wind', name: 'Model 10 m wind',
     fill: { key: 'wspd10', levels: [20, 25, 30, 34, 41, 48, 56, 64],
             colors: [null, '#9fbbd9', '#7aa0c9', '#5683b5', '#f7e68a', '#f2a93b', '#d4531f', '#9e1f1f', '#5c0f45'] },
@@ -1075,6 +1090,9 @@
     if (fc) { rec.chCalled = cur.chCalled; rec.chObs = chObs; rec.chPts = chPts; rec.skip = skipped; }
     if (bm) { rec.models = {}; MODELS.forEach(function (m) { if (cur.c.fc[m] && cur.c.fc[m].cat != null) rec.models[m] = cur.c.fc[m].cat; }); cur.peak = peakCell(geom, cur.data[1], cur.c.t24); }
     if (cur.kind) rec.kind = cur.kind;
+    var rsn = bm ? (cur.fcData && cur.fcData.gfs) : fc ? null : cur.data[cur.snap === 't24' ? 1 : 0];
+    cur.rule = rsn ? rule925(rsn) : null;
+    if (cur.rule) { rec.models = rec.models || {}; rec.models.r925 = cur.rule.cat; }
     if (!fc && !bm) {
       var low = cur.c[cur.snap];
       cur.peak = peakCell(geom, cur.data[cur.snap === 't24' ? 1 : 0], low);
@@ -1115,6 +1133,7 @@
         var v = called < 0 ? '' : you < them ? ' <span class="pill g">you beat it</span>' : you === them ? ' <span class="pill">level</span>' : ' <span class="pill d">it beat you</span>';
         h += '<div class="rline">' + MODEL_NAMES[m] + ' said ' + Math.round(f.peak) + ' kt (' + CATS[f.cat] + '), ' + (f.cat === o ? 'right' : f.cat < o ? 'too low' : 'too high') + v + '</div>';
       });
+      h += ruleLine(called, o, true);
       var g = cur.c.fc.gfs;
       if (cur.game === 'sh' && g && g.peak >= 44) {   // the tested rule: GFS runs low at the top, add 8 kt when it shows 44+
         var lc = catOf(g.peak + 8);
@@ -1122,6 +1141,7 @@
       }
     } else {
       h += '<div class="rline">ASCAT peak ' + Math.round(obsInfo.peak) + ' kt (' + CATS[o] + ')</div>';
+      h += ruleLine(called, o, false);
       h += '<div class="rline">Low centre about ' + Math.round(cur.c[cur.snap].hpa) + ' hPa</div>';
       if (cur.peak) h += '<div class="rline">' + (cur.tap ? 'Your tap was <b>' + Math.round(cur.tapNm) + ' nm</b> from the cell that set the peak (ringed, ' + Math.round(cur.peak.s) + ' kt).'
         : 'The ringed cell on the ASCAT tab set the peak (' + Math.round(cur.peak.s) + ' kt).') + '</div>';
@@ -1139,6 +1159,14 @@
       var top = res.getBoundingClientRect().top + window.pageYOffset - chromeH() - 8;
       window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }
+  }
+
+  function ruleLine(called, o, fcst) {
+    var r = cur.rule; if (!r) return '';
+    var you = called < 0 ? 9 : Math.abs(called - o), them = Math.abs(r.cat - o);
+    var v = called < 0 ? '' : you < them ? ' <span class="pill g">you beat it</span>' : you === them ? ' <span class="pill">level</span>' : ' <span class="pill d">it beat you</span>';
+    return '<div class="rline">925 \u00d7 stability' + (fcst ? ' (GFS +24 h)' : '') + ': ' + Math.round(r.w925) + ' kt \u00d7 ' + r.f.toFixed(2) + ' (sea ' + (r.sea_air >= 0 ? '+' : '') + r.sea_air.toFixed(0) + ' \u00b0C on the air) = ' +
+      Math.round(r.peak) + ' kt (' + CATS[r.cat] + '), ' + (r.cat === o ? 'right' : r.cat < o ? 'too low' : 'too high') + v + '</div>';
   }
 
   // ------------------------------------------------------------------ stats
@@ -1202,7 +1230,7 @@
   // You vs each model: exact category and points on the same cases (a model counts only where it had a forecast).
   function vsModelHTML(recs) {
     var h = '';
-    MODELS.forEach(function (m) {
+    BENCH.forEach(function (m) {
       var rs = recs.filter(function (r) { return r.called >= 0 && r.models && r.models[m] != null; });
       if (!rs.length) return;
       var you = 0, it = 0, yp = 0, ip = 0, up = 0, dn = 0;
@@ -1219,7 +1247,7 @@
     if (game === 'sh') { var cs = confusion(recs); return h + shHTML(recs) + vsModelHTML(recs) + biasHTML(recs, game) + tableHTML(cs); }
     if (game === 'bm') { var cf = confusion(recs); return h + vsModelHTML(recs) + '<div class="read">' + readLine(cf) + '</div>' + biasHTML(recs, game) + tableHTML(cf); }
     var conf = confusion(recs);
-    return h + (game === 'fc' ? changeHTML(recs) : tapHTML(recs)) + '<div class="read">' + readLine(conf) + '</div>' + (game === 'fc' ? persistHTML(recs) : '') + biasHTML(recs, game) + (game === 'fc' ? '<div class="bh2">Category (optional second call)</div>' : '') + tableHTML(conf);
+    return h + (game === 'fc' ? changeHTML(recs) : tapHTML(recs) + vsModelHTML(recs)) + '<div class="read">' + readLine(conf) + '</div>' + (game === 'fc' ? persistHTML(recs) : '') + biasHTML(recs, game) + (game === 'fc' ? '<div class="bh2">Category (optional second call)</div>' : '') + tableHTML(conf);
   }
   // Storm or HF?: the HF catch and the HF over-call, the two numbers that matter at the top end.
   function shHTML(recs) {
@@ -1288,7 +1316,7 @@
     var h = '<div class="level"><b>' + t.pts + ' pts</b><span>' + pct + '% exact &middot; best streak ' + t.best + '</span></div>';
     h += levelHTML(totals(session.records).pts);
     if (blitz.recs.length && blitz.recs[0].game === 'fc') h += changeHTML(blitz.recs);
-    if (blitz.recs.length && blitz.recs[0].game === 'bm') h += vsModelHTML(blitz.recs);
+    if (blitz.recs.length && (blitz.recs[0].game === 'bm' || blitz.recs[0].game === 'now')) h += vsModelHTML(blitz.recs);
     if (blitz.recs.length && blitz.recs[0].game === 'sh') h += shHTML(blitz.recs) + vsModelHTML(blitz.recs);
     h += '<div class="read">' + readLine(conf) + '</div>' + biasHTML(blitz.recs, blitz.recs.length && blitz.recs[0].game) + tableHTML(conf);
     $('endTitle').textContent = 'Blitz done'; $('endBody').innerHTML = h; show('end');
