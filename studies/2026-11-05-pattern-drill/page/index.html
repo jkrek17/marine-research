@@ -24,7 +24,7 @@
 
   <section id="start" class="screen" hidden>
     <h1>Pick the pattern, call the wind</h1>
-    <p class="lead">Look at the model maps around the deepest low (circled). Call the strongest wind ASCAT saw anywhere on the map. Many cases, quick feedback. Session stats clear when you close the tab; benchmark history stays on this device.</p>
+    <p class="lead">Look at the model maps around the deepest low (circled). Call the strongest wind ASCAT saw anywhere on the map: none, gale, storm or HF. The best single clue is the strongest 925 mb wind times a mixing factor from sea minus air (see Reading the wind). Many cases, quick feedback. Session stats clear when you close the tab; benchmark history stays on this device.</p>
     <p class="policy" id="policy">Scoring leans to over-calling on purpose: a miss costs more than a false alarm, as on the desk.</p>
 
     <h2>Game</h2>
@@ -46,8 +46,8 @@
 
     <p id="startMsg" class="fine" role="status"></p>
     <button id="startBtn" class="btn primary big" type="button">Start</button>
-    <button id="benchBtn" class="btn big" type="button" hidden>Benchmark: 20 fixed cases, no hints, no feedback until the end</button>
-    <button id="ingBtn" class="btn big" type="button">Ingredients: what favours growth</button>
+    <button id="benchBtn" class="btn big" type="button" hidden>Benchmark: 20 fixed Beat the model cases, no hints, no feedback until the end</button>
+    <button id="ingBtn" class="btn big" type="button">Reading the wind: 925 &times; stability and model bias</button>
     <button id="exportBtn" class="btn big" type="button">Export results (CSV)</button>
     <p id="exportMsg" class="fine" role="status"></p>
 
@@ -56,7 +56,7 @@
       <p><b>Beat the model</b>: your category for ASCAT at +24 h is scored like any category call, and each model's own category is scored the same way, so the stats show whether you beat GFS and ECMWF.</p>
       <p><b>Storm or HF?</b>: every map has storm force or stronger somewhere. Same category points, so calling HF on a storm case still earns 50 but missing an HF costs 25. On the +24 h cases the stats show your HF catch against GFS, and the result shows what GFS +8 kt (when GFS has 44+) would have said.</p>
       <p><b>925 &times; stability</b>: every result also shows the forecaster's shortcut, the strongest 925 mb wind on the map times a mixing factor from sea minus air (on the +24 h games, from the GFS forecast maps), scored like a model so you can see whether you beat it.</p>
-      <p><b>Benchmark</b> still uses the grow, hold or decay call (right 60, hold when it moved 15, grow or decay when it held 25, wrong direction 0).</p>
+      <p><b>Benchmark</b>: the same 20 Beat the model cases every time, scored like the game; the summary puts you beside GFS and 925 &times; stability on those cases and against your earlier runs on this device.</p>
       <p><b>Category call</b>: exact 100. Over-call by one 50, by two or more 10. Under-call by one 25, by two or more 0. Missing an observed HF -25.</p>
       <p class="fine">Categories: none under 34 kt, gale 34-47, storm 48-63, HF 64+. Truth is the strongest ASCAT 10 m wind anywhere on the map (3rd highest cell, so one stray cell does not set it); the circled low is the deepest on the map. Maps are GFS analyses; Beat the model adds GFS and ECMWF +24 h forecasts (ECMWF only for 00/12Z runs from March 2025). Dates are hidden.</p>
     </div>
@@ -137,7 +137,7 @@
   <div class="sheet" role="dialog" aria-modal="true" aria-label="Session stats">
     <div class="sheethead"><h2>Session stats</h2><button id="closeStats" class="btn small" type="button">Close</button></div>
     <div id="statsBody"></div>
-    <button id="statsIng" class="btn small" type="button">Ingredients reference</button>
+    <button id="statsIng" class="btn small" type="button">Reading the wind</button>
     <button id="statsExport" class="btn small" type="button">Export results (CSV)</button>
     <p class="fine">Stats stay on this device. Session stats live in this browser tab and clear when you close it; benchmark history is kept in this browser's local storage. Nothing is sent anywhere.</p>
   </div>

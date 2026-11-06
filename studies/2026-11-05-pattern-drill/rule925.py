@@ -72,6 +72,34 @@ def score(rows, f, label):
     return out
 
 
+def speed(rows, f):
+    """Numbers for the page's wind-speed reference (Ingredients page, Jason 2026-11-06): the factor table, the
+    925 wind each category needs, the models' 10 m bias by observed category, and the GFS +8 kt rule."""
+    now, fc = rows["now"], rows["fc"]
+    tab = []
+    for k, lab in enumerate(["under 2", "2 to 5", "5 or more"]):
+        rs = [r for r in now if klass(r["d"]) == k]
+        tab.append({"sea_air": lab, "n": len(rs), "f": f[k], "need": [round(t / f[k]) for t in (34, 48, 64)]})
+    bias = []
+    for c, lab in enumerate(["none", "gale", "storm", "HF"]):
+        rs = [r for r in fc if r["cat"] == c]
+        e = [r["ifs_kt"] - r["obs"] for r in rs if r["ifs_kt"] is not None]
+        bias.append({"obs": lab, "n": len(rs), "gfs": round(float(np.median([r["gfs_kt"] - r["obs"] for r in rs])), 1) if rs else None,
+                     "ifs": round(float(np.median(e)), 1) if len(e) >= 5 else None, "ifs_n": len(e)})
+    oc = np.array([r["cat"] for r in fc])
+    lift = np.array([cat(r["gfs_kt"] + 8 if r["gfs_kt"] >= 44 else r["gfs_kt"]) for r in fc])
+    gc = np.array([r["gfs"] for r in fc])
+    rc = np.array([cat(r["w"] * f[klass(r["d"])]) for r in fc])
+
+    def summ(x):
+        st = oc >= 2
+        return {"exact": round(100 * float((x == oc).mean())), "storm_plus_exact": round(100 * float((x[st] == oc[st]).mean())),
+                "hf_caught": int(((x == 3) & (oc == 3)).sum()), "hf": int((oc == 3).sum()),
+                "over": round(100 * float((x > oc).mean())), "under": round(100 * float((x < oc).mean()))}
+    return {"n_now": len(now), "n_fc": len(fc), "factors": tab, "bias": bias,
+            "fc": {"gfs": summ(gc), "gfs_plus8": summ(lift), "r925": summ(rc)}}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--deck", default=str(HERE / "page" / "deck"))
@@ -92,7 +120,8 @@ def main():
             p = predictor(np.fromfile(deck / (c["id"] + "_fc_gfs.bin"), np.uint8), 0, m)
             if p:
                 rows["fc"].append({"w": p[0], "d": p[1], "obs": c["t24"]["peak"], "cat": c["t24"]["cat"],
-                                   "gfs": g["cat"], "early": early})
+                                   "gfs": g["cat"], "gfs_kt": g["peak"], "early": early,
+                                   "ifs_kt": (c["fc"].get("ifs") or {}).get("peak")})
     f_train = fit([r for r in rows["now"] if not r["early"]])
     print("factors fitted on 2024-26 analysis snapshots:", f_train)
     res = {"fit_2024_26": f_train}
@@ -104,9 +133,11 @@ def main():
     f_all = fit(rows["now"])
     print("factors refitted on all winters:", f_all)
     res["f"] = f_all
+    res["speed"] = speed(rows, f_all)
     (HERE / "rule925.json").write_text(json.dumps(res, indent=1))
     if not a.no_write:
         m["rule925"] = {"cuts": CUTS, "f": f_all, "top": TOP}
+        m["speed"] = dict(res["speed"], held_out={"fit": f_train, "now": res.get("now_held_out"), "fc": res.get("fc_held_out")})
         (deck / "manifest.json").write_text(json.dumps(m, separators=(",", ":")))
         print("manifest: rule925", m["rule925"])
 

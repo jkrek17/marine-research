@@ -50,5 +50,97 @@
   0.7,
   0.79,
   0.83
- ]
+ ],
+ "speed": {
+  "n_now": 668,
+  "n_fc": 334,
+  "factors": [
+   {
+    "sea_air": "under 2",
+    "n": 237,
+    "f": 0.7,
+    "need": [
+     49,
+     69,
+     91
+    ]
+   },
+   {
+    "sea_air": "2 to 5",
+    "n": 274,
+    "f": 0.79,
+    "need": [
+     43,
+     61,
+     81
+    ]
+   },
+   {
+    "sea_air": "5 or more",
+    "n": 157,
+    "f": 0.83,
+    "need": [
+     41,
+     58,
+     77
+    ]
+   }
+  ],
+  "bias": [
+   {
+    "obs": "none",
+    "n": 38,
+    "gfs": 2.9,
+    "ifs": null,
+    "ifs_n": 2
+   },
+   {
+    "obs": "gale",
+    "n": 116,
+    "gfs": 1.3,
+    "ifs": -0.2,
+    "ifs_n": 25
+   },
+   {
+    "obs": "storm",
+    "n": 129,
+    "gfs": -4.9,
+    "ifs": -7.6,
+    "ifs_n": 22
+   },
+   {
+    "obs": "HF",
+    "n": 51,
+    "gfs": -9.8,
+    "ifs": -10.5,
+    "ifs_n": 8
+   }
+  ],
+  "fc": {
+   "gfs": {
+    "exact": 61,
+    "storm_plus_exact": 46,
+    "hf_caught": 9,
+    "hf": 51,
+    "over": 10,
+    "under": 29
+   },
+   "gfs_plus8": {
+    "exact": 71,
+    "storm_plus_exact": 79,
+    "hf_caught": 37,
+    "hf": 51,
+    "over": 22,
+    "under": 7
+   },
+   "r925": {
+    "exact": 70,
+    "storm_plus_exact": 71,
+    "hf_caught": 31,
+    "hf": 51,
+    "over": 17,
+    "under": 13
+   }
+  }
+ }
 }

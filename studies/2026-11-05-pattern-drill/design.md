@@ -64,3 +64,7 @@ Jason: "really can just use the Air-sea and 925 winds to pinpoint and determine 
 | GFS +24 h maps, 2021-24 (held out) | 160 | 65% | 61% | 19/35 | 7/79 | 54% | 44% | 7/35 |
 
 It holds out of sample and beats the GFS 10 m wind at +24 h, most at the top end; it still misses about half the HF. It is shown in every result and scored like a model in the stats.
+
+### Benchmark and reading-the-wind page (Jason 2026-11-06)
+
+"The benchmark test does growth/decay. that needs to change": Benchmark v2 = 20 fixed Beat the model cases (make_bench.py, 5 per +24 h category, GFS forecast required, no pool=hf extras), scored like the game; summary shows you vs GFS, ECMWF and 925 x stability, history per device (new storage key; v1 change-call runs are not compared). "Redo the main page removing growth/decay. the ingredients page needs to tell you about wind speed detection": the Ingredients page is now Reading the wind (manifest.speed from rule925.py): factor table with the 925 wind each category needs (sea-air < 2 C: 49/69/91 kt for gale/storm/HF; 2-5 C: 43/61/81; 5 C+: 41/58/77), held-out test, model 10 m bias by ASCAT category (GFS +3/+1/-5/-10 kt for none/gale/storm/HF; ECMWF 0/-8/-10 at gale/storm/HF, few cases), and the +24 h shoot-out on 334 cases: GFS 10 m 61% right, storm/HF 46%, HF 9/51; GFS +8 kt where GFS 44+ 71%, 79%, 37/51 (over-calls 22%); 925 x stability 70%, 71%, 31/51 (over 17%). The growth-ingredient debrief is removed from the result card.
