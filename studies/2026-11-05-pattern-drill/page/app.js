@@ -19,7 +19,8 @@
   var LAND_RGB = [221, 224, 228];
   var LEVELS = [['Trainee', 0], ['Watch', 500], ['Gale', 1500], ['Storm', 3500], ['Hurricane Force', 7000]];
   var STORE_KEY = 'pdrill-session-1';
-  var BENCH_KEY = 'pdrill-bench-1';   // localStorage: benchmark history, this device only
+  var BENCH_KEY = 'pdrill-bench-2';   // version 2: Beat the model cases (version 1 runs were grow/hold/decay on other cases)
+  var BENCH_OLD = 'pdrill-bench-1';   // localStorage: benchmark history, this device only
   var CH_NAMES = ['Decay', 'Hold', 'Grow'], CH_OBS = ['decayed', 'held', 'grew'];   // index = change + 1
   var NM_PER_KM = 1 / 1.852;
 
@@ -809,7 +810,7 @@
     show('play');
     nextCase();
   }
-  function startBench() {   // fixed 20 cases, forecast game, no hints, no feedback until the summary
+  function startBench() {   // fixed 20 Beat the model cases, no hints, no feedback until the summary
     if (!benchIds || !benchIds.length) return;
     $('startMsg').textContent = '';
     lastEnd = 'bench'; blitz = null; pair = null;
@@ -828,7 +829,7 @@
       if (blitz && blitz.recs.length) return endBlitz();
       goHome(); return;
     }
-    var game = bench ? 'fc' : opts.game, fcLike = game === 'bm' || (game === 'sh' && pick.kind === 'fc');
+    var game = bench ? 'bm' : opts.game, fcLike = game === 'bm' || (game === 'sh' && pick.kind === 'fc');
     cur = { game: game, c: pick.c, snap: pick.snap, data: null, answered: false, t0: 0, bench: !!bench, stage: game === 'fc' ? 'change' : null, chCalled: null, tap: null, peak: null,
             src: fcLike ? 'gfs' : null, fcData: null, kind: pick.kind || null, fcLike: fcLike };
     if (!bench) { (session.played[opts.game] = session.played[opts.game] || {})[pick.c.id] = 1; saveSession(); }
@@ -1019,7 +1020,7 @@
         '<div class="dbase">' + base + ' ' + pers + '</div>' + rows +
         '<div class="ikey">These are odds, not rules: the best single ingredient moves the chance of growth by about 20 points.</div>';
     }
-    if (cur.snap !== 't0') return '';
+    return '';   // the growth-ingredient list is retired from the games (Jason 2026-11-06); the result card shows 925 x stability
     var rw = '';
     M.ingredients.forEach(function (it) { if (ing[it.key]) rw += '<div class="drow"><span class="nm">' + it.name + '</span><span class="vl">' + nf(ing[it.key][0]) + ' ' + it.units + ' (' + LEVEL[ing[it.key][1]] + ' for ' + sname + ')</span></div>'; });
     if (ing.jet_pos) rw += '<div class="drow"><span class="nm">Jet position</span><span class="vl">' + ing.jet_pos + '</span></div>';
@@ -1069,9 +1070,38 @@
     }
     return h;
   }
+  // Reading the wind (Jason 2026-11-06: "the ingredients page needs to tell you about wind speed detection").
+  // Numbers from rule925.py (manifest.speed).
+  function speedHTML() {
+    var S = manifest && manifest.speed;
+    if (!S) return '<h1>Reading the wind</h1><p class="lead">No wind-speed statistics in this deck.</p>';
+    var H = S.held_out || {}, P = S.fc, pc = function (x) { return x + '%'; };
+    var h = '<h1>Reading the wind</h1><p class="lead">How to judge the strongest wind ASCAT will show, from ' + S.n_now + ' analysis maps and ' + S.n_fc + ' GFS +24 h forecasts over five winters (2021-26). Truth is the strongest ASCAT wind anywhere on the map.</p>';
+    h += '<h2>1. Strongest 925 mb wind &times; stability</h2>';
+    h += '<p>Find the strongest 925 mb wind over water on the map (925 mb wind tab). Read sea minus air where that wind is (Sea - air tab). Multiply:</p>';
+    h += '<table class="jt"><tr><th>Sea minus 2 m air</th><th>Factor</th><th>925 wind for gale</th><th>for storm</th><th>for HF</th></tr>';
+    S.factors.forEach(function (r) { h += '<tr><th>' + r.sea_air + ' &deg;C</th><td>&times; ' + r.f.toFixed(2) + '</td><td>' + r.need[0] + ' kt</td><td>' + r.need[1] + ' kt</td><td>' + r.need[2] + ' kt</td></tr>'; });
+    h += '</table>';
+    h += '<p class="ikey">Why: air much colder than the sea mixes the wind aloft down to the surface; over a stable sea the strongest 925 wind (often a low-level jet in the warm sector) stays aloft. ' +
+      'Sea minus air is the model\'s own surface (sea) temperature minus its 2 m air temperature. The factors apply to the strongest 925 wind anywhere on the map; the wind right near the centre mixes down more (about 0.9 to 1.1).</p>';
+    if (H.now) h += '<div class="persist"><b>Tested on winters it never saw</b><span>Factors fitted on 2024-26, tried on 2021-24: category right ' + pc(H.now.exact) + ' of ' + H.now.n + ' analysis maps' +
+      (H.fc ? ', and ' + pc(H.fc.exact) + ' on GFS +24 h maps where the GFS 10 m wind gets ' + pc(H.fc.gfs_exact) + '. HF caught ' + H.fc.hf_caught + ' of ' + H.fc.hf + ' (GFS ' + H.fc.gfs_hf_caught + ')' : '') + '.</span></div>';
+    h += '<h2>2. The models\' own 10 m wind</h2><p>Median model peak minus ASCAT peak at +24 h, by what ASCAT showed:</p>';
+    h += '<table class="jt"><tr><th>ASCAT showed</th><th>Cases</th><th>GFS</th><th>ECMWF</th></tr>';
+    var sk = function (v) { return v == null ? '&ndash;' : (v > 0 ? '+' : '') + Math.round(v) + ' kt'; };
+    S.bias.forEach(function (r) { h += '<tr><th>' + r.obs + '</th><td>' + r.n + '</td><td>' + sk(r.gfs) + '</td><td>' + sk(r.ifs) + (r.ifs != null ? ' <span class="fine">(' + r.ifs_n + ')</span>' : '') + '</td></tr>'; });
+    h += '</table><p class="ikey">The models are close below storm force and run low at the top: the stronger the storm, the further under. ECMWF only from March 2025 (00/12Z runs).</p>';
+    h += '<h2>3. Which shortcut wins at +24 h</h2><table class="jt"><tr><th></th><th>Right</th><th>Storm/HF right</th><th>HF caught</th><th>Too high</th><th>Too low</th></tr>';
+    [['GFS 10 m as is', P.gfs], ['GFS +8 kt where GFS has 44+', P.gfs_plus8], ['925 &times; stability on GFS maps', P.r925]].forEach(function (x) {
+      var r = x[1]; h += '<tr><th>' + x[0] + '</th><td>' + pc(r.exact) + '</td><td>' + pc(r.storm_plus_exact) + '</td><td>' + r.hf_caught + ' of ' + r.hf + '</td><td>' + pc(r.over) + '</td><td>' + pc(r.under) + '</td></tr>';
+    });
+    h += '</table><p class="ikey">All ' + S.n_fc + ' forecast cases. Both fixes lift the top end where GFS runs low; GFS +8 kt over-calls more often. Read them together: when the 925 wind over a warm sea already reads storm or HF, go to the top of the range.</p>';
+    h += '<p class="fine">The earlier growth and decay study is retired from the games: its ingredients sorted growth from decay only about 10% better than the usual rates.</p>';
+    return h;
+  }
   function openIngredients() {
-    $('drawer').hidden = true; var b = $('ingBody'); b.innerHTML = ingredientsHTML(); show('ingr');
-    b.onclick = function (e) { var t = e.target.closest('[data-ist]'); if (!t) return; ingStart = +t.getAttribute('data-ist'); b.innerHTML = ingredientsHTML(); };
+    $('drawer').hidden = true; var b = $('ingBody'); b.innerHTML = speedHTML(); show('ingr');
+    b.onclick = null;
   }
 
   function answer(called, why) {   // called: category 0-3, or -1 (skipped, or time up)
@@ -1375,46 +1405,50 @@
     try { var r = window.localStorage.getItem(BENCH_KEY), a = r && JSON.parse(r); if (Array.isArray(a)) benchHist = a; } catch (e) { benchStored = false; }
   }
   function saveBenchHist() { try { window.localStorage.setItem(BENCH_KEY, JSON.stringify(benchHist)); return true; } catch (e) { return false; } }
-  function runSummary(recs) {
-    var s = { n: recs.length, pts: 0, chRight: 0, chPts: 0, persPts: 0, catAns: 0, catExact: 0, secs: 0 };
+  function runSummary(recs) {   // version 2: category vs ASCAT at +24 h, and the benchmarks on the same cases
+    var s = { v: 2, n: recs.length, pts: 0, exact: 0, within1: 0, secs: 0, gfs: 0, gfsPts: 0, gfsN: 0, r925: 0, r925Pts: 0, r925N: 0 };
     recs.forEach(function (r) {
-      s.pts += r.pts; s.chPts += r.chPts; s.persPts += changeScore(0, r.chObs); s.secs += r.t;
-      if (r.chCalled === r.chObs) s.chRight++;
-      if (!r.skip && r.called >= 0) { s.catAns++; if (r.called === r.obs) s.catExact++; }
+      s.pts += r.pts; s.secs += r.t;
+      if (r.called === r.obs) s.exact++;
+      if (r.called >= 0 && Math.abs(r.called - r.obs) <= 1) s.within1++;
+      var m = r.models || {};
+      if (m.gfs != null) { s.gfsN++; if (m.gfs === r.obs) s.gfs++; s.gfsPts += score(m.gfs, r.obs); }
+      if (m.r925 != null) { s.r925N++; if (m.r925 === r.obs) s.r925++; s.r925Pts += score(m.r925, r.obs); }
     });
     return s;
   }
   function shortDate(ts) { var d = new Date(ts); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); }
   function benchHistHTML(hi) {
-    if (!benchHist.length) return '';
-    var h = '<h3 class="gh">Benchmark history (this device)</h3><table class="jt"><tr><th>Run</th><th>Change right</th><th>Change pts</th><th>No change pts</th><th>Category exact</th></tr>';
-    var from = Math.max(0, benchHist.length - 8);
-    benchHist.slice(from).forEach(function (r, i) {
-      var last = hi && from + i === benchHist.length - 1;
-      h += '<tr' + (last ? ' class="hl"' : '') + '><th>' + (from + i + 1) + '<div class="fine">' + shortDate(r.ts) + '</div></th><td>' + r.chRight + ' of ' + r.n + '</td><td>' + r.chPts + '</td><td>' + r.persPts + '</td><td>' + r.catExact + ' of ' + r.catAns + '</td></tr>';
+    var runs = benchHist.filter(function (r) { return r.v === 2; });
+    if (!runs.length) return '';
+    var h = '<h3 class="gh">Benchmark history (this device)</h3><table class="jt"><tr><th>Run</th><th>You exact</th><th>Your pts</th><th>GFS exact</th><th>925 &times; stability exact</th></tr>';
+    var from = Math.max(0, runs.length - 8);
+    runs.slice(from).forEach(function (r, i) {
+      var last = hi && from + i === runs.length - 1;
+      h += '<tr' + (last ? ' class="hl"' : '') + '><th>' + (from + i + 1) + '<div class="fine">' + shortDate(r.ts) + '</div></th><td>' + r.exact + ' of ' + r.n + '</td><td>' + r.pts + '</td><td>' + r.gfs + ' of ' + r.gfsN + '</td><td>' + r.r925 + ' of ' + r.r925N + '</td></tr>';
     });
     return h + '</table>' + (benchStored ? '' : '<div class="fine">Storage is blocked in this browser: history lasts only while this page stays open.</div>');
   }
   function endBench() {
     clearTimer();
-    var recs = bench.recs, run = runSummary(recs), prev = benchHist.length ? benchHist[benchHist.length - 1] : null;
-    run.ts = new Date().toISOString(); run.recs = recs.map(function (r) { return { id: r.id, start: r.start, chCalled: r.chCalled, chObs: r.chObs, called: r.called, obs: r.obs, pts: r.pts, chPts: r.chPts, t: r.t, skip: r.skip }; });
+    var recs = bench.recs, run = runSummary(recs), olds = benchHist.filter(function (r) { return r.v === 2; }), prev = olds.length ? olds[olds.length - 1] : null;
+    run.ts = new Date().toISOString(); run.recs = recs.map(function (r) { return { id: r.id, start: r.start, called: r.called, obs: r.obs, pts: r.pts, t: r.t, models: r.models }; });
     benchHist.push(run); if (benchHist.length > 30) benchHist.shift();
     benchStored = saveBenchHist() && benchStored;
     var sg = function (x) { return (x > 0 ? '+' : '') + x; };
-    var h = '<div class="level"><b>' + run.chRight + ' of ' + run.n + ' change calls right</b><span>' + run.pts + ' pts &middot; ' + (run.secs / run.n).toFixed(1) + ' s per case</span></div>';
-    h += prev ? '<div class="read">Against your previous run: ' + sg(run.chRight - prev.chRight) + ' right calls, ' + sg(run.chPts - prev.chPts) + ' change pts, ' + sg(run.pts - prev.pts) + ' total pts.</div>'
+    var h = '<div class="level"><b>' + run.exact + ' of ' + run.n + ' right</b><span>' + run.pts + ' pts &middot; ' + run.within1 + ' within one &middot; ' + (run.secs / run.n).toFixed(1) + ' s per case</span></div>';
+    h += prev ? '<div class="read">Against your previous run: ' + sg(run.exact - prev.exact) + ' right, ' + sg(run.pts - prev.pts) + ' pts.</div>'
       : '<div class="read">First benchmark run on this device. Come back later and run it again to compare.</div>';
-    h += changeHTML(recs);
-    h += '<div class="fine chnote">Category (optional): ' + run.catExact + ' exact of ' + run.catAns + ' answered.</div>';
+    h += vsModelHTML(recs);
+    h += '<div class="read">' + readLine(confusion(recs)) + '</div>';
     h += benchHistHTML(true);
-    var rows = '';
+    var rows = '', mc = function (r, k) { return r.models && r.models[k] != null ? CATS[r.models[k]] : '-'; };
     recs.forEach(function (r, i) {
       var c = manifest.byId[r.id];
-      rows += '<tr><th>' + (i + 1) + '</th><td>' + (c && c.basin === 'natl' ? 'Atl' : 'Pac') + '</td><td>' + CATS[r.start] + '</td><td>' + (r.chCalled === null ? '-' : CH_NAMES[r.chCalled + 1]) + '</td><td>' + CH_OBS[r.chObs + 1] +
+      rows += '<tr><th>' + (i + 1) + '</th><td>' + (c && c.basin === 'natl' ? 'Atl' : 'Pac') + '</td><td>' + CATS[r.start] + '</td><td>' + (r.called < 0 ? '-' : CATS[r.called]) + '</td><td>' + mc(r, 'gfs') + '</td><td>' + mc(r, 'r925') +
         '</td><td>' + CATS[r.obs] + '</td></tr>';
     });
-    h += '<details class="dlite"><summary>The ' + recs.length + ' cases</summary><table class="jt"><tr><th>#</th><th>Basin</th><th>Start</th><th>You called</th><th>It</th><th>+24 h</th></tr>' + rows + '</table></details>';
+    h += '<details class="dlite"><summary>The ' + recs.length + ' cases</summary><table class="jt"><tr><th>#</th><th>Basin</th><th>ASCAT now</th><th>You</th><th>GFS</th><th>925 &times; stab.</th><th>ASCAT +24 h</th></tr>' + rows + '</table></details>';
     $('endTitle').textContent = 'Benchmark done'; $('endBody').innerHTML = h;
     lastEnd = 'bench'; bench = null; cur = null; show('end');
   }
@@ -1429,7 +1463,7 @@
     });
     benchHist.forEach(function (run, k) {
       (run.recs || []).forEach(function (r) {
-        rows.push(['benchmark', k + 1, run.ts, 'forecast', 'bench', r.id, cat(r.start), chn(r.chCalled), CH_OBS[r.chObs + 1], r.chPts, cat(r.called), cat(r.obs), r.pts - r.chPts, r.pts, r.t, '', '', '']);
+        rows.push(['benchmark', k + 1, run.ts, 'beat_the_model', 'bench', r.id, cat(r.start), '', '', '', cat(r.called), cat(r.obs), r.pts, r.pts, r.t, '', '', '']);
       });
     });
     session.pairs.forEach(function (p) { rows.push(['pair', '', '', 'forecast', 'pairs', p.a + '|' + p.b, '', '', '', '', '', '', '', '', p.t, '', p.pick.toUpperCase(), p.right ? 1 : 0]); });
