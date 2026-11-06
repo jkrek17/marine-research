@@ -27,21 +27,21 @@ if (site / "deck").is_dir():
     shutil.rmtree(site / "deck")
 (site / ".nojekyll").write_text("")
 fronts = """  <section id="fronts">
-    <div class="sechead"><h2>Fronts</h2><span class="q">Where are the fronts?</span></div>
-    <p class="about">The low and any stationary front are drawn for you; draw the cold, warm and occluded fronts, then compare with the Unified Surface Analysis.
-      Full credit within 150 nm, and getting the type right counts double. 522 cases from analyses since mid-August 2026.</p>
+    <div class="sechead"><h2>Frontal analysis</h2><span class="q">Place the fronts</span></div>
+    <p class="about">The low and any stationary front are given. Draw the cold, warm and occluded fronts, then compare with the Unified Surface Analysis.
+      Full credit within 150 nm; front type counts double. 522 cases from analyses since mid-August 2026.</p>
     <div class="cards">
-      <a class="card wide" href="fronts/"><h3>Front drill</h3><p>One system per case at a synoptic hour. Tabs: MSLP and thickness, satellite imagery, 850 mb theta-e,
-        10 m convergence, 3 h pressure tendency, 10 m wind with ASCAT, 250 mb isotachs.</p><span class="meta">About 90 seconds a case</span></a>
+      <div class="card wide"><h3>Front drill</h3><p>One system per case at a synoptic hour. Fields: MSLP and thickness, satellite imagery, 850 mb theta-e,
+        10 m convergence, 3 h pressure tendency, 10 m wind with ASCAT, 250 mb isotachs.</p><span class="meta">About 90 seconds a case</span>
+        <div class="acts"><a class="act primary" href="fronts/">Start the front drill</a></div></div>
     </div>
   </section>
 """
 landing = (here / "site" / "index.html").read_text()
 have_fronts = (site / "fronts" / "index.html").exists()
 landing = landing.replace("<!--FRONTS-->", fronts if have_fronts else "")
-landing = landing.replace("<!--FRONTS_NAV-->", '<a href="#fronts">Fronts</a>' if have_fronts else "")
-if not have_fronts:
-    landing = landing.replace("        <li>Mix in the <b>Front drill</b> for where the systems are, not just how strong.</li>\n", "")
+landing = landing.replace("<!--FRONTS_NAV-->", '<a href="#fronts">Frontal analysis</a>' if have_fronts else "")
+landing = landing.replace("<!--FRONTS_STEP-->", "        <li>Add the <b>Front drill</b> to practise frontal placement alongside wind speed.</li>" if have_fronts else "")
 (site / "index.html").write_text(landing)
 m = json.loads((deck / "manifest.json").read_text())
 keep = {"manifest.json", "bench.json"}
