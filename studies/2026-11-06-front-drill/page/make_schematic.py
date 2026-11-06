@@ -31,31 +31,32 @@ cold = curve([TP, [2.7, -1.6], [0.6, -4.4]])
 
 
 def dist(x, y, line):
+    """Distance to a polyline and the fraction along it (0 at its first point, 1 at its last) of the nearest point."""
+    seg = np.hypot(*np.diff(line, axis=0).T)
+    cum = np.concatenate([[0], np.cumsum(seg)]) / seg.sum()
     d = np.full(x.shape, np.inf)
-    for (ax, ay), (bx, by) in zip(line[:-1], line[1:]):
+    s = np.zeros(x.shape)
+    for i, ((ax, ay), (bx, by)) in enumerate(zip(line[:-1], line[1:])):
         vx, vy = bx - ax, by - ay
         t = np.clip(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy), 0, 1)
-        d = np.minimum(d, np.hypot(x - ax - t * vx, y - ay - t * vy))
-    return d
+        di = np.hypot(x - ax - t * vx, y - ay - t * vy)
+        m = di < d
+        d = np.where(m, di, d)
+        s = np.where(m, cum[i] + t * (cum[i + 1] - cum[i]), s)
+    return d, s
 
 
 x, y = np.meshgrid(np.linspace(-4.5, 7.5, 700), np.linspace(-5.2, 3.8, 520))
 r = np.hypot(x - LOW[0], y - LOW[1])
 p = 1012 - 30 * np.exp(-(r / 2.6) ** 2) + 2.0 * (0.25 * x - 1.0 * y)   # deep low in westerlies (higher pressure to the south)
 
-
-def taper(line, x, y, L=2.2):
-    """1 along a front, fading to 0 past its outer end so the trough (and the front) dies out."""
-    e = line[-1]
-    d_end = np.hypot(x - e[0], y - e[1])
-    d_start = np.hypot(x - line[0][0], y - line[0][1])
-    return np.clip(1 - np.maximum(0, L - d_end) / L * (d_start > d_end), 0, 1) * 0.65 + 0.35
-
-
-trough = np.zeros_like(p)
-for f, k in ((occ, 6.0), (warm, 5.0), (cold, 7.0)):
-    trough = np.maximum(trough, k * (1.0 - np.minimum(dist(x, y, f), 1.0)) * taper(f, x, y))
-p -= trough                                                  # V-shaped trough along every front -> kinked isobars
+# Each front is a trough: a V-shaped dip (sharp at the front, fading smoothly away from it) that weakens over the
+# outer 40% of the front, so the isobars kink at the front and straighten again past its end.
+W = 0.7
+for f, k, fade in ((occ, 6.0, False), (warm, 7.0, True), (cold, 8.0, True)):
+    d, s = dist(x, y, f)
+    w = np.where(s < 0.6, 1.0, 0.5 + 0.5 * np.cos(np.pi * np.clip((s - 0.6) / 0.4, 0, 1))) if fade else 1.0
+    p -= k * W * np.exp(-d / W) * w
 
 fig, ax = plt.subplots(figsize=(7.8, 5.6), dpi=100)
 cs = ax.contour(x, y, p, levels=np.arange(940, 1040, 4), colors="#46506A", linewidths=1.0)
