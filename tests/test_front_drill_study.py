@@ -228,6 +228,68 @@ def test_thermal_contrast_cold():
     assert "backs" in h2 or "veers" in h2
 
 
+def test_convergence():
+    # u = -k x (east-west convergence) on the sphere: div = du/dx = -k, so convergence = +k (x1e-5)
+    la = LAT_N - np.arange(51)[:, None] * 0.5 + 0 * np.arange(81)[None, :]
+    lo = np.arange(81)[None, :] * 0.5 + 0 * la
+    k = 1e-5
+    x_m = np.radians(lo) * 6371000.0 * np.cos(np.radians(la))
+    c = FL.convergence(-k * (x_m - x_m[:, 40:41]), np.zeros_like(la), LAT_N)
+    assert abs(float(np.median(c[5:-5, 5:-5])) - 1.0) < 0.03, np.median(c)
+    # v = k y (north-south divergence): convergence -k
+    y_m = np.radians(la) * 6371000.0
+    c2 = FL.convergence(np.zeros_like(la), k * (y_m - y_m[25:26, :]), LAT_N)
+    assert abs(float(np.median(c2[5:-5, 5:-5])) + 1.0) < 0.1, np.median(c2)
+    assert abs(float(np.max(np.abs(FL.convergence(np.full_like(la, 7.0), np.full_like(la, -3.0), LAT_N)[5:-5, 5:-5])))) < 0.2
+
+
+def test_conv_contrast_and_occluded_hint():
+    pts = [[55.0 - 0.2 * i, 310.0] for i in range(66)]
+    cv = grid_field(lambda la, lo: 3.0 * np.exp(-((lo - 310.0) / 0.7) ** 2))
+    r = FL.conv_contrast([pts], cv, LAT_N, LON_W)
+    assert 2.5 < r["on"] <= 3.0 and abs(r["around"]) < 0.1 and r["excess"] > 2.4
+    u = grid_field(lambda la, lo: -3.0 * np.tanh((lo - 310.0) / 1.0))      # winds meet along 310E
+    h = FL.hint("occluded", [pts], {"u10": u, "v10": u * 0, "msl": u * 0, "te850": u * 0}, LAT_N, LON_W)
+    assert "10 m convergence" in h and "700" not in h, h
+
+
+def test_no_symbols_in_page():
+    from pathlib import Path as P
+    js = (P(__file__).resolve().parents[1] / "studies/2026-11-06-front-drill/page/app.js").read_text()
+    assert "sidePicker" not in js and "te700" not in js and "'semi'" not in js
+
+
+def test_export_has_no_key_or_absolute_paths():
+    import json, tempfile, importlib.util
+    from pathlib import Path as P
+    page = P(__file__).resolve().parents[1] / "studies/2026-11-06-front-drill/page"
+    td = page / "testdeck"
+    if not (td / "manifest.json").exists():
+        return                                   # make_test_deck.py not run: nothing to export
+    spec = importlib.util.spec_from_file_location("export_site", page / "export_site.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    with tempfile.TemporaryDirectory() as site:
+        (P(site) / "fronts").mkdir()
+        (P(site) / "fronts" / "stale.txt").write_text("old")
+        (td / "key.csv").write_text("never published")       # a stray key beside the deck must not travel
+        try:
+            out = m.export(site, td)
+        finally:
+            (td / "key.csv").unlink()
+        files = [p for p in out.rglob("*") if p.is_file()]
+        names = {p.name for p in files}
+        assert "key.csv" not in names and "stale.txt" not in names and "index.html" in names and "manifest.json" in names
+        assert not any("work" in p.relative_to(out).parts for p in files)
+        for p in files:
+            if p.suffix in (".html", ".js", ".css", ".json"):
+                t = p.read_text()
+                for bad in ("/ho" + "me/", "/t" + "mp/", "/m" + "nt/", "file:" + "//"):
+                    assert bad not in t.replace("https://", ""), (p.name, bad)
+        assert 'href="../"' in (out / "index.html").read_text()
+        json.loads((out / "deck" / "manifest.json").read_text())
+
+
 def test_ridge_contrast():
     pts = [[55.0 - 0.2 * i, 310.0] for i in range(66)]
     te = grid_field(lambda la, lo: 285.0 + 10.0 * np.exp(-((lo - 310.0) / 1.0) ** 2))

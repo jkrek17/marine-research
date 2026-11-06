@@ -313,6 +313,51 @@ def thermal_contrast(fronts_pts, te, u, v, lat_n, lon_w, dist_km=150.0, res=0.5)
             "dte": float(np.median(warm[ok] - cold[ok])), "turn": turn, "n": int(ok.sum())}
 
 
+def convergence(u, v, lat_n, res=0.5, smooth=True):
+    """10 m convergence (1e-5 per s, positive = converging) of a box's u, v (m/s, row 0 north) on the sphere:
+    div = (du/dlon + d(v cos lat)/dlat) / (a cos lat), centred differences (one-sided at the edges), then a 3 x 3 box
+    mean. The page (app.js, convergence()) does the same thing from the deck's u10 / v10."""
+    u, v = np.asarray(u, float), np.asarray(v, float)
+    ny = u.shape[0]
+    lat = np.radians(lat_n - np.arange(ny) * res)[:, None]
+    h = np.radians(res)
+    a = 6371000.0
+    dudl = np.gradient(u, h, axis=1)
+    dvc = np.gradient(v * np.cos(lat), -h, axis=0)       # rows run north to south
+    div = (dudl + dvc) / (a * np.cos(lat))
+    conv = -div * 1e5
+    if smooth:
+        p = np.pad(conv, 1, mode="edge")
+        conv = sum(p[i:i + ny, j:j + conv.shape[1]] for i in range(3) for j in range(3)) / 9.0
+    return conv
+
+
+def conv_contrast(fronts_pts, conv, lat_n, lon_w, side_km=250.0, near_km=75.0, res=0.5):
+    """10 m convergence on the line (best of the line and +-near_km across it) against the mean of the two sides side_km
+    away, medians over the points -> {"on", "around", "excess", "n"} (1e-5 per s) or None."""
+    on, around = [], []
+    for pts in fronts_pts:
+        if len(pts) < 3:
+            continue
+        p = np.asarray(pts, float)
+        (l1, o1), (l2, o2) = side_points(pts, near_km)
+        c = np.vstack([bilin(conv, lat_n, lon_w, p[:, 0], p[:, 1], res),
+                       bilin(conv, lat_n, lon_w, l1, o1, res), bilin(conv, lat_n, lon_w, l2, o2, res)])
+        (a1, b1), (a2, b2) = side_points(pts, side_km)
+        s = 0.5 * (bilin(conv, lat_n, lon_w, a1, b1, res) + bilin(conv, lat_n, lon_w, a2, b2, res))
+        with np.errstate(all="ignore"):
+            on.append(np.nanmax(c, axis=0))
+        around.append(s)
+    if not on:
+        return None
+    on, around = np.concatenate(on), np.concatenate(around)
+    ok = np.isfinite(on) & np.isfinite(around)
+    if ok.sum() < 3:
+        return None
+    return {"on": float(np.median(on[ok])), "around": float(np.median(around[ok])),
+            "excess": float(np.median(on[ok] - around[ok])), "n": int(ok.sum())}
+
+
 def ridge_contrast(fronts_pts, te700, lat_n, lon_w, side_km=250.0, near_km=75.0, res=0.5):
     """700 hPa theta-e on the line (best of the line and +-near_km across it) against the mean of the
     two sides side_km away, medians over the points -> {"ridge", "on", "around", "n"} or None."""
@@ -378,7 +423,7 @@ def _turn_text(turn):
 
 def hint(typ, fronts_pts, fields, lat_n, lon_w):
     """One line for the reveal about this case's fronts of one type, numbers from the fields
-    (fields: dict with msl, te850, te700, u10, v10 on the box grid), or None when they cannot be computed."""
+    (fields: dict with msl, te850, u10, v10 on the box grid), or None when they cannot be computed."""
     if typ in ("cold", "warm"):
         c = thermal_contrast(fronts_pts, fields["te850"], fields["u10"], fields["v10"], lat_n, lon_w)
         if c is None:
@@ -389,11 +434,11 @@ def hint(typ, fronts_pts, fields, lat_n, lon_w):
         return ("Warm front: 850 hPa theta-e is %.0f K higher on the warm side (%.0f against %.0f K, "
                 "150 km either side)%s." % (c["dte"], c["te_warm"], c["te_cold"], _turn_text(c["turn"])))
     if typ == "occluded":
-        r = ridge_contrast(fronts_pts, fields["te700"], lat_n, lon_w)
+        r = conv_contrast(fronts_pts, convergence(fields["u10"], fields["v10"], lat_n, 0.5), lat_n, lon_w)
         if r is None:
             return None
-        return ("Occluded front: 700 hPa theta-e along the front is %.0f K, %+.0f K against the air 250 km either "
-                "side (%.0f K): the warm ridge wrapping into the low." % (r["on"], r["ridge"], r["around"]))
+        return ("Occluded front: 10 m convergence along the front is %.1f (x1e-5 per s), %+.1f against the air 250 km either "
+                "side (%.1f): look for the convergence line curling into the low." % (r["on"], r["excess"], r["around"]))
     if typ == "stationary":
         a = isobar_angle(fronts_pts, fields["msl"], lat_n, lon_w)
         if a is None:

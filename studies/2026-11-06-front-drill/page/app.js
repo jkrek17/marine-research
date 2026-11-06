@@ -81,6 +81,14 @@
     return v < 0 ? mix([253, 219, 199], [160, 28, 36], t) : mix([209, 229, 240], [20, 60, 150], t);
   };
 
+  var CONV_MAX = 6;   // 1e-5 per s: about the 98th percentile of |convergence| within 480 nm of the case lows over the 522-case deck
+  var convFill = function (v) {   // warm = converging, cool = diverging, white near zero; 1 unit bands
+    var a = Math.abs(v); if (a < 0.5) return null;
+    var t = Math.min(1, (Math.floor(a) - 0.5) / (CONV_MAX - 1));
+    t = Math.max(0, t);
+    return v > 0 ? mix([253, 224, 170], [165, 25, 20], t) : mix([205, 228, 242], [20, 70, 160], t);
+  };
+
   var TABS = [
     { id: 'msl', label: 'Default', name: 'MSLP + 1000-500 thickness + 10 m wind',
       note: 'Solid black: MSLP every 4 hPa. Dashed: 1000-500 hPa thickness every 6 dam (blue cold, red warm; 540 heavy). Barbs: GFS 10 m wind in knots.' },
@@ -90,10 +98,9 @@
       legend: { title: '850 hPa theta-e (K), bands of 3 K', lo: 255, hi: 342, step: 3, every: 15, color: teFill },
       contours: [{ key: 'te850', step: 3, width: function (l) { return l % 15 === 0 ? 1.2 : 0.6; }, color: 'rgba(50,25,10,.75)', label: true, fmt: f0, minGap: 170, only: function (l) { return l % 6 === 0; } }],
       note: 'Thin: MSLP every 4 hPa. Brown contours: theta-e every 3 K; a front is a tight packing of them, and analysts draw it on the warm edge of that packing.' },
-    { id: 'te700', label: '700 theta-e', name: '700 hPa equivalent potential temperature', key: 'te700', fill: teFill,
-      legend: { title: '700 hPa theta-e (K), bands of 3 K', lo: 255, hi: 342, step: 3, every: 15, color: teFill },
-      contours: [{ key: 'te700', step: 3, width: function (l) { return l % 15 === 0 ? 1.2 : 0.6; }, color: 'rgba(50,25,10,.75)', label: true, fmt: f0, minGap: 170, only: function (l) { return l % 6 === 0; } }],
-      note: 'Thin: MSLP every 4 hPa. The warm ridge wrapping into the low (a TROWAL) marks an occlusion.' },
+    { id: 'conv', label: '10 m convergence', name: 'GFS 10 m convergence + MSLP + 10 m wind', key: 'conv', fill: convFill, barbs: true,
+      legend: { title: '10 m convergence (1e-5 per s): warm converging, cool diverging; bands of 1', lo: -CONV_MAX, hi: CONV_MAX, step: 1, every: 2, color: function (v) { return convFill(v); }, mid: true },
+      note: 'Warm colours: 10 m wind converging; cool: diverging (GFS analysis, 1e-5 per s, lightly smoothed). Black: MSLP every 4 hPa; barbs: GFS 10 m wind. A front is a narrow line of convergence along the wind shift, strongest ahead of a cold front and along an occlusion near the low.' },
     { id: 'dp3', label: '3 h tendency', name: '3 h MSLP change', key: 'dp3', fill: dpFill,
       legend: { title: '3 h pressure change (hPa): red falls, blue rises; under 1 hidden', lo: -6, hi: 6, step: 1, every: 2, color: function (v) { return dpFill(v + 0.01 * (v < 0 ? -1 : 1)); }, mid: true },
       note: 'Thin: MSLP every 4 hPa. Falls ahead of the warm front; a fall/rise couplet near the triple point.' },
@@ -407,6 +414,30 @@
     return imgCache[url];
   }
 
+  // 10 m convergence (1e-5 per s, positive converging) from the case's u10 / v10 (stored in kt): spherical
+  // div = (du/dlon + d(v cos lat)/dlat) / (a cos lat), centred differences (one-sided at the edges), then a 3 x 3 box mean.
+  // Same maths as frontlib.convergence (tests/test_front_drill_study.py checks that one).
+  function convergence(uKt, vKt, nx, ny, res, latN) {
+    var h = res * RAD, A = 6371000, out = new Float32Array(nx * ny), raw = new Float32Array(nx * ny), M = 1 / KT_PER_MS;
+    var cosl = function (j) { return Math.cos((latN - j * res) * RAD); };
+    for (var j = 0; j < ny; j++) {
+      var cj = cosl(j), jn = Math.max(0, j - 1), js = Math.min(ny - 1, j + 1);
+      var dj = (js === jn) ? 1 : (js - jn);
+      for (var i = 0; i < nx; i++) {
+        var iw = Math.max(0, i - 1), ie = Math.min(nx - 1, i + 1), k = j * nx + i;
+        var dudl = (uKt[j * nx + ie] - uKt[j * nx + iw]) * M / ((ie - iw) * h);
+        var dvc = (vKt[js * nx + i] * M * cosl(js) - vKt[jn * nx + i] * M * cosl(jn)) / (-dj * h);   // rows run north to south
+        raw[k] = -(dudl + dvc) / (A * cj) * 1e5;
+      }
+    }
+    for (var y = 0; y < ny; y++) for (var x = 0; x < nx; x++) {
+      var s = 0;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) s += raw[clamp(y + dy, 0, ny - 1) * nx + clamp(x + dx, 0, nx - 1)];
+      out[y * nx + x] = s / 9;
+    }
+    return out;
+  }
+
   // ------------------------------------------------------------------ projection
   function makeGeom(c) {
     var g = { nx: manifest.nx, ny: manifest.ny, res: manifest.res, lat0: c.lat0, lon0: c.lon0 };
@@ -649,7 +680,7 @@
     (tab.contours || []).forEach(function (sp) { drawContours(ctx, g, snap.f[sp.key], sp, labels); });
     drawContours(ctx, g, snap.f.msl, { step: 4, width: function (l) { return l % 20 === 0 ? 1.5 : 0.9; }, color: 'rgba(0,0,0,.85)', label: false }, labels);
     if (iso) drawIsotachs(ctx, g, snap, labels);
-    if (tab.id === 'wind') drawBarbs(ctx, g, snap, false, asc);   // the model barbs; ASCAT's replace them inside the swath
+    if (tab.id === 'wind' || tab.barbs) drawBarbs(ctx, g, snap, false, asc);   // the model barbs; ASCAT's replace them inside the swath
     if (asc) drawBarbs(ctx, g, snap, true);
   }
   function baseSat(ctx, g, snap, img, iso) {
@@ -666,24 +697,6 @@
   }
 
   // ------------------------------------------------------------------ fronts and lows (overlay)
-  // +1 / -1: which side of the line the symbols go. Northern-hemisphere convention for fronts of a cyclone:
-  // walking along the front AWAY from its low (or the triple point chain), the symbols sit on the LEFT, i.e. on the
-  // side the front moves toward: cold-front triangles face the warm sector, warm-front semicircles face the cold
-  // air ahead, occluded symbols continue the cold front's side through the triple point (Jason 2026-11-06), and
-  // stationary triangles take the left. 850 hPa theta-e was tried first and fails ahead of warm fronts (warm air
-  // aloft). `ref` = screen point of the low the front belongs to.
-  function sidePicker(P, type, g, ref) {
-    var a = P[0], b = P[P.length - 1];
-    if (!ref) ref = [g.cw / 2, g.ch / 2];
-    var outward = Math.hypot(a[0] - ref[0], a[1] - ref[1]) <= Math.hypot(b[0] - ref[0], b[1] - ref[1]);
-    // the symbol normal for side +1 is (-ty, tx): screen-right of travel (y down); left of travel is side -1
-    return outward ? -1 : 1;
-  }
-  function lowFor(f) {   // the analysed low nearest either end of a front (its parent low)
-    var ls = cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low], e = [f.pts[0], f.pts[f.pts.length - 1]], best = null, bd = 1e9;
-    ls.forEach(function (l) { e.forEach(function (p) { var d = distNm(l, { lat: p[0], lon: p[1] }); if (d < bd) { bd = d; best = l; } }); });
-    return best;
-  }
   function pathPoint(P, cum, s) {   // position and unit tangent at arc length s
     var i = 1; while (i < P.length - 1 && cum[i] < s) i++;
     var a = P[i - 1], b = P[i], seg = cum[i] - cum[i - 1] || 1, t = clamp((s - cum[i - 1]) / seg, 0, 1), L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
@@ -705,7 +718,7 @@
       ctx.restore(); return;
     }
     var cum = [0]; for (var i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
-    var total = cum[cum.length - 1], u = o.u, spacing = 5.2 * u;
+    var total = cum[cum.length - 1], u = o.u, spacing = 5.2 * u;   // plain coloured lines: no symbols, so no direction to get right
     var path = function () { ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); for (var k = 1; k < P.length; k++) ctx.lineTo(P[k][0], P[k][1]); };
     path(); ctx.lineWidth = o.lw + 3.4; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
     if (o.outline) { path(); ctx.lineWidth = o.lw + 1.8; ctx.strokeStyle = o.outline; ctx.stroke(); }
@@ -717,24 +730,6 @@
         ctx.lineWidth = o.lw; ctx.strokeStyle = k2 % 2 ? ft.c2 : ft.c; ctx.stroke();
       }
     } else { path(); ctx.lineWidth = o.lw; ctx.strokeStyle = ft.c; ctx.stroke(); }
-    if (f.type !== 'trough') {
-      var side = sidePicker(P, f.type, g, o.ref ? proj(g, o.ref.lat, o.ref.lon) : null), n = Math.max(1, Math.floor(total / spacing));
-      for (var m = 0; m < n; m++) {
-        var s2 = total / n * (m + 0.5), q = pathPoint(P, cum, s2), nx = -q.ty * side, ny = q.tx * side;
-        var kind = f.type === 'cold' ? 'tri' : f.type === 'warm' ? 'semi' : f.type === 'occluded' ? (m % 2 ? 'semi' : 'tri') : (m % 2 ? 'semi' : 'tri');
-        var sd = 1, col = ft.c;
-        if (f.type === 'stationary') { col = m % 2 ? ft.c : ft.c2; sd = m % 2 ? -1 : 1; }   // blue triangles one side, red half-circles the other
-        var ex = nx * sd, ey = ny * sd;
-        ctx.beginPath();
-        if (kind === 'tri') {
-          ctx.moveTo(q.x - q.tx * u * 1.1, q.y - q.ty * u * 1.1); ctx.lineTo(q.x + q.tx * u * 1.1, q.y + q.ty * u * 1.1); ctx.lineTo(q.x + ex * u * 1.9, q.y + ey * u * 1.9); ctx.closePath();
-        } else {
-          var an = Math.atan2(ey, ex); ctx.arc(q.x, q.y, u * 1.1, an - Math.PI / 2, an + Math.PI / 2, false); ctx.closePath();
-        }
-        ctx.fillStyle = col; ctx.fill();
-        if (o.outline) { ctx.lineWidth = 0.9; ctx.strokeStyle = o.outline; ctx.stroke(); }
-      }
-    }
     if (o.dots) P0.forEach(function (p) {
       ctx.beginPath(); ctx.arc(p[0], p[1], 4.5, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = ft.c; ctx.stroke();
     });
@@ -897,15 +892,15 @@
     if (ring) drawRing(ctx, g, ring);
     if (!showT) {   // given to the trainee: the system's stationary fronts and its analysed lows
       var toPtsG = function (f) { return { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }; };
-      givenOf(cur.c).fronts.forEach(function (f) { drawFront(ctx, g, toPtsG(f), { lw: 3, u: u * 1.1, outline: '#0c1220', ref: cur.c.low }); });
+      givenOf(cur.c).fronts.forEach(function (f) { drawFront(ctx, g, toPtsG(f), { lw: 3, u: u * 1.1, outline: '#0c1220' }); });
       givenOf(cur.c).lows.forEach(function (l) {
         drawLowMark(ctx, g, l.lat, l.lon, { color: '#d00018', sub: l.hpa != null ? String(Math.round(l.hpa)) : '' });
       });
     }
     if (showT) {
       var toPts = function (f) { return { type: f.type, pts: f.pts.map(function (p) { return { lat: p[0], lon: p[1] }; }) }; };
-      cur.c.fronts.filter(function (f) { return !isSys(f); }).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 1.7, u: u * 0.8, tint: '#7c8693', alpha: 0.8, ref: lowFor(f) }); });
-      cur.c.fronts.filter(isSys).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 3.4, u: u * 1.2, outline: '#0c1220', ref: cur.c.low }); });
+      cur.c.fronts.filter(function (f) { return !isSys(f); }).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 1.7, u: u * 0.8, tint: '#7c8693', alpha: 0.8 }); });
+      cur.c.fronts.filter(isSys).forEach(function (f) { drawFront(ctx, g, toPts(f), { lw: 3.4, u: u * 1.2, outline: '#0c1220' }); });
       if (cur.triple) drawTriple(ctx, g, cur.triple);
       (cur.c.lows && cur.c.lows.length ? cur.c.lows : [cur.c.low]).forEach(function (l) {
         var sub = l.hpa != null ? String(Math.round(l.hpa)) : '';
@@ -914,8 +909,8 @@
     }
     if (showM) {
       var myRef = cur.low || ringOf(cur.c) || cur.c.low;
-      cur.drawn.forEach(function (f) { drawFront(ctx, g, f, { lw: 2.4, u: u, alpha: cur.submitted ? 0.85 : 1, curve: true, ref: myRef }); });
-      if (cur.active && !cur.submitted) drawFront(ctx, g, cur.active, { lw: 2.4, u: u, dots: true, curve: true, ref: myRef });
+      cur.drawn.forEach(function (f) { drawFront(ctx, g, f, { lw: 2.4, u: u, alpha: cur.submitted ? 0.85 : 1, curve: true }); });
+      if (cur.active && !cur.submitted) drawFront(ctx, g, cur.active, { lw: 2.4, u: u, dots: true, curve: true });
       if (cur.low) {
         if (cur.submitted && cur.result && cur.result.low.nearest && showT) {
           var a = proj(g, cur.low.lat, cur.low.lon), b = proj(g, cur.result.low.nearest.lat, cur.result.low.nearest.lon);
@@ -1026,7 +1021,8 @@
     var tok = cur;
     loadCase(id).then(function (d) {
       if (cur !== tok) return;
-      cur.data = d; geom = makeGeom(c); sizeCanvas();
+      cur.data = d; if (!d.f.conv && d.f.u10 && d.f.v10) d.f.conv = convergence(d.f.u10, d.f.v10, manifest.nx, manifest.ny, manifest.res, c.lat0);
+      geom = makeGeom(c); sizeCanvas();
       $('mapLoad').hidden = true; setTab(0);
       cur.t0 = Date.now();
       if (c.img && manifest.encoding !== 'base64') loadImage(imgSrc(c));
@@ -1091,7 +1087,7 @@
   function init() {
     $('clockSmall').textContent = TIMER_SECS + ' s a case. At zero, what you have drawn is submitted.';
     $('startBtn').addEventListener('click', function () { startCase(nextId()); });
-    $('homeBtn').addEventListener('click', goHome);
+    $('homeBtn').addEventListener('click', function (e) { e.preventDefault(); goHome(); });
     $('statsBtn').addEventListener('click', openStats);
     $('closeStats').addEventListener('click', closeStats);
     $('resetStats').addEventListener('click', function () { if (window.confirm('Clear all stats on this device?')) { stats.records = []; saveStats(); updateTop(); $('statsBody').innerHTML = statsHTML(); } });
@@ -1123,6 +1119,6 @@
     var r = $('map').getBoundingClientRect(), q = proj(geom, lat, lon);
     return { x: r.left + q[0] * r.width / geom.cw, y: r.top + q[1] * r.height / geom.ch };
   }
-  window.FD = { toClient: toClient, lonLabel: lonLabel, givenOf: givenOf, crSpline: crSpline, smoothGeo: smoothGeo, ringOf: ringOf, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
+  window.FD = { convergence: convergence, convFill: convFill, toClient: toClient, lonLabel: lonLabel, givenOf: givenOf, crSpline: crSpline, smoothGeo: smoothGeo, ringOf: ringOf, SCORE: SCORE, scoreCase: scoreCase, densify: densify, distNm: distNm, state: function () { return cur; }, stats: function () { return stats; } };
   init();
 })();

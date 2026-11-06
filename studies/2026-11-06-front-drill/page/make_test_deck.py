@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write a tiny synthetic test deck (manifest.json + 3 x <id>.bin + imagery JPEGs) in the deck format of
 ../design.md ("Deck format"), so the page can be tried without data. The fields are made up (an idealised low,
-cold/warm/occluded/stationary fronts, a theta-e jump across each cold front, a tendency dipole, a jet); they are
+cold/warm/occluded/stationary fronts, a theta-e jump across each cold front (no 700 hPa field: the page computes 10 m convergence from u10 / v10), a tendency dipole, a jet); they are
 for testing the page only.
 
 Run: python3 make_test_deck.py [outdir]   (default: testdeck/ next to this file; NOT deck/, the real deck).
@@ -35,7 +35,6 @@ FIELDS = [  # key, name, units, offset, scale   (order is the contract)
     ("u10", "10 m wind, u", "m/s", -40.0, 0.32),
     ("v10", "10 m wind, v", "m/s", -40.0, 0.32),
     ("te850", "850 hPa theta-e", "K", 240.0, 0.5),
-    ("te700", "700 hPa theta-e", "K", 240.0, 0.5),
     ("dp3", "3 h MSLP change", "hPa", -12.7, 0.1),
     ("wspd250", "250 hPa wind speed", "kt", 0.0, 1.0),
     ("ascat_spd", "ASCAT wind speed", "kt", 0.0, 1.0),
@@ -69,7 +68,7 @@ CASES = [
 HINTS = {
     "cold": "Winds veer across it and theta-e drops about 12 K behind it (test numbers).",
     "warm": "Winds back ahead of it; the cloud shield thickens toward the front (test numbers).",
-    "occluded": "The 700 hPa theta-e ridge wraps from the warm sector into the low (test numbers).",
+    "occluded": "10 m convergence runs along the front and curls into the low (test numbers).",
     "stationary": "Isobars run along the line and the wind is parallel to it (test numbers).",
     "trough": "A kink in the isobars with no thermal gradient (test numbers).",
 }
@@ -130,7 +129,6 @@ def build(case, rng):
     f["u10"] = np.clip(-spd * dy / rr * 0.92 + spd * (-dx / rr) * 0.38, -39, 40)   # cyclonic + some inflow
     f["v10"] = np.clip(spd * dx / rr * 0.92 + spd * (-dy / rr) * 0.38, -39, 40)
     f["te850"] = 281 - 0.8 * (lat - 45) + 13 * warm + 2.0 * rng.normal(0, 0.15, lat.shape)
-    f["te700"] = 276 - 0.4 * (lat - 45) + 7 * sigmoid((lon - clon - 3.0) * 111.2 * 0.65 / 120.0) * np.exp(-((lat - ll - 2) / 9.0) ** 2)
     f["dp3"] = (-5.0 * np.exp(-(((dx - 300) ** 2 + dy ** 2) / 500.0 ** 2)) + 4.0 * np.exp(-(((dx + 400) ** 2 + dy ** 2) / 500.0 ** 2)))
     f["wspd250"] = 40 + (55 + 0.8 * depth) * np.exp(-((lat - (ll - 5)) / 6.0) ** 2) * (0.7 + 0.3 * np.cos(np.radians((lon - lo) * 6)))
     land = ((lon % 360) < (lon0 % 360) + 3 + 2.0 * np.sin(np.radians(lat * 14))).astype(np.uint8)

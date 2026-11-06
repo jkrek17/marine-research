@@ -356,3 +356,9 @@ table.conf th.rowh{text-align:left;white-space:nowrap}
   .brk td.mis{white-space:normal}
 }
 @media (max-width:420px){.brand{font-size:19px;letter-spacing:.03em;gap:6px}.pts{font-size:12px}}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:8px 16px;background:#14233C;border-bottom:3px solid #6E1423;color:#F7F2E6}
+.brand{color:#F7F2E6;text-decoration:none;font-weight:700;font-size:18px;letter-spacing:.06em;text-transform:uppercase}
+.sitenav{display:flex;gap:4px}
+.sitenav a{color:#F7F2E6;text-decoration:none;padding:4px 10px;border-radius:999px;font-size:14px;opacity:.8}
+.sitenav a[aria-current=page]{background:rgba(247,242,230,.15);opacity:1}
+.top .topright{margin-left:auto}
