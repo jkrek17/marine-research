@@ -1,7 +1,7 @@
 """Copy the built wind drill into the Training site (a clone of jkrek17/training for GitHub Pages).
 
 Layout (2026-11-06, Jason: "rename it training and clean up the page"):
-    <site>/index.html   landing page (site/index.html), with a Front drill card when <site>/fronts/ exists
+    <site>/index.html   landing page (site/index.html), with the Fronts section and nav link when <site>/fronts/ exists
     <site>/wind/        the wind drill: index.html, app.js, style.css, deck/ (manifest, bench.json, each case's
                         .bin, its +24 h forecast .bin files and satellite JPEGs)
     <site>/fronts/      the front drill, written by studies/2026-11-06-front-drill (not touched here)
@@ -26,10 +26,23 @@ for old in ("app.js", "style.css"):                  # old root layout
 if (site / "deck").is_dir():
     shutil.rmtree(site / "deck")
 (site / ".nojekyll").write_text("")
-card = ('    <a class="card" href="fronts/"><h2>Front drill</h2><p>Draw the fronts on a real storm (North Atlantic and Northeast Pacific), then compare with '
-        'the OPC unified surface analysis.</p><span class="go">Open the front drill &rarr;</span></a>')
+fronts = """  <section id="fronts">
+    <div class="sechead"><h2>Fronts</h2><span class="q">Where are the fronts?</span></div>
+    <p class="about">The low and any stationary front are drawn for you; draw the cold, warm and occluded fronts, then compare with the Unified Surface Analysis.
+      Full credit within 150 nm, and getting the type right counts double. 522 cases from analyses since mid-August 2026.</p>
+    <div class="cards">
+      <a class="card wide" href="fronts/"><h3>Front drill</h3><p>One system per case at a synoptic hour. Tabs: MSLP and thickness, satellite imagery, 850 mb theta-e,
+        10 m convergence, 3 h pressure tendency, 10 m wind with ASCAT, 250 mb isotachs.</p><span class="meta">About 90 seconds a case</span></a>
+    </div>
+  </section>
+"""
 landing = (here / "site" / "index.html").read_text()
-(site / "index.html").write_text(landing.replace("<!--FRONTS-->", card if (site / "fronts" / "index.html").exists() else ""))
+have_fronts = (site / "fronts" / "index.html").exists()
+landing = landing.replace("<!--FRONTS-->", fronts if have_fronts else "")
+landing = landing.replace("<!--FRONTS_NAV-->", '<a href="#fronts">Fronts</a>' if have_fronts else "")
+if not have_fronts:
+    landing = landing.replace("        <li>Mix in the <b>Front drill</b> for where the systems are, not just how strong.</li>\n", "")
+(site / "index.html").write_text(landing)
 m = json.loads((deck / "manifest.json").read_text())
 keep = {"manifest.json", "bench.json"}
 for c in m["cases"]:
