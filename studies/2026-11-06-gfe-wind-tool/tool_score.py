@@ -95,6 +95,16 @@ def self_specs():
     return s
 
 
+def hf_specs():
+    """Follow-up (Jason 17:23Z: "additional HF core ... targeted to the right areas, we dont want to blanket HF"): on
+    top of the current tool (R_L6_T40_M4_U50_W4_C1), an extra 0 -> E kt over U..U+4 kt of the stronger of GFS/ECMWF,
+    only where GFS 925 mb wind x drill stability factor (rk.features.hf_ceiling) >= G kt (G0 = no gate). Cases
+    without 925 mb data are skipped for every K product so all pair. Rows go to rows_<split>_hf.csv.gz."""
+    s = ["D", "R_L6_T40_M4_U50_W4_C1"]
+    s += ["K_E%d_U%d_G%d" % (e, u, g) for e in (4, 6, 8, 10) for u in (48, 52, 56) for g in (0, 55, 60, 65, 70)]
+    return s
+
+
 def ramp(s, lift, t, w, centred):
     lo = t - (w / 2.0 if centred else w)
     return np.float32(lift) * np.clip((s - lo) / float(w), 0, 1)
@@ -115,6 +125,16 @@ def make(label, d, x):
         if "det_ah" not in x or d["strong"] is None:
             return None
         return features.strong_lift(x["det_ah"], [d["strong"]], p["L"], p["T"], oc)
+    if kind == "K":
+        if "det" not in d or d["strong"] is None or not d["has_low"]:
+            return None
+        base = make("R_L6_T40_M4_U50_W4_C1", d, x)
+        sf = np.nan_to_num(d["strong"], nan=-1.0)
+        add = ramp(sf, p["E"], p["U"] + 4, 4, 0)
+        if p["G"] > 0:
+            ceil = features.hf_ceiling(base, d["s925"], d["sa"])[1]
+            add = np.where(np.nan_to_num(ceil, nan=-1.0) >= p["G"], add, 0)
+        return np.where(oc, base + add, base).astype(np.float32)
     if kind == "Y":
         if "det" not in d or d["strong"] is None:
             return None
@@ -205,13 +225,14 @@ def main():
     ap.add_argument("--basins", default="natl,npac")
     ap.add_argument("--combo", action="store_true", help="score combo_specs() into rows_<split>_combo.csv.gz")
     ap.add_argument("--ramp", action="store_true", help="score ramp_specs() into rows_<split>_ramp.csv.gz")
+    ap.add_argument("--hf", action="store_true", help="score hf_specs() into rows_<split>_hf.csv.gz")
     ap.add_argument("--self", dest="selfq", action="store_true", help="score self_specs() into rows_<split>_self.csv.gz")
     a = ap.parse_args()
-    tag = "_combo" if a.combo else "_ramp" if a.ramp else "_self" if a.selfq else ""
+    tag = "_combo" if a.combo else "_ramp" if a.ramp else "_self" if a.selfq else "_hf" if a.hf else ""
     out = paths.data("extra", "gfe-wind-tool") / ("rows_%s%s.csv.gz" % (a.split, tag))
     if a.split == "held_out" and out.exists():  # once per product set
         sys.exit("held-out rows exist (%s): scored once already" % out)
-    labels = (combo_specs() if a.combo else ramp_specs() if a.ramp else self_specs() if a.selfq else specs())
+    labels = (combo_specs() if a.combo else ramp_specs() if a.ramp else self_specs() if a.selfq else hf_specs() if a.hf else specs())
     jobs = [(b, c, s, p, labels) for b in a.basins.split(",") for c, s, p in S.load_cases(b, a.split)]
     print("%d cases, %d products" % (len(jobs), len(labels)), flush=True)
     t0, allrows = time.time(), []
