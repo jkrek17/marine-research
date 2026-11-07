@@ -36,9 +36,9 @@ def fig_ramp():
     ax.plot(x, page, color=BEST, lw=2)
     ax.plot(x, gfe_hf, color=GFE, lw=2, ls=(0, (4, 2)))
     ax.plot(x, gfe, color=GFE, lw=2)
-    ax.text(45.2, 7.4, "page Best Wind", color=BEST, fontsize=9, ha="right")
-    ax.text(49.6, 6.9, "GFE Make_BestWind", color=GFE, fontsize=9, ha="left")
-    ax.text(57, 15.4, "with HF core (dashed;\nonly where its gate says so)", color=style.INK2, fontsize=8.5, ha="center")
+    ax.text(45.2, 7.4, "ramped blend", color=BEST, fontsize=9, ha="right")
+    ax.text(49.6, 6.9, "deterministic-only", color=GFE, fontsize=9, ha="left")
+    ax.text(57, 15.4, "with HF ramp (dashed;\nonly where its gate is met)", color=style.INK2, fontsize=8.5, ha="center")
     for lo, hi, lab in ((34, 48, "gale"), (48, 64, "storm")):
         ax.axvspan(lo, hi, color=style.HAZARD_COLORS[lab], alpha=0.06, lw=0)
     ax.set_xlim(30, 62)
@@ -46,7 +46,7 @@ def fig_ramp():
     ax.set_xlabel("Stronger of GFS and ECMWF 10 m wind at the cell (kt)")
     ax.set_ylabel("Wind added to the blend (kt)")
     style.title(ax, "The lift ramps in with the stronger model: none below 36 kt, 10 kt above 48",
-                "page: 0-6 kt over 36-40, 0-4 over 44-48; GFE: 38-42 and 48-52; HF core 0-6 over 52-56")
+                "ramped blend: 0-6 kt over 36-40, 0-4 over 44-48; deterministic-only: 38-42 and 48-52; HF ramp 0-6 over 52-56")
     png, _ = style.save(fig, HERE / "fig_ramp.png")
     with open(HERE / "fig_ramp.csv", "w", newline="") as f:
         w = csv.writer(f)
@@ -64,10 +64,10 @@ def fig_ramp():
 # Page grids: studies/2026-11-07-most-likely-wind/findings.md, "The evidence" table.
 # Make_BestWind: same file, "Follow-up: the GFE method" table (default settings).
 CATCH = [
-    ("Blend (page)", "blend", 28, 12, 2, 0),
-    ("Core Lifted", "corelift", 62, 40, 16, 7),
-    ("Best Wind (page)", "best", 74, 58, 61, 40),
-    ("Make_BestWind (GFE)", "gfe", 75, 63, 57, 20),
+    ("Blend", "blend", 28, 12, 2, 0),
+    ("Ensemble-lifted blend", "corelift", 62, 40, 16, 7),
+    ("Ramped blend", "best", 74, 58, 61, 40),
+    ("Deterministic-only ramped", "gfe", 75, 63, 57, 20),
 ]
 
 
