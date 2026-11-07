@@ -5,7 +5,9 @@
 
 Writes to rk.paths.data("extra", "most-likely-wind"):
   err_<split>.csv.gz    one row per case x product x cut: basin cycle step week product cut band n sum_err sum_abs
-                        sum_sq.  cut = "truth" (ASCAT band), "fc" (the grid's own band), "all" (band "all").
+                        sum_sq.  cut = "truth" (ASCAT band), "fc" (the grid's own band), "all" (band "all"), "dec" (band "30+": the
+                        decision cells, where ASCAT or ANY candidate is >= 30 kt; the same cells for every
+                        product, so the win rule compares like with like).
                         Bands (kt) <30, 30-47, 48-63, 64+ (rk.score.band_error).
   tiles_<split>.csv.gz  one row per case x product: 5x5 deg tile counts nt/h/m/fa and cell counts fc/ob/cau at
                         34/48/64 kt (core-lift-bias fit_score.Tiles, the strong-core-lift counting)
@@ -119,8 +121,10 @@ def job(args):
     meta = dict(basin=basin, cycle=cyc.isoformat(), step=step, week=wk)
     erows, trows, hists = [], [], {}
     obi = {t: seen & (np.nan_to_num(ob, nan=-1) >= t) for t in F.THRS}
-    for name, fc in products(d).items():
-        fc = np.asarray(fc, np.float32)
+    prods = {k: np.asarray(v, np.float32) for k, v in products(d).items()}
+    hi = np.nan_to_num(np.max(np.stack(list(prods.values())), 0), nan=-1)
+    dec = seen & ((hi >= 30) | (np.nan_to_num(ob, nan=-1) >= 30))
+    for name, fc in prods.items():
         for cut in ("truth", "fc"):
             r = score.band_error(fc, ob, mask=seen, by=cut)
             for i, bn in enumerate(BAND_NAMES):
@@ -128,6 +132,9 @@ def job(args):
                                   sum_abs=r["sum_abs"][i], sum_sq=r["sum_sq"][i]))
         r = score.band_error(fc, ob, mask=seen, edges=())
         erows.append(dict(meta, product=name, cut="all", band="all", n=int(r["n"][0]), sum_err=r["sum_err"][0],
+                          sum_abs=r["sum_abs"][0], sum_sq=r["sum_sq"][0]))
+        r = score.band_error(fc, ob, mask=dec, edges=())
+        erows.append(dict(meta, product=name, cut="dec", band="30+", n=int(r["n"][0]), sum_err=r["sum_err"][0],
                           sum_abs=r["sum_abs"][0], sum_sq=r["sum_sq"][0]))
         tr = dict(meta, product=name)
         fcn = np.nan_to_num(fc, nan=-1)
