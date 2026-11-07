@@ -80,6 +80,31 @@ def error(fc, ob, min_kt=25, mask=None):
             "rmse": float(np.sqrt((d ** 2).mean())), "n": n}
 
 
+BANDS_KT = (30.0, 48.0, 64.0)   # gale / storm / hurricane force edges: bands <30, 30-47, 48-63, 64+
+
+
+def band_error(fc, ob, mask=None, edges=BANDS_KT, by="truth"):
+    """Error sums (forecast minus truth, kt) by wind band, for pooling over cases.
+
+    Cells: finite fc and ob (and mask). Band of a cell from the truth (by="truth") or the forecast (by="fc"):
+    band i covers [edges[i-1], edges[i]), band 0 below edges[0], the last band edges[-1] and up. Sorting by the
+    truth band makes any smooth forecast look high in the low bands and low in the high bands (regression to
+    the mean); sort by the forecast band to ask whether the grid's own values mean what they say.
+    -> dict of 1-D arrays, one entry per band: n, sum_err, sum_abs, sum_sq (pool by adding; bias = sum_err / n,
+    MAE = sum_abs / n, RMSE = sqrt(sum_sq / n))."""
+    if by not in ("truth", "fc"):
+        raise ValueError("by must be 'truth' or 'fc'")
+    fc, ob, ok = _prep(fc, ob, mask)
+    key = (ob if by == "truth" else fc)[ok]
+    d = fc[ok] - ob[ok]
+    b = np.searchsorted(np.asarray(edges, float), key, side="right")
+    k = len(edges) + 1
+    return {"n": np.bincount(b, minlength=k).astype(np.int64),
+            "sum_err": np.bincount(b, weights=d, minlength=k),
+            "sum_abs": np.bincount(b, weights=np.abs(d), minlength=k),
+            "sum_sq": np.bincount(b, weights=d * d, minlength=k)}
+
+
 def tile_peaks(fc_at_obs, ob, lat, lon, size_deg=5, min_n=150, min_peak=34):
     """Compare peak winds tile by tile (size_deg boxes) at observation points.
 

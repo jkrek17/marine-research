@@ -370,6 +370,25 @@ def test_pressure_basins_split_at_col():
     assert j(45, 300) == -1 or score._km(55, 315, 45, 300) <= 1000
 
 
+
+def test_band_error():
+    ob = np.array([10., 29.9, 30., 47., 48., 70., np.nan])
+    fc = np.array([12., 33., 28., 47., 40., 60., 50.])
+    r = score.band_error(fc, ob)
+    assert list(r["n"]) == [2, 2, 1, 1]
+    assert np.allclose(r["sum_err"], [2 + 3.1, -2 + 0, -8, -10])
+    assert np.allclose(r["sum_abs"], [2 + 3.1, 2, 8, 10])
+    assert np.allclose(r["sum_sq"], [4 + 3.1 ** 2, 4, 64, 100])
+    f = score.band_error(fc, ob, by="fc")         # bands from the forecast: 12, 28 | 33, 47, 40 | 60
+    assert list(f["n"]) == [2, 3, 1, 0]
+    m = np.array([True] * 3 + [False] * 4)
+    assert list(score.band_error(fc, ob, mask=m)["n"]) == [2, 1, 0, 0]
+    try:
+        score.band_error(fc, ob, by="x")
+        raise AssertionError("bad by accepted")
+    except ValueError:
+        pass
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):
