@@ -2,7 +2,7 @@
 title: "Storm cores in a most-likely wind forecast: what can be fixed, and what cannot"
 subtitle: "A study of open-ocean 10 m wind forecasts against ASCAT, North Atlantic and North Pacific, winter 2025-26"
 date: "7 November 2026"
-author: "Marine research project (jkrek17/marine-research). Research directed by Jason; analysis and writing by Claude."
+author: "Research directed by Jason; analysis and writing by Claude."
 ---
 
 ## Abstract
@@ -195,22 +195,22 @@ A blend of models is the most accurate wind on average and the worst guide to a 
 
 ---
 
-## References (studies in jkrek17/marine-research)
+## References (internal studies)
 
-| # | Study | Location | Pull requests |
-|---|---|---|---|
-| 1 | Wind blend experiment | `/mnt/project-files/wind-focus/experiment/` | - |
-| 2 | ASCAT as referee; stability and 30 m winds; storm-force cores | `/mnt/project-files/wind-focus/ascat/`, `stability30m/`, `core/` | - |
-| 3 | AIFS in the blend | `studies/2026-10-16-aifs-in-blend/` | - |
-| 4 | Desk added value | `studies/2026-10-16-desk-value/` | - |
-| 5 | Storm-force truth (SMAP vs ASCAT) | `studies/2026-10-16-storm-force-truth/` | - |
-| 6 | Warning forecast experiment | `studies/2026-10-16-warning-forecast/` | - |
-| 7 | Gale cores | `studies/2026-10-17-gale-core/` | - |
-| 8 | Too shallow or too smooth (HF depth) | `studies/2026-10-18-hf-depth/` | - |
-| 9 | Bias correction on the ensemble-lifted blend | `studies/2026-11-05-core-lift-bias/` | #70 |
-| 10 | Strong-core lift | `studies/2026-11-06-strong-core-lift/` | #73 |
-| 11 | Ramped lifts, HF ramp, warning contours | `studies/2026-11-06-gfe-wind-tool/` | #78, #84, #85, #87, #90, #91, #96 |
-| 12 | 925 mb mix-down | `studies/2026-11-06-925-mixdown/` | #97 |
-| 13 | The wind grid as a most-likely wind (gale threshold, deterministic-only scoring, HF amount over the whole winter) | `studies/2026-11-07-most-likely-wind/` | #98, #99, #100, #101 |
+| # | Study | Date |
+|---|---|---|
+| 1 | Wind blend experiment | 13 Oct 2026 |
+| 2 | ASCAT as referee; stability and 30 m winds; storm-force cores | 15 Oct 2026 |
+| 3 | AIFS in the blend | 16 Oct 2026 |
+| 4 | Forecaster added value | 16 Oct 2026 |
+| 5 | Storm-force truth (SMAP vs ASCAT) | 16 Oct 2026 |
+| 6 | Warning forecast experiment | 16 Oct 2026 |
+| 7 | Gale cores | 17 Oct 2026 |
+| 8 | Too shallow or too smooth (HF depth) | 18 Oct 2026 |
+| 9 | Bias correction on the ensemble-lifted blend | 5 Nov 2026 |
+| 10 | Strong-core lift | 6 Nov 2026 |
+| 11 | Ramped lifts, HF ramp, warning contours | 6 Nov 2026 |
+| 12 | 925 mb mix-down | 6 Nov 2026 |
+| 13 | The wind grid as a most-likely wind (gale threshold, deterministic-only version, HF amount over the whole winter) | 7 Nov 2026 |
 
-Every number comes from the findings file of its study; the "did not help" list draws also on the rows in `STUDIES.md`. The two new figures list their numbers and source in a CSV beside the image.
+Every number comes from the findings of the study it belongs to.
