@@ -69,3 +69,18 @@ Floor variants on Best Wind (`gale_floor.py`; storm and HF untouched by construc
 | off | 0.95, 1.04 | 65%, 58% | 75%, 70% | 632, 436 | |
 
 The error barely moves either way (tune weeks: +0.006 / +0.015 kt at 80%; held-out -0.02 / -0.04), so the pre-set rule ("no added error", tune weeks) kept the live floor by thousandths of a knot. That is noise, not a reason. **If the grid should draw ASCAT's gale area, the fix is the floor at 80% chance:** gale area 1.03 / 0.95 tune and 1.05 / 1.13 held-out, at 7 / 6 points fewer gale cells caught, 20 / 11% fewer false gale tiles, no change at storm or HF. The gale warning line (strongest model >= 30) carries the gale "possible". A partial floor (raise toward 34 by the chance) cuts error most but never reaches 34, so it draws no more gale than the plain grid.
+
+## Follow-up: the GFE method (Jason 17:45Z "score the GFE method")
+Make_BestWind as coded (GFS + ECMWF lagged blend, lags 12/24 h, agreement weights, + 0.3 x run spread; ramps 0-6 kt over 38-42 and 0-4 over 48-52 of the stronger model; HF core option 0-6 over 52-56 where GFS 925 x stability >= 55 kt), same cells and cases as the page grids (`gfe_cases.py`, `gfe_score.py`; 1,301 held-out cases with the lagged runs). No gale floor in GFE (it needs members). Held-out, Atlantic / Pacific:
+
+| GFE grid | Area vs ASCAT 34 / 48 / 64 | Storm tiles | HF tiles | All-water MAE | 30+ kt cells MAE | Bias where grid shows 48-63 |
+|---|---|---|---|---|---|---|
+| GFE blend alone | 0.93 / 0.25 / 0.07, 1.02 / 0.17 / 0.00 | 35%, 20% | 12%, 0 | 3.35, 3.05 | 5.37, 4.93 | -2.4, +2.1 |
+| **Make_BestWind default** | **0.95 / 1.06 / 0.93, 1.06 / 1.21 / 0.73** | 75%, 63% | 57%, 20% | 3.37, 3.08 | 5.48, 5.16 | +4.7, +7.7 |
+| + HF core option | 0.95 / 1.06 / 1.68, 1.06 / 1.22 / 1.30 | 75%, 63% | 69%, 40% | 3.38, 3.08 | 5.50, 5.16 | +4.7, +8.0 |
+| ramps 2 kt later | 0.94 / 0.91 / 0.89, 1.04 / 1.00 / 0.69 | 71%, 60% | 54%, 20% | 3.36, 3.07 | 5.40, 5.04 | +4.2, +7.2 |
+| page Best Wind (80% floor), same cells | 1.05 / 1.05 / 1.35, 1.12 / 1.06 / 0.51 | 74%, 58% | 62%, 40% | 3.15, 2.87 | 5.18, 4.89 | +4.6, +6.6 |
+
+Pacific HF: 15 tiles. Tune weeks gave the same picture (default 0.93 / 0.92 / 0.42 Atl, HF core 0.90 HF area).
+
+**Read:** Make_BestWind already draws about ASCAT's area at gale, storm and (Atlantic) hurricane force with its defaults; no gale fix is needed because it has no gale floor. The HF core option over-draws HF area held-out (1.68x Atl) for +12 / +20 points of HF catch at no error cost: leave it Off for a most-likely grid, On when HF catch matters more. The GFE grid runs ~0.2-0.3 kt worse than the page grid everywhere (no ensemble support weights, no AIFS), the same storm-band heat (+4.7 / +7.7 kt), and the same error-for-catch trade under ramp variants. No change to Make_BestWind.

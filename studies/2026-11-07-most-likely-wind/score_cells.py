@@ -162,16 +162,20 @@ def cases_for(basin, split):
     return out
 
 
-def main():
+JOB = None   # worker function override (must be importable at module level)
+TAG = ""   # output name suffix; gfe_score.py sets "_gfe"
+
+
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--split", required=True, choices=("tune", "held_out"))
     ap.add_argument("--workers", type=int, default=3)
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     jobs = cases_for("natl", a.split) + cases_for("npac", a.split)
     print("%d cases, %d products" % (len(jobs), len(PRODUCTS)), flush=True)
     E, T, H, skipped, t0 = [], [], {}, 0, time.time()
     with mp.get_context("spawn").Pool(a.workers) as pool:
-        for i, r in enumerate(pool.imap_unordered(job, jobs, chunksize=4), 1):
+        for i, r in enumerate(pool.imap_unordered(JOB or job, jobs, chunksize=4), 1):
             if r is None:
                 skipped += 1
                 continue
@@ -185,10 +189,10 @@ def main():
                 print("[%d/%d] %.0fs" % (i, len(jobs), time.time() - t0), flush=True)
     OUT.mkdir(parents=True, exist_ok=True)
     for nm, rows in (("err", E), ("tiles", T)):
-        with gzip.open(OUT / ("%s_%s.csv.gz" % (nm, a.split)), "wt") as fh:
+        with gzip.open(OUT / ("%s%s_%s.csv.gz" % (nm, TAG, a.split)), "wt") as fh:
             pd.DataFrame(rows).to_csv(fh, index=False)
     keys = sorted(H)
-    np.savez_compressed(OUT / ("hist_%s.npz" % a.split), keys=np.array(["|".join(k) for k in keys]),
+    np.savez_compressed(OUT / ("hist%s_%s.npz" % (TAG, a.split)), keys=np.array(["|".join(k) for k in keys]),
                         hist=np.stack([H[k] for k in keys]))
     print("scored %d cases, skipped %d without core chances" % (len(jobs) - skipped, skipped), flush=True)
 

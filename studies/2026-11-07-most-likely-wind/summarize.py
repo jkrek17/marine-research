@@ -51,10 +51,15 @@ def eq_area(h, k):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", required=True, choices=("tune", "held_out"))
+    ap.add_argument("--tag", default="", help="'_gfe' for gfe_score.py output")
+    ap.add_argument("--refs", default="best,blend")
     a = ap.parse_args()
-    s = "heldout" if a.split == "held_out" else "tune"
-    e = pd.read_csv(DATA / ("err_%s.csv.gz" % a.split))
-    t = pd.read_csv(DATA / ("tiles_%s.csv.gz" % a.split))
+    global REFS
+    REFS = tuple(a.refs.split(","))
+    s = ("heldout" if a.split == "held_out" else "tune") + a.tag
+    a.split = a.tag + "_" + a.split if a.tag else a.split
+    e = pd.read_csv(DATA / ("err%s.csv.gz" % ("_" + a.split if not a.split.startswith("_") else a.split)))
+    t = pd.read_csv(DATA / ("tiles%s.csv.gz" % ("_" + a.split if not a.split.startswith("_") else a.split)))
     order = list(dict.fromkeys(e["product"]))
 
     b = e.groupby(["basin", "product", "cut", "band"]).apply(stats, include_groups=False).reset_index()
@@ -74,7 +79,7 @@ def main():
         c["false_tiles%d" % k] = c["fa%d" % k]
         c["area%d" % k] = c["fc%d" % k] / c["ob%d" % k]
         c["cell_catch%d" % k] = c["cau%d" % k] / c["ob%d" % k]
-    z = np.load(DATA / ("hist_%s.npz" % a.split))
+    z = np.load(DATA / ("hist%s.npz" % ("_" + a.split if not a.split.startswith("_") else a.split)))
     keys = [k.split("|") for k in z["keys"]]
     hs = {}
     for (bn, wk, pr), h in zip(keys, z["hist"]):
