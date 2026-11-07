@@ -1,0 +1,5 @@
+grid,storm_atl,storm_pac,hf_atl,hf_pac,source
+Blend (page),28,12,2,0,studies/2026-11-07-most-likely-wind/findings.md
+Core Lifted,62,40,16,7,studies/2026-11-07-most-likely-wind/findings.md
+Best Wind (page),74,58,61,40,studies/2026-11-07-most-likely-wind/findings.md
+Make_BestWind (GFE),75,63,57,20,studies/2026-11-07-most-likely-wind/findings.md
