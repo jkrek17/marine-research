@@ -1,0 +1,6 @@
+case,basin,valid,step,ascat_peak,blend_peak,ramped_peak,ascat48_cells,blend48_hit,ramped48_hit,blend48_cells,ramped48_cells,ascat64_cells,blend64_hit,ramped64_hit,blend64_cells,ramped64_cells,blend_bias_at_ascat48,ramped_bias_at_ascat48
+1,Atlantic,2025-12-11T00:00:00,48,71.9,59.1,75.1,1164,435,1030,452,1195,194,0,122,0,140,-10.4,-1.3
+2,Atlantic,2026-01-13T12:00:00,48,66.0,55.1,70.6,630,223,541,229,613,33,0,5,0,41,-10.4,-2.0
+3,Atlantic,2026-03-22T12:00:00,48,72.3,52.4,66.3,537,101,454,101,611,55,0,9,0,15,-10.5,-2.5
+4,Pacific,2025-11-08T00:00:00,48,65.4,55.8,71.7,225,55,117,69,168,6,0,2,0,27,-11.0,-4.3
+5,Pacific,2026-03-25T00:00:00,72,71.3,47.7,57.3,273,0,139,0,168,27,0,0,0,0,-16.3,-10.0

@@ -155,7 +155,37 @@ A warning area has a different goal: cover nearly all of the event, accepting ex
 
 For the same coverage the ramped field's contour is 1.35 (Atlantic) and 1.4 (Pacific) times wider, because the ramps lift broad near-storm areas. The ensemble core likelihood, which added nothing to the most-likely grid, is the better guide to *where* a storm is possible. Other warning thresholds follow the same logic: the strongest single model at 30 kt covers about 97% of ASCAT gale water; the strongest model at 44 kt, where 1% or more of members reach 64 kt, catches 81% of hurricane-force lows within 150 km.
 
-### 3.6 What did not help
+### 3.6 Five worked cases
+
+The five storms below are, for each held-out week, the valid time with the most ASCAT storm-force cells (one per week; three Atlantic, two Pacific). They are the strongest storms ASCAT saw well, so they show the method where it matters most, not a typical day. All are +48 h forecasts except case 5 (+72 h). Counts use only the cells ASCAT saw within each map.
+
+| Case | Valid | Peak wind: ASCAT / blend / ramped (kt) | ASCAT 48 kt cells covered: blend / ramped | Storm area drawn vs ASCAT: blend / ramped | ASCAT 64 kt cells covered: blend / ramped | Bias on ASCAT 48+ cells: blend / ramped (kt) |
+|---|---|---|---|---|---|---|
+| 1 Atlantic | 00Z 11 Dec 2025 | 72 / 59 / 75 | 37% / 88% (of 1,164) | 0.39 / 1.03 | 0 / 63% (of 194) | -10.4 / -1.3 |
+| 2 Atlantic | 12Z 13 Jan 2026 | 66 / 55 / 71 | 35% / 86% (of 630) | 0.36 / 0.97 | 0 / 15% (of 33) | -10.4 / -2.0 |
+| 3 Atlantic | 12Z 22 Mar 2026 | 72 / 52 / 66 | 19% / 85% (of 537) | 0.19 / 1.14 | 0 / 16% (of 55) | -10.5 / -2.5 |
+| 4 Pacific | 00Z 8 Nov 2025 | 65 / 56 / 72 | 24% / 52% (of 225) | 0.31 / 0.75 | 0 / 33% (of 6) | -11.0 / -4.3 |
+| 5 Pacific (+72 h) | 00Z 25 Mar 2026 | 71 / 48 / 57 | 0 / 51% (of 273) | 0 / 0.62 | 0 / 0 (of 27) | -16.3 / -10.0 |
+
+What the cases show:
+
+- **The blend never reached hurricane force** in any case and drew at most two fifths of ASCAT's storm water. In every case it was about 10 kt too weak where ASCAT had storm force (16 kt at day 3).
+- **The ramps put the storm water back in the right shape**: 85-88% of ASCAT's storm cells covered in the three Atlantic cases, at about ASCAT's area (0.97-1.14x), and the core bias fell to 1-3 kt.
+- **Case 1 is the best result**: a hurricane-force core of the right size (140 cells drawn against 194 seen) with 63% of ASCAT's 64 kt cells inside it.
+- **Cases 2 and 4 show the placement limit** (finding 3): the ramped grid drew hurricane force near ASCAT's, but mostly beside it (5 of 33 and 2 of 6 ASCAT 64 kt cells covered).
+- **Case 5 shows the lead-time limit**: at day 3 the models were too weak for the ramps to restore the core (ramped peak 57 kt against ASCAT's 71), so it stayed 10 kt short. The storm also sits on the western edge of the Pacific area.
+
+![Figure 5. Case 1, Atlantic. The blend (left) has no hurricane force; the ramped blend (centre) draws a core the size of ASCAT's (right). Lines on the forecast panels are ASCAT's 48 kt (black) and 64 kt (magenta) where the satellite saw.](cases/case1.png)
+
+![Figure 6. Case 2, Atlantic. Storm water restored; the drawn hurricane-force core sits between ASCAT's two 64 kt patches.](cases/case2.png)
+
+![Figure 7. Case 3, Atlantic, south-east of Iceland. The blend reaches only 52 kt; the ramped blend covers 85% of ASCAT's storm water.](cases/case3.png)
+
+![Figure 8. Case 4, Pacific. Half of ASCAT's storm water covered; the drawn hurricane-force core (27 cells) is larger than ASCAT's small 64 kt patch (6 cells). ASCAT's swath missed much of the storm.](cases/case4.png)
+
+![Figure 9. Case 5, Pacific, +72 h. The models are too weak at day 3 for the ramps to reach the core.](cases/case5.png)
+
+### 3.7 What did not help
 
 | Idea | Held-out result |
 |---|---|
