@@ -1,0 +1,7 @@
+{
+ "rule": "(set before scoring, tune weeks): gale cell area (grid >= 34 over ASCAT >= 34, seen cells) closest to 1.0\naveraged over both basins, subject to all-water and decision-cell MAE not above live Best Wind in either basin;\nstorm/HF are untouched by construction (the floor only acts below 34).",
+ "passing": [
+  "G_p60"
+ ],
+ "pick": "G_p60"
+}

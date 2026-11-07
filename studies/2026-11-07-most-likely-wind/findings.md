@@ -52,3 +52,20 @@ Tune weeks (2,060 cases) gave the same ordering and no passing variant (PICK.jso
 - Scores: `rk.score.band_error` (new, tested); tiles as strong-core-lift; equal-area catch from 1 kt histograms (`score_cells.py`, `summarize.py`). Rule and pick on tune weeks (`PICK.json`) before held-out was scored once.
 - Code: `studies/2026-11-07-most-likely-wind/`; rows in `RK_DATA/extra/most-likely-wind/`.
 - Checked by: an independent agent recomputed every held-out number in the table above from the raw row files (err/tiles CSVs) without reading this write-up; every value matched to 0.01 kt / 0.01 catch. It flagged the 15-tile Pacific HF sample and the small blend 48-63 band samples (Pac 560 cells), both noted.
+
+## Follow-up: the right gale area (Jason 16:48-16:50Z)
+"the problem of drawing the grid in the wrong spot... cant really be avoided. so i can live with that. so what solution draws the right amount of area and magnitude" / "how would we fix it".
+
+Whole winter, grid area over ASCAT area at 34 / 48 / 64 kt: Best Wind 1.26 / 0.94 / 0.87 (Atl), 1.30 / 0.87 / 0.41 (Pac; HF on 255 ASCAT cells). Storm force is right; gale is 26-30% too wide, all from the gale-core floor (blend alone 0.85 / 0.81).
+
+Floor variants on Best Wind (`gale_floor.py`; storm and HF untouched by construction). Held-out:
+
+| Gale floor | Gale area (Atl, Pac) | Gale cells caught | Gale tiles caught | False gale tiles | 30+ kt cell error vs live |
+|---|---|---|---|---|---|
+| live: chance >= 60% | 1.27, 1.38 | 78%, 69% | 81%, 73% | 835, 504 | — |
+| chance >= 70% | 1.14, 1.24 | 74%, 66% | 79%, 72% | 733, 473 | -0.02 [-0.03, 0.00], -0.03 [-0.04, -0.02] |
+| **chance >= 80%** | **1.05, 1.13** | 71%, 63% | 77%, 71% | 670, 448 | -0.02 [-0.04, +0.01], -0.04 [-0.05, -0.03] |
+| chance >= 90% | 0.98, 1.06 | 67%, 59% | 75%, 70% | 638, 437 | |
+| off | 0.95, 1.04 | 65%, 58% | 75%, 70% | 632, 436 | |
+
+The error barely moves either way (tune weeks: +0.006 / +0.015 kt at 80%; held-out -0.02 / -0.04), so the pre-set rule ("no added error", tune weeks) kept the live floor by thousandths of a knot. That is noise, not a reason. **If the grid should draw ASCAT's gale area, the fix is the floor at 80% chance:** gale area 1.03 / 0.95 tune and 1.05 / 1.13 held-out, at 7 / 6 points fewer gale cells caught, 20 / 11% fewer false gale tiles, no change at storm or HF. The gale warning line (strongest model >= 30) carries the gale "possible". A partial floor (raise toward 34 by the chance) cuts error most but never reaches 34, so it draws no more gale than the plain grid.
