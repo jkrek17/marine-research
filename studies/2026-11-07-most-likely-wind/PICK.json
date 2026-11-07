@@ -1,0 +1,5 @@
+{
+ "rule": "tune weeks, vs best: mae_dec lower and mae_all not higher in both basins, storm tile catch >= -2 pts, HF tile catch not lower",
+ "passing": [],
+ "pick": "best (no change)"
+}
