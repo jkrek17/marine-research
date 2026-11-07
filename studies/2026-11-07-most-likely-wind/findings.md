@@ -83,4 +83,16 @@ Make_BestWind as coded (GFS + ECMWF lagged blend, lags 12/24 h, agreement weight
 
 Pacific HF: 15 tiles. Tune weeks gave the same picture (default 0.93 / 0.92 / 0.42 Atl, HF core 0.90 HF area).
 
-**Read:** Make_BestWind already draws about ASCAT's area at gale, storm and (Atlantic) hurricane force with its defaults; no gale fix is needed because it has no gale floor. The HF core option over-draws HF area held-out (1.68x Atl) for +12 / +20 points of HF catch at no error cost: leave it Off for a most-likely grid, On when HF catch matters more. The GFE grid runs ~0.2-0.3 kt worse than the page grid everywhere (no ensemble support weights, no AIFS), the same storm-band heat (+4.7 / +7.7 kt), and the same error-for-catch trade under ramp variants. No change to Make_BestWind.
+**Read:** Make_BestWind already draws about ASCAT's area at gale, storm and (Atlantic) hurricane force with its defaults; no gale fix is needed because it has no gale floor. The HF core option over-draws HF area held-out (1.68x Atl) for +12 / +20 points of HF catch at no error cost: leave it Off for a most-likely grid, On when HF catch matters more. *(Corrected below: over the whole winter the core On draws about ASCAT's HF area and Off draws about half; recommend On.)* The GFE grid runs ~0.2-0.3 kt worse than the page grid everywhere (no ensemble support weights, no AIFS), the same storm-band heat (+4.7 / +7.7 kt), and the same error-for-catch trade under ramp variants. No change to Make_BestWind.
+
+## Follow-up: HF amount over the whole winter (Jason 18:0xZ, "does best wind make enough HF")
+The held-out weeks hold too few HF cells to judge HF area, so tune and held-out weeks are pooled here (`hf_amount.py` -> `hf_amount.csv`; same cells and cases as the GFE follow-up). ASCAT 64 kt cells: 10,203 Atlantic, 228 Pacific.
+
+| Grid | HF area vs ASCAT, Atl / Pac | Equal-area HF cell catch, Atl / Pac |
+|---|---|---|
+| Plain blend | 0.00 / 0.00 | 32% / 15% |
+| Make_BestWind, HF core Off (default) | 0.57 / 0.64 | 28% / 9% |
+| Make_BestWind, HF core On | 1.13 / 1.18 | 28% / 9% |
+| Page Best Wind | 0.86 / 0.46 | 31% / 17% |
+
+**Read:** Without the HF core, Make_BestWind draws only about half of ASCAT's hurricane-force area; with it, slightly more than ASCAT's. The held-out 1.68x was a small-sample reading. Equal-area catch, which asks "if the grid drew exactly ASCAT's HF area, how much would land on real HF", is the same for every grid (about 28-32% Atlantic). The lifts change how much HF is drawn, not where, so the HF catch shortfall is placement. **Recommendation: HF core On by default in Make_BestWind** (a GFE change; waits for Jason). Pacific: 228 cells, a rough guide only.
