@@ -534,6 +534,21 @@ def low_case(truth_msl, fc_msl, basin, below=1000.0, fc_below=1010.0, radius_km=
     return rows, false_lows(truth_all, deep, false_radius_km), int(len(deep))
 
 
+
+def field_error(fc, ob, lats, mask=None):
+    """cos(latitude)-weighted error of a field on a regular lat grid (rows north to south, `lats` 1-D, degrees).
+    Cells that are NaN in either field, or outside `mask`, are not counted. Returns dict(rmse, bias, n):
+    bias is forecast minus truth; NaN rmse and bias when no cell counts."""
+    fc, ob, ok = _prep(fc, ob, mask)
+    w = np.broadcast_to(np.cos(np.radians(np.asarray(lats, float)))[:, None], fc.shape)
+    w = np.where(ok, w, 0.0)
+    sw = float(w.sum())
+    if sw == 0:
+        return {"rmse": float("nan"), "bias": float("nan"), "n": 0}
+    d = np.where(ok, fc - ob, 0.0)
+    return {"rmse": float(np.sqrt((w * d * d).sum() / sw)), "bias": float((w * d).sum() / sw), "n": int(ok.sum())}
+
+
 # ---- warnings: areas of wind at or above a level, scored as events ----
 
 def _label(m):
