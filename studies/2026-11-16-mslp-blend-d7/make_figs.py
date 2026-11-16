@@ -64,7 +64,8 @@ def km(a, b, c, d):
 
 # ------------------------------------------------------------------ data for one case
 
-def get_fields(basin, cyc, lead=LEAD):
+def get_fields(basin, cyc, lead=None):
+    lead = LEAD if lead is None else lead
     """GFS, IFS (ECMWF), ensemble mean at +lead, hPa on the basin grid (extract file, else the store)."""
     out = {}
     p = ROOT / basin / f"{cyc:%Y%m%d%H}.npz"
@@ -90,7 +91,8 @@ def get_analysis(basin, valid):
     return (z["an_gfs_v024"] + z["an_ifs_v024"]) / 2, z["mask_v024"]
 
 
-def get_members(basin, cyc, lead=LEAD):
+def get_members(basin, cyc, lead=None):
+    lead = LEAD if lead is None else lead
     """ECMWF ensemble member fields (0.5 deg, hPa) and member lows [member, lat, lon, hpa]; None if not stored."""
     tag = f"{cyc:%Y%m%d%H}"
     z = store.load(basin, tag, "mslpd57_ec")
@@ -101,7 +103,8 @@ def get_members(basin, cyc, lead=LEAD):
     return mem, z[f"low_ens_{basin}_{lead}"]
 
 
-def vote_products(basin, cyc, lead=LEAD):
+def vote_products(basin, cyc, lead=None):
+    lead = LEAD if lead is None else lead
     """vote lows with label products: depth, 10-90% range, chance, 50/80% circles, alternatives."""
     p = CASES / basin / f"{cyc:%Y%m%d%H}.pkl"
     if not p.exists():

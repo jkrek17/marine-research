@@ -1,0 +1,5 @@
+case,basin,valid,lat,lon,lead_map,kind,maps
+natl-deep-2025-12-11,natl,2025-12-11 12Z,61.5,333.25,120,deep,c_natl-deep-2025-12-11_maps.png
+npac-deep-2025-11-08,npac,2025-11-08 12Z,54.5,169.75,120,deep,c_npac-deep-2025-11-08_maps.png
+natl-split-2026-01-27,natl,2026-01-27 12Z,45.0,301.0,120,split,c_natl-split-2026-01-27_maps.png
+npac-falsedeep-2025-12-09,npac,2025-12-09 12Z,58.875,219.5,120,false,c_npac-falsedeep-2025-12-09_maps.png
