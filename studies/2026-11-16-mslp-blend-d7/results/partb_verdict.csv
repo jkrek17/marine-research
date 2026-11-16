@@ -1,0 +1,352 @@
+subset,lead,basin,product,verdict,n,events,event_weeks,mean_p,freq
+winter,120,both,exist,pass,1440,363,17,0.193,0.252
+winter,120,both,lt990,fail,1440,218,17,0.089,0.151
+winter,120,both,lt990_iso,fail,1440,218,17,0.146,0.151
+winter,120,both,lt990_bc,fail,1440,218,17,0.099,0.151
+winter,120,both,lt980,fail,1440,117,17,0.047,0.081
+winter,120,both,lt980_iso,fail,1440,117,17,0.071,0.081
+winter,120,both,lt980_bc,fail,1440,117,17,0.053,0.081
+winter,120,both,lt970,pass,1440,43,16,0.02,0.03
+winter,120,both,lt970_iso,pass,1440,43,16,0.03,0.03
+winter,120,both,lt970_bc,pass,1440,43,16,0.024,0.03
+winter,120,both,lt960,pass,1440,15,11,0.005,0.01
+winter,120,both,lt960_iso,pass,1440,15,11,0.011,0.01
+winter,120,both,lt960_bc,pass,1440,15,11,0.007,0.01
+winter,120,natl,exist,fail,662,185,17,0.196,0.279
+winter,120,natl,lt990,fail,662,128,16,0.112,0.193
+winter,120,natl,lt990_iso,fail,662,128,16,0.179,0.193
+winter,120,natl,lt990_bc,fail,662,128,16,0.12,0.193
+winter,120,natl,lt980,fail,662,71,16,0.067,0.107
+winter,120,natl,lt980_iso,fail,662,71,16,0.098,0.107
+winter,120,natl,lt980_bc,fail,662,71,16,0.074,0.107
+winter,120,natl,lt970,fail,662,28,13,0.03,0.042
+winter,120,natl,lt970_iso,pass,662,28,13,0.045,0.042
+winter,120,natl,lt970_bc,pass,662,28,13,0.036,0.042
+winter,120,natl,lt960,not verifiable,662,11,7,0.009,0.017
+winter,120,natl,lt960_iso,not verifiable,662,11,7,0.017,0.017
+winter,120,natl,lt960_bc,not verifiable,662,11,7,0.011,0.017
+winter,120,npac,exist,pass,778,178,17,0.191,0.229
+winter,120,npac,lt990,fail,778,90,16,0.07,0.116
+winter,120,npac,lt990_iso,pass,778,90,16,0.117,0.116
+winter,120,npac,lt990_bc,fail,778,90,16,0.08,0.116
+winter,120,npac,lt980,fail,778,46,12,0.03,0.059
+winter,120,npac,lt980_iso,pass,778,46,12,0.047,0.059
+winter,120,npac,lt980_bc,fail,778,46,12,0.036,0.059
+winter,120,npac,lt970,pass,778,15,8,0.011,0.019
+winter,120,npac,lt970_iso,pass,778,15,8,0.016,0.019
+winter,120,npac,lt970_bc,not verifiable,778,15,8,0.013,0.019
+winter,120,npac,lt960,not verifiable,778,4,4,0.003,0.005
+winter,120,npac,lt960_iso,not verifiable,778,4,4,0.005,0.005
+winter,120,npac,lt960_bc,not verifiable,778,4,4,0.004,0.005
+year,120,both,exist,fail,5246,1057,67,0.201,0.201
+year,120,both,lt990,fail,5246,463,60,0.054,0.088
+year,120,both,lt990_iso,fail,5246,463,60,0.088,0.088
+year,120,both,lt990_bc,fail,5246,463,60,0.062,0.088
+year,120,both,lt980,fail,5246,190,42,0.023,0.036
+year,120,both,lt980_iso,fail,5246,190,42,0.035,0.036
+year,120,both,lt980_bc,fail,5246,190,42,0.027,0.036
+year,120,both,lt970,pass,5246,64,29,0.009,0.012
+year,120,both,lt970_iso,fail,5246,64,29,0.013,0.012
+year,120,both,lt970_bc,fail,5246,64,29,0.01,0.012
+year,120,both,lt960,fail,5246,27,17,0.003,0.005
+year,120,both,lt960_iso,pass,5246,27,17,0.005,0.005
+year,120,both,lt960_bc,fail,5246,27,17,0.003,0.005
+year,120,natl,exist,pass,2403,535,66,0.201,0.223
+year,120,natl,lt990,fail,2403,258,56,0.063,0.107
+year,120,natl,lt990_iso,fail,2403,258,56,0.103,0.107
+year,120,natl,lt990_bc,fail,2403,258,56,0.072,0.107
+year,120,natl,lt980,fail,2403,109,33,0.028,0.045
+year,120,natl,lt980_iso,fail,2403,109,33,0.044,0.045
+year,120,natl,lt980_bc,fail,2403,109,33,0.033,0.045
+year,120,natl,lt970,fail,2403,41,22,0.011,0.017
+year,120,natl,lt970_iso,fail,2403,41,22,0.017,0.017
+year,120,natl,lt970_bc,fail,2403,41,22,0.013,0.017
+year,120,natl,lt960,fail,2403,18,11,0.003,0.007
+year,120,natl,lt960_iso,fail,2403,18,11,0.006,0.007
+year,120,natl,lt960_bc,fail,2403,18,11,0.004,0.007
+year,120,npac,exist,fail,2843,522,65,0.201,0.184
+year,120,npac,lt990,fail,2843,205,48,0.046,0.072
+year,120,npac,lt990_iso,fail,2843,205,48,0.075,0.072
+year,120,npac,lt990_bc,fail,2843,205,48,0.054,0.072
+year,120,npac,lt980,fail,2843,81,30,0.018,0.028
+year,120,npac,lt980_iso,fail,2843,81,30,0.028,0.028
+year,120,npac,lt980_bc,fail,2843,81,30,0.021,0.028
+year,120,npac,lt970,pass,2843,23,13,0.007,0.008
+year,120,npac,lt970_iso,pass,2843,23,13,0.01,0.008
+year,120,npac,lt970_bc,pass,2843,23,13,0.008,0.008
+year,120,npac,lt960,pass,2843,9,7,0.002,0.003
+year,120,npac,lt960_iso,not verifiable,2843,9,7,0.004,0.003
+year,120,npac,lt960_bc,pass,2843,9,7,0.003,0.003
+held,120,both,exist,pass,1561,311,17,0.207,0.199
+held,120,both,lt990,fail,1561,134,15,0.063,0.086
+held,120,both,lt990_iso,fail,1561,134,15,0.098,0.086
+held,120,both,lt990_bc,fail,1561,134,15,0.072,0.086
+held,120,both,lt980,fail,1561,42,9,0.026,0.027
+held,120,both,lt980_iso,fail,1561,42,9,0.041,0.027
+held,120,both,lt980_bc,fail,1561,42,9,0.031,0.027
+held,120,both,lt970,fail,1561,22,8,0.011,0.014
+held,120,both,lt970_iso,not verifiable,1561,22,8,0.016,0.014
+held,120,both,lt970_bc,fail,1561,22,8,0.013,0.014
+held,120,both,lt960,not verifiable,1561,7,5,0.004,0.004
+held,120,both,lt960_iso,not verifiable,1561,7,5,0.007,0.004
+held,120,both,lt960_bc,not verifiable,1561,7,5,0.005,0.004
+held,120,natl,exist,pass,803,174,17,0.203,0.217
+held,120,natl,lt990,fail,803,68,14,0.066,0.085
+held,120,natl,lt990_iso,fail,803,68,14,0.107,0.085
+held,120,natl,lt990_bc,fail,803,68,14,0.076,0.085
+held,120,natl,lt980,fail,803,26,8,0.028,0.032
+held,120,natl,lt980_iso,not verifiable,803,26,8,0.043,0.032
+held,120,natl,lt980_bc,fail,803,26,8,0.032,0.032
+held,120,natl,lt970,not verifiable,803,12,5,0.012,0.015
+held,120,natl,lt970_iso,not verifiable,803,12,5,0.018,0.015
+held,120,natl,lt970_bc,not verifiable,803,12,5,0.014,0.015
+held,120,natl,lt960,not verifiable,803,4,3,0.005,0.005
+held,120,natl,lt960_iso,not verifiable,803,4,3,0.008,0.005
+held,120,natl,lt960_bc,not verifiable,803,4,3,0.005,0.005
+held,120,npac,exist,pass,758,137,17,0.211,0.181
+held,120,npac,lt990,fail,758,66,13,0.059,0.087
+held,120,npac,lt990_iso,fail,758,66,13,0.088,0.087
+held,120,npac,lt990_bc,fail,758,66,13,0.067,0.087
+held,120,npac,lt980,not verifiable,758,16,7,0.025,0.021
+held,120,npac,lt980_iso,not verifiable,758,16,7,0.038,0.021
+held,120,npac,lt980_bc,not verifiable,758,16,7,0.03,0.021
+held,120,npac,lt970,not verifiable,758,10,6,0.009,0.013
+held,120,npac,lt970_iso,not verifiable,758,10,6,0.014,0.013
+held,120,npac,lt970_bc,not verifiable,758,10,6,0.011,0.013
+held,120,npac,lt960,not verifiable,758,3,2,0.003,0.004
+held,120,npac,lt960_iso,not verifiable,758,3,2,0.006,0.004
+held,120,npac,lt960_bc,not verifiable,758,3,2,0.004,0.004
+winter,144,both,exist,fail,1393,285,17,0.161,0.205
+winter,144,both,lt990,fail,1393,174,17,0.073,0.125
+winter,144,both,lt990_iso,pass,1393,174,17,0.118,0.125
+winter,144,both,lt990_bc,fail,1393,174,17,0.083,0.125
+winter,144,both,lt980,fail,1393,85,16,0.038,0.061
+winter,144,both,lt980_iso,fail,1393,85,16,0.053,0.061
+winter,144,both,lt980_bc,fail,1393,85,16,0.045,0.061
+winter,144,both,lt970,pass,1393,32,14,0.016,0.023
+winter,144,both,lt970_iso,pass,1393,32,14,0.023,0.023
+winter,144,both,lt970_bc,pass,1393,32,14,0.02,0.023
+winter,144,both,lt960,pass,1393,13,10,0.005,0.009
+winter,144,both,lt960_iso,pass,1393,13,10,0.012,0.009
+winter,144,both,lt960_bc,pass,1393,13,10,0.007,0.009
+winter,144,natl,exist,fail,639,137,16,0.163,0.214
+winter,144,natl,lt990,fail,639,95,15,0.091,0.149
+winter,144,natl,lt990_iso,fail,639,95,15,0.144,0.149
+winter,144,natl,lt990_bc,fail,639,95,15,0.101,0.149
+winter,144,natl,lt980,fail,639,47,14,0.053,0.074
+winter,144,natl,lt980_iso,pass,639,47,14,0.074,0.074
+winter,144,natl,lt980_bc,fail,639,47,14,0.062,0.074
+winter,144,natl,lt970,pass,639,19,10,0.024,0.03
+winter,144,natl,lt970_iso,pass,639,19,10,0.034,0.03
+winter,144,natl,lt970_bc,pass,639,19,10,0.03,0.03
+winter,144,natl,lt960,pass,639,8,5,0.007,0.013
+winter,144,natl,lt960_iso,pass,639,8,5,0.017,0.013
+winter,144,natl,lt960_bc,pass,639,8,5,0.01,0.013
+winter,144,npac,exist,fail,754,148,16,0.159,0.196
+winter,144,npac,lt990,fail,754,79,16,0.058,0.105
+winter,144,npac,lt990_iso,pass,754,79,16,0.096,0.105
+winter,144,npac,lt990_bc,fail,754,79,16,0.069,0.105
+winter,144,npac,lt980,fail,754,38,12,0.026,0.05
+winter,144,npac,lt980_iso,fail,754,38,12,0.036,0.05
+winter,144,npac,lt980_bc,fail,754,38,12,0.032,0.05
+winter,144,npac,lt970,not verifiable,754,13,7,0.01,0.017
+winter,144,npac,lt970_iso,pass,754,13,7,0.014,0.017
+winter,144,npac,lt970_bc,not verifiable,754,13,7,0.013,0.017
+winter,144,npac,lt960,pass,754,5,5,0.003,0.007
+winter,144,npac,lt960_iso,pass,754,5,5,0.007,0.007
+winter,144,npac,lt960_bc,not verifiable,754,5,5,0.004,0.007
+year,144,both,exist,pass,5163,848,66,0.164,0.164
+year,144,both,lt990,fail,5163,367,57,0.043,0.071
+year,144,both,lt990_iso,pass,5163,367,57,0.07,0.071
+year,144,both,lt990_bc,fail,5163,367,57,0.052,0.071
+year,144,both,lt980,fail,5163,142,37,0.018,0.028
+year,144,both,lt980_iso,pass,5163,142,37,0.026,0.028
+year,144,both,lt980_bc,pass,5163,142,37,0.022,0.028
+year,144,both,lt970,fail,5163,51,23,0.007,0.01
+year,144,both,lt970_iso,pass,5163,51,23,0.01,0.01
+year,144,both,lt970_bc,pass,5163,51,23,0.009,0.01
+year,144,both,lt960,pass,5163,23,17,0.002,0.004
+year,144,both,lt960_iso,pass,5163,23,17,0.005,0.004
+year,144,both,lt960_bc,pass,5163,23,17,0.003,0.004
+year,144,natl,exist,pass,2380,411,61,0.161,0.173
+year,144,natl,lt990,fail,2380,193,49,0.049,0.081
+year,144,natl,lt990_iso,pass,2380,193,49,0.081,0.081
+year,144,natl,lt990_bc,fail,2380,193,49,0.058,0.081
+year,144,natl,lt980,fail,2380,78,30,0.022,0.033
+year,144,natl,lt980_iso,pass,2380,78,30,0.032,0.033
+year,144,natl,lt980_bc,pass,2380,78,30,0.026,0.033
+year,144,natl,lt970,pass,2380,30,17,0.008,0.013
+year,144,natl,lt970_iso,pass,2380,30,17,0.012,0.013
+year,144,natl,lt970_bc,pass,2380,30,17,0.011,0.013
+year,144,natl,lt960,pass,2380,14,10,0.002,0.006
+year,144,natl,lt960_iso,pass,2380,14,10,0.006,0.006
+year,144,natl,lt960_bc,pass,2380,14,10,0.003,0.006
+year,144,npac,exist,pass,2783,437,63,0.167,0.157
+year,144,npac,lt990,fail,2783,174,45,0.038,0.063
+year,144,npac,lt990_iso,pass,2783,174,45,0.061,0.063
+year,144,npac,lt990_bc,fail,2783,174,45,0.046,0.063
+year,144,npac,lt980,fail,2783,64,24,0.015,0.023
+year,144,npac,lt980_iso,pass,2783,64,24,0.021,0.023
+year,144,npac,lt980_bc,fail,2783,64,24,0.019,0.023
+year,144,npac,lt970,fail,2783,21,11,0.005,0.008
+year,144,npac,lt970_iso,pass,2783,21,11,0.008,0.008
+year,144,npac,lt970_bc,fail,2783,21,11,0.007,0.008
+year,144,npac,lt960,pass,2783,9,8,0.002,0.003
+year,144,npac,lt960_iso,pass,2783,9,8,0.004,0.003
+year,144,npac,lt960_bc,pass,2783,9,8,0.002,0.003
+held,144,both,exist,fail,1655,289,17,0.169,0.175
+held,144,both,lt990,fail,1655,147,17,0.046,0.089
+held,144,both,lt990_iso,fail,1655,147,17,0.074,0.089
+held,144,both,lt990_bc,fail,1655,147,17,0.055,0.089
+held,144,both,lt980,fail,1655,49,12,0.019,0.03
+held,144,both,lt980_iso,pass,1655,49,12,0.027,0.03
+held,144,both,lt980_bc,pass,1655,49,12,0.023,0.03
+held,144,both,lt970,fail,1655,19,7,0.007,0.011
+held,144,both,lt970_iso,not verifiable,1655,19,7,0.009,0.011
+held,144,both,lt970_bc,pass,1655,19,7,0.009,0.011
+held,144,both,lt960,not verifiable,1655,3,2,0.002,0.002
+held,144,both,lt960_iso,not verifiable,1655,3,2,0.004,0.002
+held,144,both,lt960_bc,not verifiable,1655,3,2,0.003,0.002
+held,144,natl,exist,fail,852,164,17,0.164,0.192
+held,144,natl,lt990,fail,852,81,16,0.05,0.095
+held,144,natl,lt990_iso,fail,852,81,16,0.083,0.095
+held,144,natl,lt990_bc,fail,852,81,16,0.06,0.095
+held,144,natl,lt980,fail,852,33,12,0.02,0.039
+held,144,natl,lt980_iso,fail,852,33,12,0.03,0.039
+held,144,natl,lt980_bc,fail,852,33,12,0.025,0.039
+held,144,natl,lt970,not verifiable,852,11,5,0.008,0.013
+held,144,natl,lt970_iso,not verifiable,852,11,5,0.01,0.013
+held,144,natl,lt970_bc,not verifiable,852,11,5,0.01,0.013
+held,144,natl,lt960,not verifiable,852,2,1,0.003,0.002
+held,144,natl,lt960_iso,not verifiable,852,2,1,0.006,0.002
+held,144,natl,lt960_bc,not verifiable,852,2,1,0.004,0.002
+held,144,npac,exist,fail,803,125,17,0.175,0.156
+held,144,npac,lt990,fail,803,66,13,0.042,0.082
+held,144,npac,lt990_iso,fail,803,66,13,0.065,0.082
+held,144,npac,lt990_bc,fail,803,66,13,0.05,0.082
+held,144,npac,lt980,pass,803,16,7,0.018,0.02
+held,144,npac,lt980_iso,not verifiable,803,16,7,0.024,0.02
+held,144,npac,lt980_bc,pass,803,16,7,0.022,0.02
+held,144,npac,lt970,not verifiable,803,8,4,0.005,0.01
+held,144,npac,lt970_iso,not verifiable,803,8,4,0.008,0.01
+held,144,npac,lt970_bc,not verifiable,803,8,4,0.008,0.01
+held,144,npac,lt960,not verifiable,803,1,1,0.001,0.001
+held,144,npac,lt960_iso,not verifiable,803,1,1,0.003,0.001
+held,144,npac,lt960_bc,not verifiable,803,1,1,0.002,0.001
+winter,168,both,exist,fail,1345,244,13,0.139,0.181
+winter,168,both,lt990,fail,1345,147,13,0.062,0.109
+winter,168,both,lt990_iso,pass,1345,147,13,0.099,0.109
+winter,168,both,lt990_bc,fail,1345,147,13,0.074,0.109
+winter,168,both,lt980,fail,1345,75,11,0.033,0.056
+winter,168,both,lt980_iso,pass,1345,75,11,0.05,0.056
+winter,168,both,lt980_bc,pass,1345,75,11,0.041,0.056
+winter,168,both,lt970,pass,1345,27,10,0.013,0.02
+winter,168,both,lt970_iso,pass,1345,27,10,0.019,0.02
+winter,168,both,lt970_bc,pass,1345,27,10,0.018,0.02
+winter,168,both,lt960,pass,1345,10,7,0.004,0.007
+winter,168,both,lt960_iso,pass,1345,10,7,0.007,0.007
+winter,168,both,lt960_bc,pass,1345,10,7,0.006,0.007
+winter,168,natl,exist,pass,602,122,13,0.14,0.203
+winter,168,natl,lt990,pass,602,85,13,0.079,0.141
+winter,168,natl,lt990_iso,pass,602,85,13,0.122,0.141
+winter,168,natl,lt990_bc,pass,602,85,13,0.089,0.141
+winter,168,natl,lt980,pass,602,47,10,0.047,0.078
+winter,168,natl,lt980_iso,pass,602,47,10,0.073,0.078
+winter,168,natl,lt980_bc,pass,602,47,10,0.056,0.078
+winter,168,natl,lt970,pass,602,17,7,0.02,0.028
+winter,168,natl,lt970_iso,pass,602,17,7,0.029,0.028
+winter,168,natl,lt970_bc,pass,602,17,7,0.027,0.028
+winter,168,natl,lt960,not verifiable,602,5,3,0.006,0.008
+winter,168,natl,lt960_iso,not verifiable,602,5,3,0.011,0.008
+winter,168,natl,lt960_bc,not verifiable,602,5,3,0.009,0.008
+winter,168,npac,exist,fail,743,122,13,0.138,0.164
+winter,168,npac,lt990,fail,743,62,13,0.049,0.083
+winter,168,npac,lt990_iso,fail,743,62,13,0.079,0.083
+winter,168,npac,lt990_bc,fail,743,62,13,0.062,0.083
+winter,168,npac,lt980,fail,743,28,8,0.021,0.038
+winter,168,npac,lt980_iso,pass,743,28,8,0.032,0.038
+winter,168,npac,lt980_bc,pass,743,28,8,0.028,0.038
+winter,168,npac,lt970,not verifiable,743,10,5,0.008,0.013
+winter,168,npac,lt970_iso,not verifiable,743,10,5,0.01,0.013
+winter,168,npac,lt970_bc,not verifiable,743,10,5,0.011,0.013
+winter,168,npac,lt960,not verifiable,743,5,4,0.002,0.007
+winter,168,npac,lt960_iso,not verifiable,743,5,4,0.004,0.007
+winter,168,npac,lt960_bc,not verifiable,743,5,4,0.003,0.007
+year,168,both,exist,pass,4930,676,50,0.138,0.137
+year,168,both,lt990,fail,4930,291,45,0.035,0.059
+year,168,both,lt990_iso,pass,4930,291,45,0.058,0.059
+year,168,both,lt990_bc,pass,4930,291,45,0.045,0.059
+year,168,both,lt980,fail,4930,117,26,0.015,0.024
+year,168,both,lt980_iso,fail,4930,117,26,0.024,0.024
+year,168,both,lt980_bc,pass,4930,117,26,0.02,0.024
+year,168,both,lt970,fail,4930,38,17,0.006,0.008
+year,168,both,lt970_iso,pass,4930,38,17,0.008,0.008
+year,168,both,lt970_bc,pass,4930,38,17,0.008,0.008
+year,168,both,lt960,pass,4930,15,11,0.002,0.003
+year,168,both,lt960_iso,pass,4930,15,11,0.003,0.003
+year,168,both,lt960_bc,pass,4930,15,11,0.002,0.003
+year,168,natl,exist,pass,2262,335,49,0.134,0.148
+year,168,natl,lt990,fail,2262,162,44,0.041,0.072
+year,168,natl,lt990_iso,pass,2262,162,44,0.067,0.072
+year,168,natl,lt990_bc,pass,2262,162,44,0.051,0.072
+year,168,natl,lt980,fail,2262,68,21,0.019,0.03
+year,168,natl,lt980_iso,pass,2262,68,21,0.03,0.03
+year,168,natl,lt980_bc,pass,2262,68,21,0.024,0.03
+year,168,natl,lt970,pass,2262,22,11,0.007,0.01
+year,168,natl,lt970_iso,pass,2262,22,11,0.01,0.01
+year,168,natl,lt970_bc,pass,2262,22,11,0.01,0.01
+year,168,natl,lt960,pass,2262,7,5,0.002,0.003
+year,168,natl,lt960_iso,pass,2262,7,5,0.004,0.003
+year,168,natl,lt960_bc,pass,2262,7,5,0.003,0.003
+year,168,npac,exist,fail,2668,341,47,0.142,0.128
+year,168,npac,lt990,fail,2668,129,32,0.031,0.048
+year,168,npac,lt990_iso,fail,2668,129,32,0.051,0.048
+year,168,npac,lt990_bc,fail,2668,129,32,0.04,0.048
+year,168,npac,lt980,fail,2668,49,18,0.012,0.018
+year,168,npac,lt980_iso,pass,2668,49,18,0.019,0.018
+year,168,npac,lt980_bc,pass,2668,49,18,0.016,0.018
+year,168,npac,lt970,pass,2668,16,9,0.004,0.006
+year,168,npac,lt970_iso,pass,2668,16,9,0.006,0.006
+year,168,npac,lt970_bc,fail,2668,16,9,0.006,0.006
+year,168,npac,lt960,pass,2668,8,7,0.001,0.003
+year,168,npac,lt960_iso,pass,2668,8,7,0.002,0.003
+year,168,npac,lt960_bc,pass,2668,8,7,0.002,0.003
+held,168,both,exist,fail,1676,239,17,0.142,0.143
+held,168,both,lt990,fail,1676,104,16,0.034,0.062
+held,168,both,lt990_iso,pass,1676,104,16,0.056,0.062
+held,168,both,lt990_bc,fail,1676,104,16,0.044,0.062
+held,168,both,lt980,pass,1676,33,9,0.014,0.02
+held,168,both,lt980_iso,pass,1676,33,9,0.021,0.02
+held,168,both,lt980_bc,pass,1676,33,9,0.018,0.02
+held,168,both,lt970,pass,1676,16,5,0.005,0.01
+held,168,both,lt970_iso,pass,1676,16,5,0.007,0.01
+held,168,both,lt970_bc,pass,1676,16,5,0.007,0.01
+held,168,both,lt960,not verifiable,1676,3,2,0.002,0.002
+held,168,both,lt960_iso,not verifiable,1676,3,2,0.003,0.002
+held,168,both,lt960_bc,not verifiable,1676,3,2,0.002,0.002
+held,168,natl,exist,fail,812,131,17,0.142,0.161
+held,168,natl,lt990,fail,812,57,15,0.039,0.07
+held,168,natl,lt990_iso,pass,812,57,15,0.066,0.07
+held,168,natl,lt990_bc,fail,812,57,15,0.051,0.07
+held,168,natl,lt980,pass,812,23,9,0.016,0.028
+held,168,natl,lt980_iso,pass,812,23,9,0.024,0.028
+held,168,natl,lt980_bc,pass,812,23,9,0.021,0.028
+held,168,natl,lt970,not verifiable,812,13,4,0.007,0.016
+held,168,natl,lt970_iso,not verifiable,812,13,4,0.01,0.016
+held,168,natl,lt970_bc,not verifiable,812,13,4,0.009,0.016
+held,168,natl,lt960,not verifiable,812,3,2,0.003,0.004
+held,168,natl,lt960_iso,not verifiable,812,3,2,0.005,0.004
+held,168,natl,lt960_bc,not verifiable,812,3,2,0.003,0.004
+held,168,npac,exist,pass,864,108,17,0.142,0.125
+held,168,npac,lt990,fail,864,47,12,0.03,0.054
+held,168,npac,lt990_iso,pass,864,47,12,0.048,0.054
+held,168,npac,lt990_bc,fail,864,47,12,0.038,0.054
+held,168,npac,lt980,not verifiable,864,10,6,0.012,0.012
+held,168,npac,lt980_iso,not verifiable,864,10,6,0.017,0.012
+held,168,npac,lt980_bc,not verifiable,864,10,6,0.016,0.012
+held,168,npac,lt970,not verifiable,864,3,2,0.004,0.003
+held,168,npac,lt970_iso,not verifiable,864,3,2,0.005,0.003
+held,168,npac,lt970_bc,not verifiable,864,3,2,0.006,0.003
+held,168,npac,lt960,not verifiable,864,0,0,0.001,0
+held,168,npac,lt960_iso,not verifiable,864,0,0,0.002,0
+held,168,npac,lt960_bc,not verifiable,864,0,0,0.001,0

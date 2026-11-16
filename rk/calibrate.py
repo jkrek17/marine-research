@@ -220,6 +220,58 @@ def reliability_error(tab):
     return float(np.sqrt(np.sum(n[k] * d) / n[k].sum()))
 
 
+
+# ---- isotonic recalibration and event-week reliability (mslp-blend-d7 Part B) ----
+
+def isotonic_fit(x, y, w=None):
+    """Weighted isotonic (non-decreasing) regression of the 0/1 event y on the score x.
+    Returns (xk, yk): block mean score and block event rate, or None when there are fewer than 2 points or y
+    does not vary (the caller then uses the base rate)."""
+    x, y = np.asarray(x, float).ravel(), np.asarray(y, float).ravel()
+    w = np.ones_like(x) if w is None else np.asarray(w, float).ravel()
+    if len(x) < 2 or y.min() == y.max():
+        return None
+    o = np.argsort(x, kind="stable")
+    x, y, w = x[o], y[o], w[o]
+    blocks = []                                     # [sum w*y, sum w, sum w*x]
+    for xi, yi, wi in zip(x, y, w):
+        blocks.append([wi * yi, wi, wi * xi])
+        while len(blocks) > 1 and blocks[-2][0] / blocks[-2][1] >= blocks[-1][0] / blocks[-1][1]:
+            b2 = blocks.pop()
+            b1 = blocks.pop()
+            blocks.append([b1[0] + b2[0], b1[1] + b2[1], b1[2] + b2[2]])
+    xk = np.array([b[2] / b[1] for b in blocks])
+    yk = np.array([b[0] / b[1] for b in blocks])
+    return xk, yk
+
+
+def isotonic_apply(x, xk, yk):
+    """Chance for score x from `isotonic_fit` knots: linear between knots, flat outside."""
+    return np.interp(np.asarray(x, float), xk, yk)
+
+
+def reliability_weeks(p, y, weeks, edges=(0, .2, .4, .6, .8, 1.0001), tol=0.10, min_event_weeks=5):
+    """Reliability judged in event-weeks. Returns (DataFrame, verdict). Per bin: n, events, event_weeks (distinct
+    `weeks` ids with an event in the bin), mean_p, freq, ok (|freq - mean_p| <= tol), judged (event_weeks >=
+    min_event_weeks). verdict 'pass' (every judged bin ok, at least one judged), 'fail' (a judged bin is off) or
+    'not verifiable' (no bin judged)."""
+    import pandas as pd
+    p, y, weeks = np.asarray(p, float), np.asarray(y, float), np.asarray(weeks)
+    rows = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        s = (p >= lo) & (p < hi)
+        n = int(s.sum())
+        ev = int(y[s].sum()) if n else 0
+        ew = len(np.unique(weeks[s & (y > 0.5)])) if n else 0
+        mp = float(p[s].mean()) if n else np.nan
+        fr = float(y[s].mean()) if n else np.nan
+        rows.append(dict(lo=lo, hi=hi, n=n, events=ev, event_weeks=ew, mean_p=mp, freq=fr,
+                         ok=bool(n and abs(fr - mp) <= tol), judged=ew >= min_event_weeks))
+    t = pd.DataFrame(rows)
+    j = t[t.judged]
+    verdict = "not verifiable" if len(j) == 0 else ("pass" if j.ok.all() else "fail")
+    return t, verdict
+
 # ---- the page's file ----
 
 def to_page_json(curves, note="", path=None):

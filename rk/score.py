@@ -631,3 +631,13 @@ def warning_points(warned, basin, lat, lon, radius_km, mask=None, min_area_cells
     false = sum(int(not (near_any & (wlab == i)).any()) for i in areas)
     return dict(events=len(near), hits=hits, areas=len(areas), judged=len(areas), false=false,
                 cells=int(warned.sum()), bad_cells=int((warned & ~near_any).sum()), warned_cells=int(warned.sum()))
+
+
+def crps_cdf(cdf, grid, y):
+    """CRPS per case of forecast distributions given as CDF values cdf [n, m] on an increasing grid [m], against
+    observations y [n]: integral of (F(t) - 1[t >= y])^2 dt (trapezoid rule). The grid must span the forecast
+    support and y."""
+    cdf, grid, y = np.asarray(cdf, float), np.asarray(grid, float), np.asarray(y, float)
+    h = (grid[None, :] >= y[:, None]).astype(float)
+    integ = getattr(np, "trapezoid", None) or np.trapz
+    return integ((cdf - h) ** 2, grid, axis=1)

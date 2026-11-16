@@ -69,3 +69,8 @@ All in the store; no pull. ~600 basin-cycles x ~60 MB read once, reduced to MSLP
 
 ## Out of scope
 Wind from pressure (dead end, 2026-10-13); recent-skill weighting (dead end, 2026-10-13); page and GFE changes until Jason agrees.
+
+## Notes from the independent recompute (2026-11-16, after scoring)
+- Headline position, hit rate, false lows and RMSE for IFS, GFS and GFS+IFS reproduced to rounding (`verify.py`, `results/verify.csv`).
+- `strong_bias` counts every analysed low < 980 hPa, charging a miss the forecast field value at the analysed centre; it is not hits only (GFS +168: 10.0 with misses, 7.3 hits only). Quote it as such.
+- IFS at +144/+168 is scored on 604 cases where its keys exist; GFS and the GFS+IFS mean on 585. Matched-case comparisons shift IFS +144 by about 1 km.
