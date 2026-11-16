@@ -1,0 +1,29 @@
+lead,answer,winner,tied,n_pass
+24,best possible,none passes (IFS stays),,0
+24,AWIPS inputs,none passes (IFS stays),,0
+24,AWIPS inputs without AI-GFS,none passes (IFS stays),,0
+24,best field on RMSE,none passes (IFS stays),,0
+48,best possible,none passes (IFS stays),,0
+48,AWIPS inputs,none passes (IFS stays),,0
+48,AWIPS inputs without AI-GFS,none passes (IFS stays),,0
+48,best field on RMSE,none passes (IFS stays),,0
+72,best possible,none passes (IFS stays),,0
+72,AWIPS inputs,none passes (IFS stays),,0
+72,AWIPS inputs without AI-GFS,none passes (IFS stays),,0
+72,best field on RMSE,none passes (IFS stays),,0
+96,best possible,none passes (IFS stays),,0
+96,AWIPS inputs,none passes (IFS stays),,0
+96,AWIPS inputs without AI-GFS,none passes (IFS stays),,0
+96,best field on RMSE,none passes (IFS stays),,0
+120,best possible,none passes (IFS stays),,0
+120,AWIPS inputs,none passes (IFS stays),,0
+120,AWIPS inputs without AI-GFS,none passes (IFS stays),,0
+120,best field on RMSE,none passes (IFS stays),,0
+144,best possible,none passes (IFS stays),,0
+144,AWIPS inputs,none passes (IFS stays),,0
+144,AWIPS inputs without AI-GFS,none passes (IFS stays),,0
+144,best field on RMSE,none passes (IFS stays),,0
+168,best possible,none passes (IFS stays),,0
+168,AWIPS inputs,none passes (IFS stays),,0
+168,AWIPS inputs without AI-GFS,none passes (IFS stays),,0
+168,best field on RMSE,none passes (IFS stays),,0

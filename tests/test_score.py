@@ -389,6 +389,21 @@ def test_band_error():
     except ValueError:
         pass
 
+def test_field_error():
+    lats = np.array([60., 0.])
+    ob = np.zeros((2, 3)); fc = np.array([[2., 2., 2.], [0., 0., 0.]])
+    e = score.field_error(fc, ob, lats)
+    w0, w1 = np.cos(np.radians(60.)), 1.0
+    assert abs(e["bias"] - 2 * w0 / (w0 + w1)) < 1e-12
+    assert abs(e["rmse"] - np.sqrt(4 * w0 / (w0 + w1))) < 1e-12 and e["n"] == 6
+    m = np.array([[True] * 3, [False] * 3])
+    e = score.field_error(fc, ob, lats, mask=m)
+    assert abs(e["rmse"] - 2) < 1e-12 and e["n"] == 3
+    fc2 = fc.copy(); fc2[0, 0] = np.nan
+    assert score.field_error(fc2, ob, lats, mask=m)["n"] == 2
+    e = score.field_error(fc, ob, lats, mask=np.zeros((2, 3), bool))
+    assert e["n"] == 0 and np.isnan(e["rmse"]) and np.isnan(e["bias"])
+
 if __name__ == "__main__":
     for k, f in sorted(globals().items()):
         if k.startswith("test_"):

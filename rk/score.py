@@ -534,6 +534,21 @@ def low_case(truth_msl, fc_msl, basin, below=1000.0, fc_below=1010.0, radius_km=
     return rows, false_lows(truth_all, deep, false_radius_km), int(len(deep))
 
 
+
+def field_error(fc, ob, lats, mask=None):
+    """cos(latitude)-weighted error of a field on a regular lat grid (rows north to south, `lats` 1-D, degrees).
+    Cells that are NaN in either field, or outside `mask`, are not counted. Returns dict(rmse, bias, n):
+    bias is forecast minus truth; NaN rmse and bias when no cell counts."""
+    fc, ob, ok = _prep(fc, ob, mask)
+    w = np.broadcast_to(np.cos(np.radians(np.asarray(lats, float)))[:, None], fc.shape)
+    w = np.where(ok, w, 0.0)
+    sw = float(w.sum())
+    if sw == 0:
+        return {"rmse": float("nan"), "bias": float("nan"), "n": 0}
+    d = np.where(ok, fc - ob, 0.0)
+    return {"rmse": float(np.sqrt((w * d * d).sum() / sw)), "bias": float((w * d).sum() / sw), "n": int(ok.sum())}
+
+
 # ---- warnings: areas of wind at or above a level, scored as events ----
 
 def _label(m):
@@ -616,3 +631,13 @@ def warning_points(warned, basin, lat, lon, radius_km, mask=None, min_area_cells
     false = sum(int(not (near_any & (wlab == i)).any()) for i in areas)
     return dict(events=len(near), hits=hits, areas=len(areas), judged=len(areas), false=false,
                 cells=int(warned.sum()), bad_cells=int((warned & ~near_any).sum()), warned_cells=int(warned.sum()))
+
+
+def crps_cdf(cdf, grid, y):
+    """CRPS per case of forecast distributions given as CDF values cdf [n, m] on an increasing grid [m], against
+    observations y [n]: integral of (F(t) - 1[t >= y])^2 dt (trapezoid rule). The grid must span the forecast
+    support and y."""
+    cdf, grid, y = np.asarray(cdf, float), np.asarray(grid, float), np.asarray(y, float)
+    h = (grid[None, :] >= y[:, None]).astype(float)
+    integ = getattr(np, "trapezoid", None) or np.trapz
+    return integ((cdf - h) ** 2, grid, axis=1)
